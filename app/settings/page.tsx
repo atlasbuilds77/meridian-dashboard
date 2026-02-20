@@ -322,7 +322,7 @@ export default function SettingsPage() {
                 <h4 className="font-semibold text-foreground mb-1">Security & Privacy</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• All API keys are encrypted with AES-256-GCM</li>
-                  <li>• We only make READ-ONLY API calls (no trading execution)</li>
+                  <li>• Meridian executes trades on your behalf when enabled by admin</li>
                   <li>• Keys are stored securely and never sent to your browser</li>
                   <li>• All operations are logged for security compliance</li>
                 </ul>

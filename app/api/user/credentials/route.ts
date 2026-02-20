@@ -120,8 +120,8 @@ export async function POST(request: Request) {
       key_name
     );
     
-    // Mark as verified
-    await markCredentialVerified(userId, platform);
+    // Mark as verified and store account number if available
+    await markCredentialVerified(userId, platform, verificationResult.accountNumber);
     
     // Log successful creation
     await logApiKeyOperation(

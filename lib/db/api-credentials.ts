@@ -42,12 +42,20 @@ export async function storeApiCredential(
     secretAuthTag = secretEncryption.authTag;
   }
   
+  // Store encrypted_api_key as "encrypted:authTag" format
+  const encryptedKeyWithTag = `${encrypted}:${authTag}`;
+  const encryptedSecretWithTag = encryptedSecret 
+    ? `${encryptedSecret}:${secretAuthTag}` 
+    : null;
+  // For secrets, store their IV separately (use secretIv if exists, otherwise null)
+  // Main encryption_iv is for the API key
+  
   const result = await pool.query(
     `INSERT INTO api_credentials (
       user_id, platform, encrypted_api_key, encrypted_api_secret, 
       encryption_iv, key_name, verification_status
     ) 
-    VALUES ($1, $2, $3 || ':' || $4, $5 || COALESCE(':' || $6, ''), $7, $8, 'pending')
+    VALUES ($1, $2, $3, $4, $5, $6, 'pending')
     ON CONFLICT (user_id, platform) 
     DO UPDATE SET 
       encrypted_api_key = EXCLUDED.encrypted_api_key,
@@ -60,10 +68,8 @@ export async function storeApiCredential(
     [
       userId,
       platform,
-      encrypted,
-      authTag,
-      encryptedSecret ? `${secretIv}:${secretAuthTag}` : null,
-      secretIv,
+      encryptedKeyWithTag,
+      encryptedSecretWithTag,
       iv,
       keyName || `${platform} API Key`,
     ]
@@ -135,16 +141,18 @@ export async function getUserPlatforms(userId: number): Promise<ApiCredential[]>
  */
 export async function markCredentialVerified(
   userId: number,
-  platform: string
+  platform: string,
+  accountNumber?: string
 ): Promise<void> {
   await pool.query(
     `UPDATE api_credentials 
      SET verification_status = 'verified', 
          last_verified = CURRENT_TIMESTAMP,
          error_message = NULL,
+         account_number = COALESCE($3, account_number),
          updated_at = CURRENT_TIMESTAMP
      WHERE user_id = $1 AND platform = $2`,
-    [userId, platform]
+    [userId, platform, accountNumber || null]
   );
 }
 

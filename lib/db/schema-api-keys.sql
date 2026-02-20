@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS api_credentials (
     verification_status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'verified', 'failed'
     error_message TEXT, -- Last error if verification failed
     
+    -- Platform-specific metadata
+    account_number VARCHAR(50), -- Tradier account number, etc.
+    
     -- Permissions (read-only enforcement)
     permissions JSONB DEFAULT '{"read_only": true}',
     
