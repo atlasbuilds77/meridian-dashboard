@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import Image from "next/image";
+import { UserMenu } from "@/components/user-menu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,39 +22,46 @@ export const metadata: Metadata = {
 
 function Navigation() {
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/95 backdrop-blur-xl">
+      <div className="mx-auto max-w-[1600px] px-6 md:px-8 lg:px-12">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">M</span>
+          <div className="flex items-center gap-12">
+            <Link href="/" className="flex items-center gap-4 group">
+              <div className="relative h-14 w-14 transition-transform group-hover:scale-110">
+                <Image 
+                  src="/meridian-logo.png" 
+                  alt="Meridian" 
+                  fill 
+                  className="object-contain drop-shadow-[0_0_12px_rgba(0,255,136,0.4)] brightness-110"
+                />
               </div>
-              <span className="font-semibold text-lg tracking-tight">Meridian</span>
+              <span className="font-bold text-2xl tracking-tight bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
+                MERIDIAN
+              </span>
             </Link>
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-2">
               <Link 
                 href="/" 
-                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-profit rounded-lg hover:bg-secondary/50 transition-all"
               >
                 Dashboard
               </Link>
               <Link 
                 href="/trades" 
-                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
+                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary/50 transition-all"
               >
                 Trades
               </Link>
               <Link 
                 href="/analytics" 
-                className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
+                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary/50 transition-all"
               >
                 Analytics
               </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-violet-600" />
+            <UserMenu />
           </div>
         </div>
       </div>

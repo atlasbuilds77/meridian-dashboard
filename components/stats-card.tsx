@@ -24,11 +24,11 @@ export function StatsCard({
 }: StatsCardProps) {
   return (
     <Card className={cn(
-      "bg-card border-border/50 hover:border-border transition-colors",
+      "bg-card/50 border-border/50 hover:bg-card/80 backdrop-blur transition-all",
       className
     )}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
           {title}
         </CardTitle>
         {icon && (
@@ -41,8 +41,8 @@ export function StatsCard({
         <div className={cn(
           "font-bold tracking-tight",
           large ? "text-4xl md:text-5xl" : "text-2xl",
-          trend === 'up' && "text-emerald-500",
-          trend === 'down' && "text-red-500"
+          trend === 'up' && "text-profit",
+          trend === 'down' && "text-loss"
         )}>
           {value}
         </div>
@@ -73,26 +73,26 @@ export function PnLCard({ value, title = "Total P&L", subtitle }: PnLCardProps) 
   
   return (
     <Card className={cn(
-      "relative overflow-hidden border-2 transition-all duration-300",
+      "relative overflow-hidden border-2 transition-all duration-300 backdrop-blur",
       isPositive 
-        ? "border-emerald-500/30 bg-emerald-500/5" 
-        : "border-red-500/30 bg-red-500/5"
+        ? "border-profit/30 bg-profit/5" 
+        : "border-loss/30 bg-loss/5"
     )}>
       <div className={cn(
         "absolute inset-0 opacity-10",
         isPositive 
-          ? "bg-gradient-to-br from-emerald-500 to-transparent" 
-          : "bg-gradient-to-br from-red-500 to-transparent"
+          ? "bg-gradient-to-br from-profit to-transparent" 
+          : "bg-gradient-to-br from-loss to-transparent"
       )} />
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
           {title}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className={cn(
           "text-4xl md:text-6xl font-bold tracking-tight",
-          isPositive ? "text-emerald-500" : "text-red-500"
+          isPositive ? "text-profit" : "text-loss"
         )}>
           {isPositive ? '+' : '-'}{formatted}
         </div>
