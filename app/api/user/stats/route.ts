@@ -1,55 +1,30 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getUserStats } from '@/lib/db/users';
+import { requireUserId } from '@/lib/api/require-auth';
 
 export const dynamic = 'force-dynamic';
 
-async function getUserIdFromSession() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('meridian_session');
-  
-  if (!session) {
-    return null;
-  }
-  
-  try {
-    const sessionData = JSON.parse(session.value);
-    
-    if (sessionData.expiresAt < Date.now() || !sessionData.authorized) {
-      return null;
-    }
-    
-    return sessionData.dbUserId;
-  } catch {
-    return null;
-  }
-}
-
 export async function GET() {
-  const userId = await getUserIdFromSession();
-  
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const authResult = await requireUserId();
+  if (!authResult.ok) {
+    return authResult.response;
   }
-  
+
   try {
-    const stats = await getUserStats(userId);
-    
+    const stats = await getUserStats(authResult.userId);
+
     return NextResponse.json({
-      totalAccounts: parseInt(stats.total_accounts) || 0,
-      totalBalance: parseFloat(stats.total_balance) || 0,
-      totalTrades: parseInt(stats.total_trades) || 0,
-      wins: parseInt(stats.wins) || 0,
-      losses: parseInt(stats.losses) || 0,
-      totalPnL: parseFloat(stats.total_pnl) || 0,
-      winRate: parseFloat(stats.win_rate) || 0,
-      timestamp: new Date().toISOString()
+      totalAccounts: Number.parseInt(String(stats.total_accounts || 0), 10) || 0,
+      totalBalance: Number.parseFloat(String(stats.total_balance || 0)) || 0,
+      totalTrades: Number.parseInt(String(stats.total_trades || 0), 10) || 0,
+      wins: Number.parseInt(String(stats.wins || 0), 10) || 0,
+      losses: Number.parseInt(String(stats.losses || 0), 10) || 0,
+      totalPnL: Number.parseFloat(String(stats.total_pnl || 0)) || 0,
+      winRate: Number.parseFloat(String(stats.win_rate || 0)) || 0,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Stats fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch stats' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }
 }

@@ -1,269 +1,308 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface User {
-  id: number;
+  id: string;
   discord_id: string;
-  username: string;
+  discord_username: string;
+  discord_avatar: string | null;
   created_at: string;
   last_login: string;
-  trading_enabled: boolean | null;
-  size_pct: number | null;
-  max_position_size: number | null;
-  max_loss_pct: number | null;
-  platform: string | null;
-  verification_status: string | null;
-  account_number: string | null;
-  last_verified: string | null;
-  total_trades: number;
+}
+
+interface UserAccount {
+  user_id: string;
+  account_number: string;
+  platform: string;
+  verified: boolean;
+  trading_enabled: boolean;
+  size_pct: number;
+}
+
+interface UserStats {
+  user: User;
+  account: UserAccount | null;
+  trades_count: number;
   total_pnl: number;
-  wins: number;
-  losses: number;
   win_rate: number;
-  last_trade: string | null;
 }
 
-interface Stats {
-  total_users: number;
-  active_traders: number;
-  verified_accounts: number;
-  platform_total_pnl: number;
-  platform_total_trades: number;
-}
-
-export default function AdminPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+export default function AdminDashboard() {
+  const router = useRouter();
+  const [users, setUsers] = useState<UserStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [updating, setUpdating] = useState<number | null>(null);
-  const [editingSizePct, setEditingSizePct] = useState<{ [key: number]: string }>({});
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchUsers = useCallback(async () => {
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  async function fetchUsers() {
     try {
-      const res = await fetch('/api/admin/users');
-      if (res.status === 403) {
-        setError('Access denied. Admin only.');
-        setLoading(false);
+      const res = await fetch("/api/admin/users");
+      if (res.status === 401) {
+        router.push("/login?error=session_expired");
         return;
       }
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (res.status === 403) {
+        setError("Access denied. Admin only.");
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to fetch users");
+
       const data = await res.json();
       setUsers(data.users);
-      setStats(data.stats);
     } catch (err) {
-      setError('Failed to load admin data');
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-  const toggleTrading = async (userId: number, enabled: boolean) => {
-    setUpdating(userId);
+  async function toggleTrading(userId: string, enabled: boolean) {
     try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, trading_enabled: enabled }),
       });
-      if (res.ok) fetchUsers();
-    } catch { }
-    setUpdating(null);
-  };
 
-  const updateSizePct = async (userId: number) => {
-    const val = parseFloat(editingSizePct[userId]);
-    if (isNaN(val) || val < 0 || val > 1) return;
-    setUpdating(userId);
+      if (!res.ok) throw new Error("Failed to update");
+      await fetchUsers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed");
+    }
+  }
+
+  async function updateSizePct(userId: string, sizePct: number) {
     try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, size_pct: val }),
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, size_pct: sizePct }),
       });
-      if (res.ok) {
-        setEditingSizePct(prev => { const n = { ...prev }; delete n[userId]; return n; });
-        fetchUsers();
-      }
-    } catch { }
-    setUpdating(null);
-  };
 
-  const formatPnl = (pnl: number) => {
-    const formatted = `$${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-    if (pnl > 0) return <span className="text-profit">+{formatted}</span>;
-    if (pnl < 0) return <span className="text-loss">-{formatted}</span>;
-    return <span className="text-muted-foreground">{formatted}</span>;
-  };
+      if (!res.ok) throw new Error("Failed to update");
+      await fetchUsers();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed");
+    }
+  }
 
-  if (loading) return <div className="min-h-screen p-8 flex items-center justify-center text-muted-foreground">Loading...</div>;
-  if (error) return <div className="min-h-screen p-8 flex items-center justify-center text-loss">{error}</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-[#00ff88] text-xl">Loading admin panel...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-[#ff3b3b] text-xl">{error}</div>
+      </div>
+    );
+  }
+
+  const totalUsers = users.length;
+  const activeTraders = users.filter((u) => u.account?.trading_enabled).length;
+  const totalPnL = users.reduce((sum, u) => sum + u.total_pnl, 0);
+  const totalTrades = users.reduce((sum, u) => sum + u.trades_count, 0);
 
   return (
-    <div className="min-h-screen p-8 bg-background">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#0a0a0a] text-white p-8">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Meridian multi-tenant trading management</p>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-[#00ff88] mb-2">
+            ADMIN DASHBOARD
+          </h1>
+          <p className="text-gray-400">Multi-user trading system control</p>
         </div>
 
         {/* System Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[
-              { label: 'Total Users', value: stats.total_users },
-              { label: 'Active Traders', value: stats.active_traders },
-              { label: 'Verified Accounts', value: stats.verified_accounts },
-              { label: 'Total P&L', value: formatPnl(Number(stats.platform_total_pnl)) },
-              { label: 'Total Trades', value: stats.platform_total_trades },
-            ].map(({ label, value }) => (
-              <Card key={label} className="border-border/50">
-                <CardContent className="p-4 text-center">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
-                  <p className="text-2xl font-bold mt-1">{value}</p>
-                </CardContent>
-              </Card>
-            ))}
+        <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6">
+            <div className="text-gray-400 text-sm mb-1">TOTAL USERS</div>
+            <div className="text-3xl font-bold text-[#00ff88]">{totalUsers}</div>
           </div>
-        )}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6">
+            <div className="text-gray-400 text-sm mb-1">ACTIVE TRADERS</div>
+            <div className="text-3xl font-bold text-[#00ff88]">{activeTraders}</div>
+          </div>
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6">
+            <div className="text-gray-400 text-sm mb-1">TOTAL TRADES</div>
+            <div className="text-3xl font-bold">{totalTrades}</div>
+          </div>
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-6">
+            <div className="text-gray-400 text-sm mb-1">COMBINED P&L</div>
+            <div
+              className={`text-3xl font-bold ${
+                totalPnL >= 0 ? "text-[#00ff88]" : "text-[#ff3b3b]"
+              }`}
+            >
+              {totalPnL >= 0 ? "+" : ""}${totalPnL.toFixed(2)}
+            </div>
+          </div>
+        </div>
 
         {/* Users Table */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Singularity Users</CardTitle>
-            <CardDescription>{users.length} registered users</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/30 text-left text-muted-foreground">
-                    <th className="p-3">User</th>
-                    <th className="p-3">Trading</th>
-                    <th className="p-3">Size %</th>
-                    <th className="p-3">Account</th>
-                    <th className="p-3">Trades</th>
-                    <th className="p-3">P&L</th>
-                    <th className="p-3">Win Rate</th>
-                    <th className="p-3">Last Trade</th>
-                    <th className="p-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b border-border/10 hover:bg-secondary/20">
-                      <td className="p-3">
-                        <div>
-                          <span className="font-medium text-foreground">{user.username}</span>
-                          <p className="text-xs text-muted-foreground">
-                            Joined {new Date(user.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                          user.trading_enabled
-                            ? 'bg-profit/20 text-profit'
-                            : 'bg-secondary/50 text-muted-foreground'
-                        }`}>
-                          {user.trading_enabled ? 'ENABLED' : 'DISABLED'}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        {editingSizePct[user.id] !== undefined ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="1"
-                              value={editingSizePct[user.id]}
-                              onChange={(e) => setEditingSizePct(prev => ({ ...prev, [user.id]: e.target.value }))}
-                              className="w-20 h-7 text-xs"
-                            />
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
-                              onClick={() => updateSizePct(user.id)}
-                              disabled={updating === user.id}>✓</Button>
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
-                              onClick={() => setEditingSizePct(prev => { const n = { ...prev }; delete n[user.id]; return n; })}>✕</Button>
-                          </div>
-                        ) : (
-                          <button
-                            className="text-foreground hover:text-profit transition-colors"
-                            onClick={() => setEditingSizePct(prev => ({ ...prev, [user.id]: String(user.size_pct ?? 1.0) }))}
-                          >
-                            {((user.size_pct ?? 1.0) * 100).toFixed(0)}%
-                          </button>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        {user.account_number ? (
-                          <span className="text-xs font-mono text-foreground">{user.account_number}</span>
-                        ) : user.verification_status === 'verified' ? (
-                          <span className="text-xs text-yellow-500">No acct #</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {user.verification_status || 'No key'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-foreground">{user.total_trades}</td>
-                      <td className="p-3">{formatPnl(Number(user.total_pnl))}</td>
-                      <td className="p-3 text-foreground">{Number(user.win_rate).toFixed(0)}%</td>
-                      <td className="p-3 text-xs text-muted-foreground">
-                        {user.last_trade ? new Date(user.last_trade).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="p-3">
-                        <Button
-                          size="sm"
-                          variant={user.trading_enabled ? 'destructive' : 'default'}
-                          className="h-7 text-xs"
-                          disabled={updating === user.id || !user.verification_status || user.verification_status !== 'verified'}
-                          onClick={() => toggleTrading(user.id, !user.trading_enabled)}
-                        >
-                          {updating === user.id ? '...' : user.trading_enabled ? 'Disable' : 'Enable'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        No users registered yet
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg overflow-hidden">
+          <div className="p-6 border-b border-[#2a2a2a]">
+            <h2 className="text-xl font-bold text-[#00ff88]">
+              SINGULARITY USERS
+            </h2>
+          </div>
 
-        {/* Hardcoded Accounts Info */}
-        <Card className="border-border/50 bg-secondary/20">
-          <CardContent className="p-6">
-            <h4 className="font-semibold text-foreground mb-2">⚡ Hardcoded Accounts (Fallback)</h4>
-            <p className="text-sm text-muted-foreground mb-3">
-              These accounts run automatically when no DB accounts are available.
-              They are NOT shown above and cannot be disabled from this dashboard.
-            </p>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="p-3 bg-background/50 rounded">
-                <span className="font-medium">Aman</span> — 6YB71689 — 100% size
-              </div>
-              <div className="p-3 bg-background/50 rounded">
-                <span className="font-medium">Carlos</span> — 6YB71747 — 25% size
-              </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-[#0f0f0f]">
+                <tr className="text-left text-gray-400 text-sm">
+                  <th className="p-4">USER</th>
+                  <th className="p-4">TRADIER</th>
+                  <th className="p-4">TRADING</th>
+                  <th className="p-4">SIZE %</th>
+                  <th className="p-4">TRADES</th>
+                  <th className="p-4">P&L</th>
+                  <th className="p-4">WIN RATE</th>
+                  <th className="p-4">LAST LOGIN</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((stats) => (
+                  <tr
+                    key={stats.user.id}
+                    className="border-t border-[#2a2a2a] hover:bg-[#1f1f1f]"
+                  >
+                    {/* User */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        {stats.user.discord_avatar ? (
+                          <img
+                            src={`https://cdn.discordapp.com/avatars/${stats.user.discord_id}/${stats.user.discord_avatar}.png`}
+                            alt=""
+                            className="w-10 h-10 rounded-full"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-[#2a2a2a] flex items-center justify-center text-gray-500">
+                            {stats.user.discord_username[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium">
+                            {stats.user.discord_username}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {stats.user.discord_id}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Tradier Status */}
+                    <td className="p-4">
+                      {stats.account ? (
+                        <div>
+                          <div className="text-[#00ff88] font-mono text-sm">
+                            {stats.account.account_number}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {stats.account.verified ? "✓ Verified" : "⚠ Pending"}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 text-sm">Not connected</div>
+                      )}
+                    </td>
+
+                    {/* Trading Toggle */}
+                    <td className="p-4">
+                      {stats.account ? (
+                        <button
+                          onClick={() =>
+                            toggleTrading(
+                              stats.user.id,
+                              !stats.account!.trading_enabled
+                            )
+                          }
+                          className={`px-3 py-1 rounded text-sm font-medium ${
+                            stats.account.trading_enabled
+                              ? "bg-[#00ff88] text-black"
+                              : "bg-[#2a2a2a] text-gray-400"
+                          }`}
+                        >
+                          {stats.account.trading_enabled ? "ON" : "OFF"}
+                        </button>
+                      ) : (
+                        <div className="text-gray-600">—</div>
+                      )}
+                    </td>
+
+                    {/* Size % */}
+                    <td className="p-4">
+                      {stats.account ? (
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={stats.account.size_pct}
+                          onChange={(e) =>
+                            updateSizePct(stats.user.id, parseInt(e.target.value))
+                          }
+                          className="w-16 bg-[#2a2a2a] border border-[#3a3a3a] rounded px-2 py-1 text-sm"
+                        />
+                      ) : (
+                        <div className="text-gray-600">—</div>
+                      )}
+                    </td>
+
+                    {/* Trades */}
+                    <td className="p-4 font-mono">{stats.trades_count}</td>
+
+                    {/* P&L */}
+                    <td className="p-4">
+                      <div
+                        className={`font-mono font-medium ${
+                          stats.total_pnl >= 0
+                            ? "text-[#00ff88]"
+                            : "text-[#ff3b3b]"
+                        }`}
+                      >
+                        {stats.total_pnl >= 0 ? "+" : ""}$
+                        {stats.total_pnl.toFixed(2)}
+                      </div>
+                    </td>
+
+                    {/* Win Rate */}
+                    <td className="p-4">
+                      {stats.trades_count > 0 ? (
+                        <div className="font-mono">
+                          {(stats.win_rate * 100).toFixed(1)}%
+                        </div>
+                      ) : (
+                        <div className="text-gray-600">—</div>
+                      )}
+                    </td>
+
+                    {/* Last Login */}
+                    <td className="p-4 text-sm text-gray-400">
+                      {new Date(stats.user.last_login).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {users.length === 0 && (
+            <div className="p-12 text-center text-gray-500">
+              No users yet. Waiting for first Singularity member to log in.
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       </div>
     </div>
   );

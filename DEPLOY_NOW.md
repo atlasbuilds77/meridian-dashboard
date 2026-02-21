@@ -28,7 +28,7 @@ All security fixes are done. Here's your deployment checklist.
 Connect to your Render PostgreSQL:
 
 ```bash
-psql postgresql://postgresql_e5fi_user:moo24YFbny662K6sJvhpJLTAI6DSVlR5@dpg-d48i5r2li9vc739av9cg-a.oregon-postgres.render.com/postgresql_e5fi
+psql postgresql://<user>:<password>@<host>/<database>
 ```
 
 Then run:
@@ -63,8 +63,8 @@ Instance Type: Free (or Starter $7/month)
 Add these in Render dashboard → Environment:
 
 ```bash
-# Database (already exists)
-DATABASE_URL=postgresql://postgresql_e5fi_user:moo24YFbny662K6sJvhpJLTAI6DSVlR5@dpg-d48i5r2li9vc739av9cg-a.oregon-postgres.render.com/postgresql_e5fi
+# Database
+DATABASE_URL=postgresql://<user>:<password>@<host>/<database>
 
 # Discord OAuth
 DISCORD_CLIENT_ID=<get-from-discord-dev-portal>
@@ -79,10 +79,10 @@ SINGULARITY_ROLE_ID=<your-singularity-role-id>
 NEXT_PUBLIC_DISCORD_CLIENT_ID=<same-as-above>
 
 # Session Secret (CRITICAL - 32+ characters)
-SESSION_SECRET=5rIdx1otJbAi9O9KN8iAZxzXiAzH97FIFIiMfkaQg6c=
+SESSION_SECRET=<generate-32-byte-secret>
 
 # Tradier API
-TRADIER_TOKEN=jj8L3RuSVG5MUwUpz2XHrjXjAFrq
+TRADIER_TOKEN=<your-tradier-token>
 
 # Node environment
 NODE_ENV=production

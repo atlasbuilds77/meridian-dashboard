@@ -1,0 +1,59 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+
+export function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [hasCompleted, setHasCompleted] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(true);
+  
+  useEffect(() => {
+    // Skip check if already on onboarding page
+    if (pathname === '/onboarding') {
+      setChecking(false);
+      setHasCompleted(true); // Allow access to onboarding page
+      return;
+    }
+    
+    checkOnboardingStatus();
+  }, [pathname]);
+  
+  async function checkOnboardingStatus() {
+    try {
+      const response = await fetch('/api/onboarding/status');
+      const data = await response.json();
+      
+      setHasCompleted(data.hasCompleted);
+      
+      if (!data.hasCompleted && pathname !== '/onboarding') {
+        // Redirect to onboarding
+        router.push('/onboarding');
+      }
+    } catch (error) {
+      console.error('Onboarding check error:', error);
+      // On error, allow access (fail open)
+      setHasCompleted(true);
+    } finally {
+      setChecking(false);
+    }
+  }
+  
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-profit border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (hasCompleted === false && pathname !== '/onboarding') {
+    return null; // Will redirect
+  }
+  
+  return <>{children}</>;
+}

@@ -19,7 +19,7 @@ Run the constraint migration on your existing PostgreSQL database:
 
 ```bash
 # Connect to your Render PostgreSQL database
-psql postgresql://postgresql_e5fi_user:moo24YFbny662K6sJvhpJLTAI6DSVlR5@dpg-d48i5r2li9vc739av9cg-a.oregon-postgres.render.com/postgresql_e5fi
+psql postgresql://<user>:<password>@<host>/<database>
 
 # Run migration
 \i lib/db/migrations/add_constraints.sql
@@ -57,7 +57,7 @@ Add these environment variables in Render dashboard:
 
 ```bash
 # Database (already exists)
-DATABASE_URL=postgresql://postgresql_e5fi_user:moo24YFbny662K6sJvhpJLTAI6DSVlR5@dpg-d48i5r2li9vc739av9cg-a.oregon-postgres.render.com/postgresql_e5fi
+DATABASE_URL=postgresql://<user>:<password>@<host>/<database>
 
 # Discord OAuth (get from Discord Developer Portal)
 DISCORD_CLIENT_ID=<your_discord_client_id>
@@ -72,10 +72,10 @@ SINGULARITY_ROLE_ID=<your_singularity_role_id>
 NEXT_PUBLIC_DISCORD_CLIENT_ID=<your_discord_client_id>
 
 # Session Secret (CRITICAL - generate with: openssl rand -base64 32)
-SESSION_SECRET=5rIdx1otJbAi9O9KN8iAZxzXiAzH97FIFIiMfkaQg6c=
+SESSION_SECRET=<generate-32-byte-secret>
 
 # Tradier API (already exists)
-TRADIER_TOKEN=jj8L3RuSVG5MUwUpz2XHrjXjAFrq
+TRADIER_TOKEN=<your-tradier-token>
 
 # Node Environment
 NODE_ENV=production

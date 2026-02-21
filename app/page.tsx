@@ -1,33 +1,61 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  TrendingUp,
+  TrendingDown,
+  Activity,
   Target,
   BarChart3,
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
-  AlertCircle
-} from "lucide-react";
-import { useTradeData, useMarketData, useAccountData, useSystemStatus } from "@/hooks/use-live-data";
-import { formatCurrency, formatPercent, formatDate } from "@/lib/utils-client";
+  AlertCircle,
+} from 'lucide-react';
+import { useTradeData, useMarketData, useAccountData, useSystemStatus } from '@/hooks/use-live-data';
+import { formatCurrency, formatPercent, formatDate } from '@/lib/utils-client';
+
+type DashboardTrade = {
+  symbol?: string;
+  direction?: string;
+  status?: string;
+  created_at?: string;
+  entry_price?: number | string | null;
+  pnl?: number | string | null;
+  profit_loss?: number | string | null;
+};
+
+function parseNumber(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const parsed = Number.parseFloat(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isBullishDirection(direction: string): boolean {
+  return ['LONG', 'CALL', 'BUY'].includes(direction.toUpperCase());
+}
 
 function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   if (!lastUpdate) return null;
-  
-  const secondsAgo = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0;
+
+  const secondsAgo = Math.floor((now - lastUpdate.getTime()) / 1000);
   const isLive = secondsAgo < 60;
-  
+
   return (
     <div className="flex items-center gap-2">
       <div className={`h-2 w-2 rounded-full ${isLive ? 'bg-profit animate-pulse' : 'bg-muted-foreground'}`} />
-      <span className="text-xs text-muted-foreground">
-        {isLive ? 'Live' : `${secondsAgo}s ago`}
-      </span>
+      <span className="text-xs text-muted-foreground">{isLive ? 'Live' : `${secondsAgo}s ago`}</span>
     </div>
   );
 }
@@ -60,31 +88,28 @@ function PortfolioHeader() {
   const { data: trades, loading: tradesLoading, error: tradesError } = useTradeData();
   const { data: accounts, loading: accountsLoading } = useAccountData();
   const { data: market, lastUpdate } = useMarketData('QQQ');
-  
+
   if (tradesLoading || accountsLoading) {
     return <LoadingCard />;
   }
-  
+
   if (tradesError || !trades) {
     return <ErrorCard message="Failed to load portfolio data" />;
   }
-  
-  const totalPnL = trades.summary.totalPnL;
-  const accountBalance = accounts?.totalBalance || 90000; // fallback
+
+  const totalPnL = trades.summary.totalPnL || 0;
+  const accountBalance = accounts?.totalBalance || 0;
   const totalValue = accountBalance + totalPnL;
-  const totalReturn = (totalPnL / accountBalance) * 100;
-  
+  const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   const isPositive = totalPnL >= 0;
-  
+
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-secondary p-8">
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-profit animate-pulse" />
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Portfolio Value
-            </p>
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Portfolio Value</p>
           </div>
           <LiveIndicator lastUpdate={lastUpdate} />
         </div>
@@ -114,19 +139,16 @@ function PortfolioHeader() {
           {market && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">QQQ:</span>
-              <span className="text-lg font-semibold text-foreground">
-                ${market.price.toFixed(2)}
-              </span>
+              <span className="text-lg font-semibold text-foreground">${market.price.toFixed(2)}</span>
               <span className={`text-sm ${market.change >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {market.change >= 0 ? '+' : ''}{market.changePercent.toFixed(2)}%
+                {market.change >= 0 ? '+' : ''}
+                {market.changePercent.toFixed(2)}%
               </span>
             </div>
           )}
         </div>
       </div>
-      {isPositive && (
-        <div className="absolute top-0 right-0 w-96 h-96 bg-profit/5 rounded-full blur-3xl" />
-      )}
+      {isPositive && <div className="absolute top-0 right-0 w-96 h-96 bg-profit/5 rounded-full blur-3xl" />}
     </div>
   );
 }
@@ -134,85 +156,96 @@ function PortfolioHeader() {
 function StatsGrid() {
   const { data: trades, loading, error } = useTradeData();
   const { data: status } = useSystemStatus();
-  
+
   if (loading) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map(i => <LoadingCard key={i} />)}
+        {[1, 2, 3, 4].map((item) => (
+          <LoadingCard key={item} />
+        ))}
       </div>
     );
   }
-  
+
   if (error || !trades) {
     return <ErrorCard message="Failed to load statistics" />;
   }
-  
+
   const summary = trades.summary;
-  const meridianRunning = status?.systems.meridian.status === 'running';
-  
-  const stats = [
+  const meridianOnline = status?.systems.meridian.status === 'online';
+
+  const stats: Array<{
+    label: string;
+    value: string;
+    change?: 'up' | 'down';
+    icon: typeof Target;
+    color: 'profit' | 'loss' | 'muted';
+  }> = [
     {
-      label: "Win Rate",
-      value: `${summary.winRate.toFixed(1)}%`,
-      change: summary.winRate >= 50 ? "up" : "down",
+      label: 'Win Rate',
+      value: summary.winRate ? `${summary.winRate.toFixed(1)}%` : '0.0%',
+      change: (summary.winRate || 0) >= 50 ? 'up' : 'down',
       icon: Target,
-      color: summary.winRate >= 50 ? "profit" : "loss"
+      color: (summary.winRate || 0) >= 50 ? 'profit' : 'loss',
     },
     {
-      label: "Profit Factor",
-      value: summary.profitFactor.toFixed(2),
-      change: summary.profitFactor >= 1.5 ? "up" : "down",
+      label: 'Profit Factor',
+      value: summary.profitFactor ? summary.profitFactor.toFixed(2) : '0.00',
+      change: (summary.profitFactor || 0) >= 1.5 ? 'up' : 'down',
       icon: BarChart3,
-      color: summary.profitFactor >= 1.5 ? "profit" : "loss"
+      color: (summary.profitFactor || 0) >= 1.5 ? 'profit' : 'loss',
     },
     {
-      label: "Total Trades",
-      value: summary.totalTrades.toString(),
+      label: 'Total Trades',
+      value: (summary.totalTrades || 0).toString(),
       icon: Activity,
-      color: "muted"
+      color: 'muted',
     },
     {
-      label: "System Status",
-      value: meridianRunning ? "Running" : "Offline",
+      label: 'System Status',
+      value: meridianOnline ? 'Online' : 'Offline',
       icon: RefreshCw,
-      color: meridianRunning ? "profit" : "loss"
+      color: meridianOnline ? 'profit' : 'loss',
     },
   ];
-  
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {stats.map((stat, i) => {
+      {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
-          <Card key={i} className="border-border/50 bg-card/50 backdrop-blur hover:bg-card/80 transition-colors">
+          <Card key={index} className="border-border/50 bg-card/50 backdrop-blur hover:bg-card/80 transition-colors">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-4">
-                <div className={`p-2 rounded-lg ${
-                  stat.color === 'profit' ? 'bg-profit/10' :
-                  stat.color === 'loss' ? 'bg-loss/10' :
-                  'bg-muted/30'
-                }`}>
-                  <Icon className={`h-4 w-4 ${
-                    stat.color === 'profit' ? 'text-profit' :
-                    stat.color === 'loss' ? 'text-loss' :
-                    'text-muted-foreground'
-                  }`} />
+                <div
+                  className={`p-2 rounded-lg ${
+                    stat.color === 'profit' ? 'bg-profit/10' : stat.color === 'loss' ? 'bg-loss/10' : 'bg-muted/30'
+                  }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 ${
+                      stat.color === 'profit'
+                        ? 'text-profit'
+                        : stat.color === 'loss'
+                        ? 'text-loss'
+                        : 'text-muted-foreground'
+                    }`}
+                  />
                 </div>
-                {stat.change && (
-                  stat.change === 'up' ? (
+                {stat.change &&
+                  (stat.change === 'up' ? (
                     <TrendingUp className="h-4 w-4 text-profit" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-loss" />
-                  )
-                )}
+                  ))}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1 uppercase tracking-wider">{stat.label}</p>
-                <p className={`text-2xl font-bold ${
-                  stat.color === 'profit' ? 'text-profit' :
-                  stat.color === 'loss' ? 'text-loss' :
-                  'text-foreground'
-                }`}>
+                <p
+                  className={`text-2xl font-bold ${
+                    stat.color === 'profit' ? 'text-profit' : stat.color === 'loss' ? 'text-loss' : 'text-foreground'
+                  }`}
+                >
                   {stat.value}
                 </p>
               </div>
@@ -226,88 +259,72 @@ function StatsGrid() {
 
 function RecentActivity() {
   const { data: trades, loading, error } = useTradeData();
-  
+
   if (loading) {
     return <LoadingCard />;
   }
-  
+
   if (error || !trades) {
     return <ErrorCard message="Failed to load recent trades" />;
   }
-  
-  const recentTrades = trades.trades.slice(0, 10);
-  
+
+  const recentTrades = (trades.trades as DashboardTrade[]).slice(0, 10);
+
   return (
     <Card className="col-span-full border-border/50 bg-card/50 backdrop-blur">
       <CardHeader className="border-b border-border/50 pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold">Recent Activity</CardTitle>
-          <a 
-            href="/trades" 
-            className="text-sm text-profit hover:text-profit/80 transition-colors font-medium"
-          >
+          <a href="/trades" className="text-sm text-profit hover:text-profit/80 transition-colors font-medium">
             View all →
           </a>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border/30">
-          {recentTrades.map((trade: any, i: number) => {
-            const isWin = trade.profit_loss && parseFloat(trade.profit_loss) >= 0;
-            const direction = trade.direction || 'UNKNOWN';
-            
+          {recentTrades.map((trade, index) => {
+            const direction = (trade.direction || 'UNKNOWN').toUpperCase();
+            const bullish = isBullishDirection(direction);
+            const pnlValue = parseNumber(trade.pnl) ?? parseNumber(trade.profit_loss);
+            const isWin = pnlValue !== null && pnlValue >= 0;
+            const entryPrice = parseNumber(trade.entry_price);
+
             return (
-              <div 
-                key={i} 
-                className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
-              >
+              <div key={`${trade.symbol || 'trade'}-${index}`} className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className={`flex items-center justify-center h-10 w-10 rounded-lg ${
-                    direction === 'LONG' || direction === 'BUY' 
-                      ? 'bg-profit/10' 
-                      : 'bg-loss/10'
-                  }`}>
-                    {direction === 'LONG' || direction === 'BUY' ? (
-                      <TrendingUp className="h-5 w-5 text-profit" />
-                    ) : (
-                      <TrendingDown className="h-5 w-5 text-loss" />
-                    )}
+                  <div className={`flex items-center justify-center h-10 w-10 rounded-lg ${bullish ? 'bg-profit/10' : 'bg-loss/10'}`}>
+                    {bullish ? <TrendingUp className="h-5 w-5 text-profit" /> : <TrendingDown className="h-5 w-5 text-loss" />}
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{trade.symbol || 'N/A'}</span>
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs ${
-                          direction === 'LONG' || direction === 'BUY'
-                            ? 'border-profit/30 text-profit' 
-                            : 'border-loss/30 text-loss'
-                        }`}
+                      <Badge
+                        variant="outline"
+                        className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}
                       >
                         {direction}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       {trade.created_at ? formatDate(trade.created_at) : 'Unknown date'}
-                      {trade.entry_price && ` • Entry: $${parseFloat(trade.entry_price).toFixed(2)}`}
+                      {entryPrice !== null ? ` • Entry: $${entryPrice.toFixed(2)}` : ''}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-right">
                   <div className={`text-lg font-bold ${isWin ? 'text-profit' : 'text-loss'}`}>
-                    {trade.profit_loss ? (
+                    {pnlValue !== null ? (
                       <>
-                        {isWin && '+'}{formatCurrency(parseFloat(trade.profit_loss))}
+                        {pnlValue >= 0 ? '+' : ''}
+                        {formatCurrency(pnlValue)}
                       </>
                     ) : (
                       <span className="text-muted-foreground">Pending</span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {trade.status || 'Unknown'}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{trade.status || 'Unknown'}</div>
                 </div>
               </div>
             );

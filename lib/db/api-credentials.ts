@@ -100,13 +100,20 @@ export async function getApiCredential(
   try {
     // Parse encrypted key and auth tag
     const [encryptedKey, authTag] = row.encrypted_api_key.split(':');
+    if (!authTag) {
+      console.error('Missing auth tag in encrypted_api_key');
+      return null;
+    }
+    
     const apiKey = decryptApiKey(encryptedKey, row.encryption_iv, authTag);
     
     let apiSecret: string | undefined;
     if (row.encrypted_api_secret) {
-      const [ivPart, authTagPart] = row.encryption_iv.split(':');
-      const [encryptedSecretPart] = row.encrypted_api_secret.split(':');
-      apiSecret = decryptApiKey(encryptedSecretPart, ivPart, authTagPart);
+      const [encryptedSecretPart, secretAuthTag] = row.encrypted_api_secret.split(':');
+      if (secretAuthTag) {
+        // For secrets, we assume they use the same IV (could be enhanced)
+        apiSecret = decryptApiKey(encryptedSecretPart, row.encryption_iv, secretAuthTag);
+      }
     }
     
     return {

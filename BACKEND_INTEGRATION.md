@@ -25,7 +25,7 @@
 
 #### 2. **Trades API** (`/api/trades`)
 **Data Source**: Helios PostgreSQL (`pending_signals` table)
-- ✅ Connected to: `postgresql://postgresql_e5fi_user:...@dpg-d48i5r2li9vc739av9cg-a.oregon-postgres.render.com/postgresql_e5fi`
+- ✅ Connected to: `postgresql://<user>:<password>@<host>/<database>`
 - ✅ Queries recent trades with profit/loss
 - ✅ Calculates: total P&L, win rate, profit factor, avg win/loss
 
@@ -65,7 +65,7 @@
 
 #### 4. **Market API** (`/api/market`)
 **Data Source**: Tradier API (live market data)
-- ✅ Token: `jj8L3RuSVG5MUwUpz2XHrjXjAFrq`
+- ✅ Token: `<your-tradier-token>`
 - ✅ Base URL: `https://api.tradier.com`
 - ✅ Real-time QQQ quote
 - ✅ Historical data (30 days)

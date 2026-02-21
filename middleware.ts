@@ -1,54 +1,57 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { applySecurityHeaders } from '@/lib/security/headers';
+
+const SESSION_SECRET = process.env.SESSION_SECRET;
+const PUBLIC_ROUTES = ['/login', '/api/auth/discord/callback', '/api/auth/discord/login'];
+
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+function withHeaders(response: NextResponse): NextResponse {
+  return applySecurityHeaders(response);
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/api/auth/discord/callback'];
-  
-  // Check if the current path is public
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-
-  if (isPublicRoute) {
-    return NextResponse.next();
+  if (pathname.startsWith('/api')) {
+    return withHeaders(NextResponse.next());
   }
 
-  // Get session cookie
-  const session = request.cookies.get('meridian_session');
+  if (isPublicRoute(pathname)) {
+    return withHeaders(NextResponse.next());
+  }
 
-  // If no session, redirect to login
+  const session = request.cookies.get('meridian_session');
   if (!session) {
     const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    return withHeaders(NextResponse.redirect(loginUrl));
   }
 
-  // Verify JWT session
+  if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+    const loginUrl = new URL('/login?error=auth_config', request.url);
+    const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete('meridian_session');
+    return withHeaders(response);
+  }
+
   try {
-    const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
+    const secret = new TextEncoder().encode(SESSION_SECRET);
     await jwtVerify(session.value, secret);
-    
-    // JWT is valid, continue
-    return NextResponse.next();
-  } catch (error) {
-    // Invalid or expired JWT, redirect to login
+    return withHeaders(NextResponse.next());
+  } catch {
     const loginUrl = new URL('/login?error=session_expired', request.url);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete('meridian_session');
-    return response;
+    return withHeaders(response);
   }
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

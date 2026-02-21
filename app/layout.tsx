@@ -4,6 +4,7 @@ import "./globals.css";
 import Link from "next/link";
 import Image from "next/image";
 import { UserMenu } from "@/components/user-menu";
+import { OnboardingGate } from "@/components/onboarding-gate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -77,11 +78,38 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}>
-        <Navigation />
-        <main className="pt-16">
-          {children}
-        </main>
+        <LayoutContent>{children}</LayoutContent>
       </body>
     </html>
   );
+}
+
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  'use client';
+  
+  const pathname = usePathname();
+  const isAuthPage = pathname === '/login' || pathname?.startsWith('/api/auth');
+  const isOnboardingPage = pathname === '/onboarding';
+  
+  if (isAuthPage) {
+    return <main>{children}</main>;
+  }
+  
+  if (isOnboardingPage) {
+    return <main>{children}</main>;
+  }
+  
+  return (
+    <>
+      <Navigation />
+      <main className="pt-16">
+        <OnboardingGate>{children}</OnboardingGate>
+      </main>
+    </>
+  );
+}
+
+function usePathname() {
+  if (typeof window === 'undefined') return null;
+  return window.location.pathname;
 }

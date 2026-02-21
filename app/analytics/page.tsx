@@ -77,6 +77,28 @@ export default function AnalyticsPage() {
       </div>
     );
   }
+  
+  if (!stats || stats.total_trades === 0) {
+    return (
+      <div className="min-h-screen p-4 md:p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+            <p className="text-muted-foreground">
+              Deep dive into your trading performance
+            </p>
+          </div>
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground">
+                No trading data yet. Analytics will appear once Meridian executes trades.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate cumulative P&L
   let cumulative = 0;

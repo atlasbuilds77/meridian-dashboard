@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PaymentMethodManager } from '@/components/payment-method-form';
 
 interface Platform {
   id: number;
@@ -311,6 +312,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Payment Methods */}
+        <PaymentMethodManager />
+
         {/* Security Info */}
         <Card className="border-border/50 bg-secondary/20">
           <CardContent className="p-6">
@@ -325,6 +329,7 @@ export default function SettingsPage() {
                   <li>• Meridian executes trades on your behalf when enabled by admin</li>
                   <li>• Keys are stored securely and never sent to your browser</li>
                   <li>• All operations are logged for security compliance</li>
+                  <li>• Payment methods secured by Stripe (PCI-DSS compliant)</li>
                 </ul>
               </div>
             </div>

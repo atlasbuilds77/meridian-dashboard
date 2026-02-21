@@ -77,7 +77,7 @@ export class TradierClient {
   /**
    * Get user profile (verify API key works)
    */
-  async getProfile(): Promise<{ id: string; name: string; account: { account_number: string }[] }> {
+  async getProfile(): Promise<{ profile: { id: string; name: string; account: { account_number: string } } }> {
     return this.fetch('/user/profile');
   }
   
@@ -135,18 +135,18 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
 }> {
   try {
     const client = new TradierClient(apiKey, useSandbox);
-    const profile = await client.getProfile();
+    const response = await client.getProfile();
     
-    if (profile.account && profile.account.length > 0) {
+    if (response.profile?.account?.account_number) {
       return {
         valid: true,
-        accountNumber: profile.account[0].account_number,
+        accountNumber: response.profile.account.account_number,
       };
     }
     
     return {
       valid: false,
-      error: 'No accounts found',
+      error: 'No account found in profile',
     };
   } catch (error: any) {
     return {

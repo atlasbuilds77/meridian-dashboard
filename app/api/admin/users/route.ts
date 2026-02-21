@@ -1,122 +1,170 @@
-import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import pool from '@/lib/db/pool';
+import { requireAdminSession } from '@/lib/api/require-auth';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
-export const dynamic = 'force-dynamic';
+const updateSchema = z
+  .object({
+    user_id: z.number().int().positive(),
+    trading_enabled: z.boolean().optional(),
+    size_pct: z.number().int().min(1).max(100).optional(),
+  })
+  .refine((value) => value.trading_enabled !== undefined || value.size_pct !== undefined, {
+    message: 'No valid updates provided',
+  });
 
-// Admin Discord IDs (Hunter)
-const ADMIN_IDS = ['464974803462438924'];
-
-async function requireAdmin() {
-  const session = await getSession();
-  if (!session || !ADMIN_IDS.includes(session.discordId)) {
-    return null;
-  }
-  return session;
-}
-
-/**
- * GET /api/admin/users
- * List all users with trading status, credentials, and P&L
- */
 export async function GET() {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  const adminResult = await requireAdminSession();
+  if (!adminResult.ok) {
+    return adminResult.response;
   }
 
   try {
-    const result = await pool.query(`
-      SELECT 
+    const { rows } = await pool.query(`
+      WITH trade_pnl AS (
+        SELECT
+          t.user_id,
+          t.id,
+          COALESCE(
+            t.pnl,
+            CASE
+              WHEN t.exit_price IS NULL THEN NULL
+              WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+                THEN (t.exit_price - t.entry_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+                THEN (t.entry_price - t.exit_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              ELSE NULL
+            END
+          ) AS pnl_value
+        FROM trades t
+        WHERE t.status = 'closed'
+      )
+      SELECT
         u.id,
         u.discord_id,
         u.username,
+        u.avatar,
         u.created_at,
         u.last_login,
-        uts.trading_enabled,
-        uts.size_pct,
-        uts.max_position_size,
-        uts.max_loss_pct,
+        ac.account_number,
         ac.platform,
         ac.verification_status,
-        ac.account_number,
-        ac.last_verified,
-        COALESCE(ps.total_trades, 0) as total_trades,
-        COALESCE(ps.total_pnl, 0) as total_pnl,
-        COALESCE(ps.wins, 0) as wins,
-        COALESCE(ps.losses, 0) as losses,
-        COALESCE(ps.win_rate, 0) as win_rate,
-        (SELECT MAX(t.entry_date) FROM trades t WHERE t.user_id = u.id) as last_trade
+        ac.trading_enabled,
+        ac.size_pct,
+        COUNT(tp.id) AS trades_count,
+        COALESCE(SUM(tp.pnl_value), 0) AS total_pnl,
+        COALESCE(
+          100.0 * COUNT(*) FILTER (WHERE tp.pnl_value > 0) / NULLIF(COUNT(tp.id), 0),
+          0
+        ) AS win_rate
       FROM users u
-      LEFT JOIN user_trading_settings uts ON u.id = uts.user_id
-      LEFT JOIN api_credentials ac ON u.id = ac.user_id AND ac.platform = 'tradier'
-      LEFT JOIN user_portfolio_summary ps ON u.id = ps.user_id
+      LEFT JOIN api_credentials ac ON ac.user_id = u.id AND ac.platform = 'tradier'
+      LEFT JOIN trade_pnl tp ON tp.user_id = u.id
+      GROUP BY
+        u.id,
+        ac.account_number,
+        ac.platform,
+        ac.verification_status,
+        ac.trading_enabled,
+        ac.size_pct
       ORDER BY u.created_at DESC
     `);
 
-    // System stats
-    const statsResult = await pool.query(`
-      SELECT 
-        COUNT(DISTINCT u.id) as total_users,
-        COUNT(DISTINCT CASE WHEN uts.trading_enabled = true THEN u.id END) as active_traders,
-        COUNT(DISTINCT CASE WHEN ac.verification_status = 'verified' THEN u.id END) as verified_accounts,
-        COALESCE(SUM(ps.total_pnl), 0) as platform_total_pnl,
-        COALESCE(SUM(ps.total_trades), 0) as platform_total_trades
-      FROM users u
-      LEFT JOIN user_trading_settings uts ON u.id = uts.user_id
-      LEFT JOIN api_credentials ac ON u.id = ac.user_id AND ac.platform = 'tradier'
-      LEFT JOIN user_portfolio_summary ps ON u.id = ps.user_id
-    `);
+    const users = rows.map((row) => ({
+      user: {
+        id: row.id,
+        discord_id: row.discord_id,
+        discord_username: row.username,
+        discord_avatar: row.avatar,
+        created_at: row.created_at,
+        last_login: row.last_login,
+      },
+      account: row.account_number
+        ? {
+            user_id: row.id,
+            account_number: row.account_number,
+            platform: row.platform,
+            verified: row.verification_status === 'verified',
+            trading_enabled: row.trading_enabled,
+            size_pct: row.size_pct,
+          }
+        : null,
+      trades_count: Number.parseInt(String(row.trades_count), 10) || 0,
+      total_pnl: Number.parseFloat(String(row.total_pnl)) || 0,
+      win_rate: Number.parseFloat(String(row.win_rate)) || 0,
+    }));
 
-    return NextResponse.json({
-      users: result.rows,
-      stats: statsResult.rows[0],
-      timestamp: new Date().toISOString(),
-    });
+    return NextResponse.json({ users });
   } catch (error) {
     console.error('Admin users fetch error:', error);
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-/**
- * PATCH /api/admin/users
- * Update user trading settings (enable/disable, size_pct)
- */
-export async function PATCH(request: Request) {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+export async function PATCH(req: NextRequest) {
+  const adminResult = await requireAdminSession();
+  if (!adminResult.ok) {
+    return adminResult.response;
+  }
+
+  const limiterResult = await enforceRateLimit({
+    request: req,
+    name: 'admin_users_patch',
+    limit: 60,
+    windowMs: 60_000,
+    userId: adminResult.session.dbUserId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'admin_users_patch');
   }
 
   try {
-    const { user_id, trading_enabled, size_pct, max_position_size } = await request.json();
+    const payload = await req.json();
+    const parsed = updateSchema.safeParse(payload);
 
-    if (!user_id) {
-      return NextResponse.json({ error: 'user_id required' }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid request payload' },
+        { status: 400 }
+      );
     }
 
-    // Upsert user_trading_settings
-    await pool.query(`
-      INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, max_position_size, enabled_at, enabled_by)
-      VALUES ($1, $2, $3, $4, 
-        CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE NULL END,
-        CASE WHEN $2 = true THEN $5 ELSE NULL END
-      )
-      ON CONFLICT (user_id) DO UPDATE SET
-        trading_enabled = COALESCE($2, user_trading_settings.trading_enabled),
-        size_pct = COALESCE($3, user_trading_settings.size_pct),
-        max_position_size = COALESCE($4, user_trading_settings.max_position_size),
-        enabled_at = CASE WHEN $2 = true AND user_trading_settings.trading_enabled != true 
-                     THEN CURRENT_TIMESTAMP ELSE user_trading_settings.enabled_at END,
-        enabled_by = CASE WHEN $2 = true AND user_trading_settings.trading_enabled != true 
-                     THEN $5 ELSE user_trading_settings.enabled_by END,
-        updated_at = CURRENT_TIMESTAMP
-    `, [user_id, trading_enabled, size_pct, max_position_size, session.discordId]);
+    const { user_id, trading_enabled, size_pct } = parsed.data;
 
-    return NextResponse.json({ success: true });
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    if (typeof trading_enabled === 'boolean') {
+      updates.push(`trading_enabled = $${paramIndex++}`);
+      values.push(trading_enabled);
+    }
+
+    if (typeof size_pct === 'number') {
+      updates.push(`size_pct = $${paramIndex++}`);
+      values.push(size_pct);
+    }
+
+    values.push(user_id);
+
+    const query = `
+      UPDATE api_credentials
+      SET ${updates.join(', ')}, updated_at = NOW()
+      WHERE user_id = $${paramIndex} AND platform = 'tradier'
+      RETURNING *
+    `;
+
+    const { rows } = await pool.query(query, values);
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, account: rows[0] });
   } catch (error) {
     console.error('Admin update error:', error);
-    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

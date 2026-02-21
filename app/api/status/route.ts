@@ -1,98 +1,100 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { requireUserId } from '@/lib/api/require-auth';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-async function checkMeridian() {
+type SystemStatus = {
+  name: string;
+  status: 'online' | 'degraded' | 'offline';
+  lastUpdate: string | null;
+};
+
+async function checkService(name: string, url: string): Promise<SystemStatus> {
   try {
-    const { stdout } = await execAsync('ps aux | grep meridian_main.py | grep -v grep');
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+
+    return {
+      name,
+      status: response.ok ? 'online' : 'degraded',
+      lastUpdate: new Date().toISOString(),
+    };
+  } catch {
+    return {
+      name,
+      status: 'offline',
+      lastUpdate: null,
+    };
+  }
+}
+
+async function checkMeridian(): Promise<SystemStatus> {
+  const meridianHealthUrl = process.env.MERIDIAN_HEALTHCHECK_URL;
+  if (!meridianHealthUrl) {
     return {
       name: 'Meridian',
-      status: stdout ? 'online' : 'offline',
-      lastUpdate: new Date().toISOString()
-    };
-  } catch {
-    return {
-      name: 'Meridian',
-      status: 'offline',
-      lastUpdate: null
+      status: 'degraded',
+      lastUpdate: null,
     };
   }
+
+  return checkService('Meridian', meridianHealthUrl);
 }
 
-async function checkHelios() {
-  try {
-    const response = await fetch('https://helios-px7f.onrender.com/health', {
-      signal: AbortSignal.timeout(5000)
-    });
-    return {
-      name: 'Helios',
-      status: response.ok ? 'online' : 'degraded',
-      lastUpdate: new Date().toISOString()
-    };
-  } catch {
-    return {
-      name: 'Helios',
-      status: 'offline',
-      lastUpdate: null
-    };
+export async function GET(request: Request) {
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'system_status',
+    limit: 120,
+    windowMs: 60_000,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'system_status');
   }
-}
 
-async function checkNebula() {
-  try {
-    const response = await fetch('https://nebula.zerogtrading.com/api/futures/prices?symbol=ES', {
-      signal: AbortSignal.timeout(5000)
-    });
-    return {
-      name: 'Nebula',
-      status: response.ok ? 'online' : 'degraded',
-      lastUpdate: new Date().toISOString()
-    };
-  } catch {
-    return {
-      name: 'Nebula',
-      status: 'offline',
-      lastUpdate: null
-    };
+  const authResult = await requireUserId();
+  if (!authResult.ok) {
+    return authResult.response;
   }
-}
 
-export async function GET() {
   try {
     const [meridian, helios, nebula] = await Promise.all([
       checkMeridian(),
-      checkHelios(),
-      checkNebula()
+      checkService('Helios', 'https://helios-px7f.onrender.com/health'),
+      checkService('Nebula', 'https://nebula.zerogtrading.com/api/futures/prices?symbol=ES'),
     ]);
 
     const systems = { meridian, helios, nebula };
-    const allOnline = Object.values(systems).every(s => s.status === 'online');
-    const anyDegraded = Object.values(systems).some(s => s.status === 'degraded');
-    const anyOffline = Object.values(systems).some(s => s.status === 'offline');
+    const allOnline = Object.values(systems).every((system) => system.status === 'online');
+    const anyOffline = Object.values(systems).some((system) => system.status === 'offline');
 
-    const overall = allOnline ? 'healthy' : anyOffline ? 'error' : 'degraded';
+    const overall: 'healthy' | 'degraded' | 'error' = allOnline
+      ? 'healthy'
+      : anyOffline
+      ? 'error'
+      : 'degraded';
 
     return NextResponse.json({
       overall,
       systems,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Status check error:', error);
     return NextResponse.json(
-      { 
+      {
         overall: 'error',
         systems: {
-          meridian: { name: 'Meridian', status: 'unknown', lastUpdate: null },
-          helios: { name: 'Helios', status: 'unknown', lastUpdate: null },
-          nebula: { name: 'Nebula', status: 'unknown', lastUpdate: null }
+          meridian: { name: 'Meridian', status: 'offline', lastUpdate: null },
+          helios: { name: 'Helios', status: 'offline', lastUpdate: null },
+          nebula: { name: 'Nebula', status: 'offline', lastUpdate: null },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
