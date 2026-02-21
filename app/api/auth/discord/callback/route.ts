@@ -10,6 +10,7 @@ import {
   enforceRateLimit,
   rateLimitExceededResponse,
 } from '@/lib/security/rate-limit';
+import { getPublicOrigin } from '@/lib/url/origin';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +26,9 @@ const DISCORD_CLIENT_SECRET: string = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_GUILD_ID: string = process.env.DISCORD_GUILD_ID;
 const SINGULARITY_ROLE_ID: string = process.env.SINGULARITY_ROLE_ID;
 
-function redirectWithError(request: Request, errorCode: string): NextResponse {
-  return NextResponse.redirect(new URL(`/login?error=${errorCode}`, request.url));
+async function redirectWithError(request: Request, errorCode: string): Promise<NextResponse> {
+  const origin = await getPublicOrigin(request);
+  return NextResponse.redirect(new URL(`/login?error=${errorCode}`, origin));
 }
 
 export async function GET(request: Request) {
@@ -68,7 +70,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const origin = new URL(request.url).origin;
+    const origin = await getPublicOrigin(request);
     const redirectUri = process.env.DISCORD_REDIRECT_URI || `${origin}/api/auth/discord/callback`;
 
     const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -162,7 +164,7 @@ export async function GET(request: Request) {
       path: '/',
     });
 
-    return NextResponse.redirect(new URL('/', request.url));
+    return NextResponse.redirect(new URL('/', origin));
   } catch (error) {
     console.error('Discord OAuth callback failed:', error);
     return redirectWithError(request, 'auth_failed');

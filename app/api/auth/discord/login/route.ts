@@ -5,6 +5,7 @@ import {
   OAUTH_STATE_COOKIE,
   OAUTH_STATE_TTL_SECONDS,
 } from '@/lib/auth/oauth-state';
+import { getPublicOrigin } from '@/lib/url/origin';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ if (!process.env.DISCORD_CLIENT_ID) {
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 
 export async function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+  const origin = await getPublicOrigin(request);
   const redirectUri = process.env.DISCORD_REDIRECT_URI || `${origin}/api/auth/discord/callback`;
 
   const state = generateOAuthState();
