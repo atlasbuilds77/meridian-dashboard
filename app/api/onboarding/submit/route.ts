@@ -4,6 +4,7 @@ import { getUserIdFromSession } from '@/lib/auth/session';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { extractClientIp } from '@/lib/security/client-ip';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,9 +72,8 @@ export async function POST(request: Request) {
 
     const { sessionId: requestedSessionId, sessionToken, step, data } = parsed.data;
     
-    // Get IP
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = (forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown').trim();
+    // Keep a single normalized IP for INET columns.
+    const ip = extractClientIp(request) || '0.0.0.0';
 
     // Resolve session for this user. Prefer explicit session id/token for backwards compatibility.
     const sessionCheck = requestedSessionId

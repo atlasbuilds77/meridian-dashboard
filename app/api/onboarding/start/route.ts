@@ -3,6 +3,7 @@ import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
 import crypto from 'crypto';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { extractClientIp } from '@/lib/security/client-ip';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +31,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const userAgent = typeof body.userAgent === 'string' ? body.userAgent : undefined;
     
-    // Get IP from headers (proxied through Cloudflare/Render)
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown';
+    // Keep a single normalized IP for INET columns.
+    const ip = extractClientIp(request) || '0.0.0.0';
     
     // Check if user already completed onboarding
     const existingCheck = await pool.query(

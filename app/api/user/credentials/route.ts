@@ -12,6 +12,7 @@ import { verifyTradierKey } from '@/lib/api-clients/tradier';
 import { verifyPolymarketAddress } from '@/lib/api-clients/polymarket';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { extractClientIp } from '@/lib/security/client-ip';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const clientIp = extractClientIp(request);
     const body = await request.json();
     const parsed = createCredentialSchema.safeParse(body);
 
@@ -102,7 +104,7 @@ export async function POST(request: Request) {
         authResult.userId,
         null,
         'verification_failed',
-        request.headers.get('x-forwarded-for') || undefined,
+        clientIp,
         request.headers.get('user-agent') || undefined,
         { platform, error: verificationResult.error }
       );
@@ -127,7 +129,7 @@ export async function POST(request: Request) {
       authResult.userId,
       credential.id,
       'created',
-      request.headers.get('x-forwarded-for') || undefined,
+      clientIp,
       request.headers.get('user-agent') || undefined,
       { platform, verified: true }
     );
@@ -171,6 +173,7 @@ export async function DELETE(request: Request) {
   }
 
   try {
+    const clientIp = extractClientIp(request);
     const { searchParams } = new URL(request.url);
     const platform = searchParams.get('platform');
 
@@ -191,7 +194,7 @@ export async function DELETE(request: Request) {
       authResult.userId,
       null,
       'deleted',
-      request.headers.get('x-forwarded-for') || undefined,
+      clientIp,
       request.headers.get('user-agent') || undefined,
       { platform }
     );

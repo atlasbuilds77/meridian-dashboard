@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { extractClientIp } from '@/lib/security/client-ip';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -19,19 +20,6 @@ interface RateLimitOptions {
 
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0]?.trim() || 'unknown';
-  }
-
-  return (
-    request.headers.get('x-real-ip') ||
-    request.headers.get('cf-connecting-ip') ||
-    'unknown'
-  );
-}
 
 function buildWindowKey(name: string, identifier: string, windowMs: number): { key: string; resetAt: number } {
   const now = Date.now();
@@ -93,7 +81,7 @@ export async function enforceRateLimit(options: RateLimitOptions): Promise<RateL
     };
   }
 
-  const identifier = userId ? `user:${userId}` : `ip:${getClientIp(request)}`;
+  const identifier = userId ? `user:${userId}` : `ip:${extractClientIp(request) || 'unknown'}`;
   const { key, resetAt } = buildWindowKey(name, identifier, windowMs);
 
   try {
