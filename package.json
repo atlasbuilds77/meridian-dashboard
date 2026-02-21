@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "./start.sh",
     "lint": "eslint",
     "billing:weekly": "npx tsx scripts/weekly-billing.ts",
     "billing:migrate": "node scripts/run-billing-migration.js",
