@@ -64,7 +64,7 @@ export default function TradesPage() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-screen p-4 md:p-8">
+      <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-48" />
@@ -103,11 +103,11 @@ export default function TradesPage() {
   const worstTrade = trades.length > 0 ? Math.min(...trades.map((trade) => calculatePnL(trade))) : 0;
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
       <div className="max-w-7xl mx-auto space-y-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">Trade History</h1>
+            <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Trade History</h1>
             <p className="text-muted-foreground">All Meridian system trades with detailed P&L breakdown</p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function TradesPage() {
           <StatsCard title="Worst Trade" value={formatCurrency(worstTrade)} trend="down" />
         </div>
 
-        <Card>
+        <Card className="border-primary/30">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-semibold">All Trades</CardTitle>
             <Badge variant="secondary" className="text-xs">

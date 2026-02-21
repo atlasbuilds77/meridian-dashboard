@@ -1,30 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCallback, useEffect, useState } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 
 const RISK_TYPES = [
   { id: 'options_trading_risk', label: 'I understand options trading involves substantial risk, including total loss of capital' },
-  { id: 'automated_trading_risk', label: 'I understand Meridian is an automated technology platform, NOT an investment adviser' },
+  { id: 'no_investment_advice', label: 'I understand Meridian is an automated technology platform, NOT an investment adviser' },
   { id: 'user_sole_responsibility', label: 'I am solely responsible for all investment decisions and outcomes' },
-  { id: 'no_performance_guarantee', label: 'I understand past performance does not guarantee future results' },
+  { id: 'past_performance_disclaimer', label: 'I understand past performance does not guarantee future results' },
   { id: 'system_downtime_risk', label: 'I accept that system failures, bugs, or API outages may occur' },
   { id: 'no_fdic_insurance', label: 'I understand there is NO FDIC insurance on trading accounts' },
 ];
 
+type OnboardingStepData =
+  | { risks: string[] }
+  | { accepted: true }
+  | { signatureName: string; certifyAge: boolean };
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<number | null>(null);
   
   // Step 2: Risk Acknowledgments
   const [selectedRisks, setSelectedRisks] = useState<Set<string>>(new Set());
+  const [riskDisclosureAccepted, setRiskDisclosureAccepted] = useState(false);
   
   // Step 3: Terms
   const [tosAccepted, setTosAccepted] = useState(false);
@@ -39,12 +43,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Check if already completed
-    checkOnboardingStatus();
-  }, []);
-
-  async function checkOnboardingStatus() {
+  const checkOnboardingStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/onboarding/status');
       const data = await response.json();
@@ -55,14 +54,16 @@ export default function OnboardingPage() {
       }
       
       if (data.inProgressSession) {
-        setSessionToken(data.inProgressSession.sessionToken);
-        setSessionId(data.inProgressSession.sessionId);
         setCurrentStep(data.inProgressSession.currentStep);
       }
     } catch (err) {
       console.error('Status check error:', err);
     }
-  }
+  }, [router]);
+
+  useEffect(() => {
+    void checkOnboardingStatus();
+  }, [checkOnboardingStatus]);
 
   async function startOnboarding() {
     setLoading(true);
@@ -83,17 +84,15 @@ export default function OnboardingPage() {
         throw new Error(data.error || 'Failed to start onboarding');
       }
       
-      setSessionToken(data.sessionToken);
-      setSessionId(data.sessionId);
-      setCurrentStep(2);
-    } catch (err: any) {
-      setError(err.message);
+      setCurrentStep(data.currentStep ?? 2);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start onboarding');
     } finally {
       setLoading(false);
     }
   }
 
-  async function submitStep(step: number, data: any) {
+  async function submitStep(step: number, data: OnboardingStepData) {
     setLoading(true);
     setError(null);
     
@@ -102,7 +101,6 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionToken,
           step,
           data
         })
@@ -120,8 +118,8 @@ export default function OnboardingPage() {
       } else if (result.nextStep) {
         setCurrentStep(result.nextStep);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit step');
     } finally {
       setLoading(false);
     }
@@ -188,10 +186,14 @@ export default function OnboardingPage() {
               ))}
               
               <div className="flex items-start space-x-3 border border-border rounded-lg p-4 bg-secondary/20">
-                <Checkbox id="risk-disclosure" />
+                <Checkbox
+                  id="risk-disclosure"
+                  checked={riskDisclosureAccepted}
+                  onCheckedChange={(checked) => setRiskDisclosureAccepted(checked)}
+                />
                 <label htmlFor="risk-disclosure" className="text-sm">
                   I have read the full{' '}
-                  <button className="text-profit hover:underline" onClick={() => window.open('/legal/risk-disclosure', '_blank')}>
+                  <button type="button" className="text-primary hover:underline" onClick={() => window.open('/legal/risk-disclosure', '_blank')}>
                     Risk Disclosure
                   </button>
                   {' '}(click to view)
@@ -201,7 +203,7 @@ export default function OnboardingPage() {
             
             <Button 
               onClick={() => submitStep(2, { risks: Array.from(selectedRisks) })}
-              disabled={selectedRisks.size !== RISK_TYPES.length || loading}
+              disabled={selectedRisks.size !== RISK_TYPES.length || !riskDisclosureAccepted || loading}
               className="w-full"
             >
               {loading ? 'Saving...' : 'Continue'}
@@ -235,7 +237,7 @@ export default function OnboardingPage() {
               />
               <label htmlFor="tos" className="text-sm">
                 I have read and agree to the{' '}
-                <button className="text-profit hover:underline" onClick={() => window.open('/legal/terms', '_blank')}>
+                <button type="button" className="text-primary hover:underline" onClick={() => window.open('/legal/terms', '_blank')}>
                   Terms of Service
                 </button>
               </label>
@@ -264,8 +266,9 @@ export default function OnboardingPage() {
                   <p className="font-semibold">MERIDIAN FEE STRUCTURE</p>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="font-semibold">Monthly Membership:</span> $1,200/month</p>
-                  <p><span className="font-semibold">Automation Service Fee:</span> 10% of weekly profits</p>
+                  <p><span className="font-semibold">Monthly Membership:</span> $1,200/month (monthly plan)</p>
+                  <p><span className="font-semibold">Lifetime Membership:</span> one-time purchase, same platform access as monthly members, no recurring monthly membership charge</p>
+                  <p><span className="font-semibold">Automation Service Fee:</span> 10% of weekly profits (applies to both monthly and lifetime members)</p>
                 </div>
                 
                 <div className="pt-3 border-t border-border/50">
@@ -386,8 +389,8 @@ export default function OnboardingPage() {
             {[1, 2, 3, 4, 5].map((step) => (
               <div key={step} className="flex items-center">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                  step < currentStep ? 'bg-profit text-background' :
-                  step === currentStep ? 'bg-profit/20 text-profit border-2 border-profit' :
+                  step < currentStep ? 'bg-primary text-background' :
+                  step === currentStep ? 'bg-primary/20 text-primary border-2 border-primary' :
                   'bg-secondary text-muted-foreground'
                 }`}>
                   {step < currentStep ? (
@@ -398,7 +401,7 @@ export default function OnboardingPage() {
                 </div>
                 {step < 5 && (
                   <div className={`w-12 md:w-24 h-1 ${
-                    step < currentStep ? 'bg-profit' : 'bg-secondary'
+                    step < currentStep ? 'bg-primary' : 'bg-secondary'
                   }`} />
                 )}
               </div>

@@ -7,13 +7,25 @@ if (!DATABASE_URL) {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
-const useSsl = process.env.DATABASE_SSL
-  ? process.env.DATABASE_SSL !== 'false'
-  : isProduction;
+function parseBool(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  return value !== 'false';
+}
 
-const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED
-  ? process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false'
-  : isProduction;
+function shouldUseSslByDefault(databaseUrl: string): boolean {
+  try {
+    const { hostname } = new URL(databaseUrl);
+    return hostname !== 'localhost' && hostname !== '127.0.0.1';
+  } catch {
+    return isProduction;
+  }
+}
+
+const configuredUseSsl = parseBool(process.env.DATABASE_SSL);
+const useSsl = configuredUseSsl ?? shouldUseSslByDefault(DATABASE_URL);
+
+const configuredRejectUnauthorized = parseBool(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED);
+const rejectUnauthorized = configuredRejectUnauthorized ?? isProduction;
 
 const pool = new Pool({
   connectionString: DATABASE_URL,

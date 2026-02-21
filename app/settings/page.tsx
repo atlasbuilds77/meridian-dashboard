@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PaymentMethodManager } from '@/components/payment-method-form';
+import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Platform {
   id: number;
@@ -17,11 +19,59 @@ interface Platform {
   created_at: string;
 }
 
+type PlatformInfo = {
+  name: string;
+  description: string;
+  needsSecret: boolean;
+  keyLabel: string;
+  secretLabel?: string;
+};
+
+const platformInfo: Record<string, PlatformInfo> = {
+  tradier: {
+    name: 'Tradier',
+    description: 'Options and stocks trading account',
+    needsSecret: false,
+    keyLabel: 'API Token',
+  },
+  polymarket: {
+    name: 'Polymarket',
+    description: 'Prediction market wallet',
+    needsSecret: false,
+    keyLabel: 'Wallet Address (0x...)',
+  },
+  topstepx: {
+    name: 'TopstepX',
+    description: 'Futures trading account',
+    needsSecret: true,
+    keyLabel: 'API Key',
+    secretLabel: 'API Secret',
+  },
+  webull: {
+    name: 'Webull',
+    description: 'Trading account',
+    needsSecret: true,
+    keyLabel: 'API Key',
+    secretLabel: 'API Secret',
+  },
+};
+
+function verificationBadgeClass(status: Platform['verification_status']): string {
+  switch (status) {
+    case 'verified':
+      return 'border-primary/35 bg-primary/15 text-primary';
+    case 'failed':
+      return 'border-loss/30 bg-loss/15 text-loss';
+    default:
+      return 'border-border/40 bg-secondary/60 text-muted-foreground';
+  }
+}
+
 export default function SettingsPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
-  
+
   // Form state
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -30,11 +80,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    fetchPlatforms();
-  }, []);
-
-  const fetchPlatforms = async () => {
+  const fetchPlatforms = useCallback(async () => {
     try {
       const res = await fetch('/api/user/credentials');
       if (res.ok) {
@@ -46,7 +92,11 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void fetchPlatforms();
+  }, [fetchPlatforms]);
 
   const handleAddPlatform = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,14 +122,14 @@ export default function SettingsPage() {
         throw new Error(data.error || 'Failed to add API key');
       }
 
-      setSuccess(`${selectedPlatform} API key verified and added successfully!`);
+      setSuccess(`${platformInfo[selectedPlatform]?.name || selectedPlatform} API key verified and added successfully.`);
       setApiKey('');
       setApiSecret('');
       setKeyName('');
       setSelectedPlatform('');
-      fetchPlatforms();
-    } catch (err: any) {
-      setError(err.message || 'Failed to add API key');
+      void fetchPlatforms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add API key');
     } finally {
       setAdding(null);
     }
@@ -89,249 +139,263 @@ export default function SettingsPage() {
     if (!confirm(`Remove ${platform} API key?`)) return;
 
     try {
-      const res = await fetch(`/api/user/credentials?platform=${platform}`, {
+      const res = await fetch(`/api/user/credentials?platform=${encodeURIComponent(platform)}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        setSuccess(`${platform} API key removed`);
-        fetchPlatforms();
+        setSuccess(`${platformInfo[platform]?.name || platform} API key removed.`);
+        void fetchPlatforms();
       } else {
         const data = await res.json();
         setError(data.error || 'Failed to remove API key');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to remove API key');
     }
   };
 
-  const platformInfo: Record<string, { name: string; description: string; needsSecret: boolean; keyLabel: string; secretLabel?: string }> = {
-    tradier: {
-      name: 'Tradier',
-      description: 'Options & stocks trading account',
-      needsSecret: false,
-      keyLabel: 'API Token',
-    },
-    polymarket: {
-      name: 'Polymarket',
-      description: 'Prediction market wallet',
-      needsSecret: false,
-      keyLabel: 'Wallet Address (0x...)',
-    },
-    topstepx: {
-      name: 'TopstepX',
-      description: 'Futures trading account',
-      needsSecret: true,
-      keyLabel: 'API Key',
-      secretLabel: 'API Secret',
-    },
-    webull: {
-      name: 'Webull',
-      description: 'Trading account',
-      needsSecret: true,
-      keyLabel: 'API Key',
-      secretLabel: 'API Secret',
-    },
-  };
+  const connectedSet = new Set(platforms.map((platform) => platform.platform));
+  const availablePlatforms = Object.entries(platformInfo).filter(([platform]) => !connectedSet.has(platform));
+  const selectedPlatformInfo = selectedPlatform ? platformInfo[selectedPlatform] : undefined;
 
   return (
-    <div className="min-h-screen p-8 bg-background">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your trading account API keys. All keys are encrypted and stored securely.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background px-4 py-6 sm:px-8 sm:py-8">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <section className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card to-secondary/60 p-6 sm:p-8">
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary/90">Account Configuration</p>
+              <h1 className="mt-2 text-3xl font-bold text-foreground">Settings</h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Connect your trading platforms and billing method once. Meridian validates keys before enabling automation.
+              </p>
+            </div>
 
-        {/* Connected Platforms */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Connected Platforms</CardTitle>
-            <CardDescription>
-              Platforms you've connected to Meridian Dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
-            ) : platforms.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No platforms connected yet. Add one below to get started.
+            <div className="grid grid-cols-2 gap-3 sm:min-w-80">
+              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Connected</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{platforms.length}</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {platforms.map((platform) => (
-                  <div
-                    key={platform.id}
-                    className="flex items-center justify-between p-4 border border-border/30 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-foreground">
-                          {platformInfo[platform.platform]?.name || platform.platform}
-                        </h3>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            platform.verification_status === 'verified'
-                              ? 'bg-profit/20 text-profit'
-                              : platform.verification_status === 'failed'
-                              ? 'bg-loss/20 text-loss'
-                              : 'bg-secondary/50 text-muted-foreground'
-                          }`}
+              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Available</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{availablePlatforms.length}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {error && (
+          <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm text-primary">
+            {success}
+          </div>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card className="border-border/50 bg-card/80 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-primary" />
+                Connected Platforms
+              </CardTitle>
+              <CardDescription>Platforms currently linked to your Meridian account.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="rounded-xl border border-border/40 bg-secondary/20 py-8 text-center text-muted-foreground">
+                  Loading connected platforms...
+                </div>
+              ) : platforms.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/50 bg-secondary/15 py-8 text-center">
+                  <p className="text-sm font-medium text-foreground">No platforms connected yet.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Use the Add Platform form to connect your first account.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {platforms.map((platform) => {
+                    const info = platformInfo[platform.platform];
+                    const displayName = info?.name || platform.platform;
+
+                    return (
+                      <div
+                        key={platform.id}
+                        className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4"
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background text-sm font-semibold text-foreground">
+                            {displayName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-foreground">{displayName}</h3>
+                              <span
+                                className={cn(
+                                  'rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize',
+                                  verificationBadgeClass(platform.verification_status)
+                                )}
+                              >
+                                {platform.verification_status}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate text-sm text-muted-foreground">{platform.key_name}</p>
+                            {platform.last_verified && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Last verified: {new Date(platform.last_verified).toLocaleString()}
+                              </p>
+                            )}
+                            {platform.error_message && (
+                              <p className="mt-1 text-xs text-loss">{platform.error_message}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeletePlatform(platform.platform)}
+                          className="text-loss hover:bg-loss/10"
                         >
-                          {platform.verification_status}
-                        </span>
+                          Remove
+                        </Button>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{platform.key_name}</p>
-                      {platform.last_verified && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Last verified: {new Date(platform.last_verified).toLocaleString()}
-                        </p>
-                      )}
-                      {platform.error_message && (
-                        <p className="text-xs text-loss mt-1">{platform.error_message}</p>
-                      )}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeletePlatform(platform.platform)}
-                      className="text-loss hover:bg-loss/10"
-                    >
-                      Remove
-                    </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/80 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-primary" />
+                Add Platform
+              </CardTitle>
+              <CardDescription>
+                Connect a new trading account or wallet. Credentials are encrypted server-side.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAddPlatform} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="platform">Platform</Label>
+                  <select
+                    id="platform"
+                    value={selectedPlatform}
+                    onChange={(e) => setSelectedPlatform(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    required
+                  >
+                    <option value="">Select a platform...</option>
+                    {Object.entries(platformInfo).map(([key, info]) => (
+                      <option key={key} value={key} disabled={connectedSet.has(key)}>
+                        {info.name} - {info.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedPlatformInfo && (
+                  <div className="rounded-lg border border-border/40 bg-secondary/30 p-3 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">{selectedPlatformInfo.name}</p>
+                    <p className="mt-1">{selectedPlatformInfo.description}</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
 
-        {/* Add New Platform */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle>Add Platform</CardTitle>
-            <CardDescription>
-              Connect a new trading account or wallet
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAddPlatform} className="space-y-4">
-              {/* Platform Selection */}
-              <div>
-                <Label htmlFor="platform">Platform</Label>
-                <select
-                  id="platform"
-                  value={selectedPlatform}
-                  onChange={(e) => setSelectedPlatform(e.target.value)}
-                  className="w-full mt-1.5 p-2 bg-background border border-border rounded-lg text-foreground"
-                  required
-                >
-                  <option value="">Select a platform...</option>
-                  {Object.entries(platformInfo).map(([key, info]) => (
-                    <option key={key} value={key} disabled={platforms.some(p => p.platform === key)}>
-                      {info.name} - {info.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedPlatform && (
-                <>
-                  {/* API Key */}
-                  <div>
-                    <Label htmlFor="apiKey">
-                      {platformInfo[selectedPlatform]?.keyLabel || 'API Key'}
-                    </Label>
-                    <Input
-                      id="apiKey"
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Enter your API key"
-                      className="mt-1.5"
-                      required
-                    />
-                  </div>
-
-                  {/* API Secret (if needed) */}
-                  {platformInfo[selectedPlatform]?.needsSecret && (
-                    <div>
-                      <Label htmlFor="apiSecret">
-                        {platformInfo[selectedPlatform]?.secretLabel || 'API Secret'}
-                      </Label>
+                {selectedPlatform && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="apiKey">{selectedPlatformInfo?.keyLabel || 'API Key'}</Label>
                       <Input
-                        id="apiSecret"
+                        id="apiKey"
                         type="password"
-                        value={apiSecret}
-                        onChange={(e) => setApiSecret(e.target.value)}
-                        placeholder="Enter your API secret"
-                        className="mt-1.5"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="Enter your credential"
+                        required
                       />
                     </div>
-                  )}
 
-                  {/* Key Name (optional) */}
-                  <div>
-                    <Label htmlFor="keyName">Nickname (optional)</Label>
-                    <Input
-                      id="keyName"
-                      type="text"
-                      value={keyName}
-                      onChange={(e) => setKeyName(e.target.value)}
-                      placeholder="My Trading Account"
-                      className="mt-1.5"
-                    />
-                  </div>
+                    {selectedPlatformInfo?.needsSecret && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="apiSecret">{selectedPlatformInfo?.secretLabel || 'API Secret'}</Label>
+                        <Input
+                          id="apiSecret"
+                          type="password"
+                          value={apiSecret}
+                          onChange={(e) => setApiSecret(e.target.value)}
+                          placeholder="Enter your API secret"
+                        />
+                      </div>
+                    )}
 
-                  {/* Submit */}
-                  <Button
-                    type="submit"
-                    disabled={adding === selectedPlatform}
-                    className="w-full"
-                  >
-                    {adding === selectedPlatform ? 'Verifying...' : 'Add Platform'}
-                  </Button>
-                </>
-              )}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="keyName">Nickname (optional)</Label>
+                      <Input
+                        id="keyName"
+                        type="text"
+                        value={keyName}
+                        onChange={(e) => setKeyName(e.target.value)}
+                        placeholder="Main account"
+                      />
+                    </div>
 
-              {/* Error/Success Messages */}
-              {error && (
-                <div className="p-3 bg-loss/10 border border-loss/30 rounded-lg text-loss text-sm">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="p-3 bg-profit/10 border border-profit/30 rounded-lg text-profit text-sm">
-                  {success}
-                </div>
-              )}
-            </form>
-          </CardContent>
-        </Card>
+                    <Button type="submit" disabled={adding === selectedPlatform} className="w-full">
+                      {adding === selectedPlatform ? 'Verifying...' : 'Connect Platform'}
+                    </Button>
+                  </>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Payment Methods */}
         <PaymentMethodManager />
 
-        {/* Security Info */}
-        <Card className="border-border/50 bg-secondary/20">
+        <Card className="border-border/50 bg-secondary/25">
           <CardContent className="p-6">
-            <div className="flex items-start gap-3">
-              <svg className="h-5 w-5 text-profit mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <div>
-                <h4 className="font-semibold text-foreground mb-1">Security & Privacy</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• All API keys are encrypted with AES-256-GCM</li>
-                  <li>• Meridian executes trades on your behalf when enabled by admin</li>
-                  <li>• Keys are stored securely and never sent to your browser</li>
-                  <li>• All operations are logged for security compliance</li>
-                  <li>• Payment methods secured by Stripe (PCI-DSS compliant)</li>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Lock className="h-4 w-4 text-primary" />
+                  Security and Privacy
+                </h4>
+                <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <li>All API keys are encrypted with AES-256-GCM.</li>
+                  <li>Keys are stored server-side and never returned to your browser.</li>
+                  <li>All credential operations are logged for auditing.</li>
                 </ul>
               </div>
+
+              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  Access and Billing
+                </h4>
+                <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                  <li>Automation is only enabled after platform verification succeeds.</li>
+                  <li>Payment methods are secured by Stripe (PCI-DSS compliant).</li>
+                  <li>Weekly billing applies only on profitable weeks.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
+              <p className="flex items-start gap-2">
+                <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                Keep at least one verified platform and one active payment method to avoid interruptions.
+              </p>
+              <p className="mt-2 flex items-start gap-2">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-loss" />
+                If a key fails verification, remove it and reconnect with fresh credentials.
+              </p>
             </div>
           </CardContent>
         </Card>

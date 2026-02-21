@@ -1,5 +1,5 @@
 import pool from './pool';
-import { encryptApiKey, decryptApiKey, hashApiKey } from '../crypto/encryption';
+import { decryptApiKey, encryptApiKey } from '../crypto/encryption';
 
 export interface ApiCredential {
   id: number;
@@ -18,6 +18,8 @@ export interface DecryptedCredential extends ApiCredential {
   api_key: string;
   api_secret?: string;
 }
+
+type ApiAuditDetails = Record<string, unknown>;
 
 /**
  * Store encrypted API credentials
@@ -44,11 +46,9 @@ export async function storeApiCredential(
   
   // Store encrypted_api_key as "encrypted:authTag" format
   const encryptedKeyWithTag = `${encrypted}:${authTag}`;
-  const encryptedSecretWithTag = encryptedSecret 
-    ? `${encryptedSecret}:${secretAuthTag}` 
+  const encryptedSecretWithTag = encryptedSecret && secretIv && secretAuthTag
+    ? `${secretIv}:${encryptedSecret}:${secretAuthTag}`
     : null;
-  // For secrets, store their IV separately (use secretIv if exists, otherwise null)
-  // Main encryption_iv is for the API key
   
   const result = await pool.query(
     `INSERT INTO api_credentials (
@@ -109,9 +109,15 @@ export async function getApiCredential(
     
     let apiSecret: string | undefined;
     if (row.encrypted_api_secret) {
-      const [encryptedSecretPart, secretAuthTag] = row.encrypted_api_secret.split(':');
-      if (secretAuthTag) {
-        // For secrets, we assume they use the same IV (could be enhanced)
+      const parts = row.encrypted_api_secret.split(':');
+
+      // New format: iv:encrypted:authTag
+      if (parts.length === 3) {
+        const [secretIvPart, encryptedSecretPart, secretAuthTag] = parts;
+        apiSecret = decryptApiKey(encryptedSecretPart, secretIvPart, secretAuthTag);
+      } else if (parts.length === 2) {
+        // Legacy format fallback: encrypted:authTag (shared key IV)
+        const [encryptedSecretPart, secretAuthTag] = parts;
         apiSecret = decryptApiKey(encryptedSecretPart, row.encryption_iv, secretAuthTag);
       }
     }
@@ -207,7 +213,7 @@ export async function logApiKeyOperation(
   action: string,
   ipAddress?: string,
   userAgent?: string,
-  details?: any
+  details?: ApiAuditDetails
 ): Promise<void> {
   await pool.query(
     `INSERT INTO api_key_audit_log (user_id, credential_id, action, ip_address, user_agent, details)

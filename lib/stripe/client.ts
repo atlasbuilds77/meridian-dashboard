@@ -1,20 +1,31 @@
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
-}
+let stripeClient: Stripe | null = null;
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-});
+export function getStripeClient(): Stripe {
+  if (stripeClient) {
+    return stripeClient;
+  }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+  }
+
+  stripeClient = new Stripe(secretKey, {
+    apiVersion: '2026-01-28.clover',
+    typescript: true,
+  });
+
+  return stripeClient;
+}
 
 export async function createCustomer(params: {
   email: string;
   name: string;
   metadata?: Record<string, string>;
 }): Promise<Stripe.Customer> {
-  return await stripe.customers.create({
+  return await getStripeClient().customers.create({
     email: params.email,
     name: params.name,
     metadata: params.metadata || {},
@@ -22,7 +33,7 @@ export async function createCustomer(params: {
 }
 
 export async function createSetupIntent(customerId: string): Promise<Stripe.SetupIntent> {
-  return await stripe.setupIntents.create({
+  return await getStripeClient().setupIntents.create({
     customer: customerId,
     payment_method_types: ['card'],
     usage: 'off_session', // For charging later
@@ -33,7 +44,7 @@ export async function attachPaymentMethod(
   paymentMethodId: string,
   customerId: string
 ): Promise<Stripe.PaymentMethod> {
-  return await stripe.paymentMethods.attach(paymentMethodId, {
+  return await getStripeClient().paymentMethods.attach(paymentMethodId, {
     customer: customerId,
   });
 }
@@ -42,7 +53,7 @@ export async function setDefaultPaymentMethod(
   customerId: string,
   paymentMethodId: string
 ): Promise<Stripe.Customer> {
-  return await stripe.customers.update(customerId, {
+  return await getStripeClient().customers.update(customerId, {
     invoice_settings: {
       default_payment_method: paymentMethodId,
     },
@@ -57,7 +68,7 @@ export async function chargeCustomer(params: {
   description: string;
   metadata?: Record<string, string>;
 }): Promise<Stripe.PaymentIntent> {
-  return await stripe.paymentIntents.create({
+  return await getStripeClient().paymentIntents.create({
     amount: params.amount,
     currency: params.currency || 'usd',
     customer: params.customerId,
@@ -74,7 +85,7 @@ export async function refundPayment(
   paymentIntentId: string,
   amount?: number // optional partial refund
 ): Promise<Stripe.Refund> {
-  return await stripe.refunds.create({
+  return await getStripeClient().refunds.create({
     payment_intent: paymentIntentId,
     amount: amount, // undefined = full refund
   });
@@ -83,11 +94,11 @@ export async function refundPayment(
 export async function getPaymentMethod(
   paymentMethodId: string
 ): Promise<Stripe.PaymentMethod> {
-  return await stripe.paymentMethods.retrieve(paymentMethodId);
+  return await getStripeClient().paymentMethods.retrieve(paymentMethodId);
 }
 
 export async function detachPaymentMethod(
   paymentMethodId: string
 ): Promise<Stripe.PaymentMethod> {
-  return await stripe.paymentMethods.detach(paymentMethodId);
+  return await getStripeClient().paymentMethods.detach(paymentMethodId);
 }

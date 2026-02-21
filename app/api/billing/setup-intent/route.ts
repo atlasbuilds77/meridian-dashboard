@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
-import { stripe, createCustomer, createSetupIntent } from '@/lib/stripe/client';
+import { createCustomer, createSetupIntent } from '@/lib/stripe/client';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +13,23 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'billing_setup_intent',
+    limit: 20,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'billing_setup_intent');
+  }
   
   try {
     // Get user info
     const userResult = await pool.query(
-      'SELECT discord_email, discord_username, stripe_customer_id FROM users WHERE id = $1',
+      'SELECT username, stripe_customer_id FROM users WHERE id = $1',
       [userId]
     );
     
@@ -30,8 +43,8 @@ export async function POST(request: Request) {
     // Create Stripe customer if doesn't exist
     if (!customerId) {
       const customer = await createCustomer({
-        email: user.discord_email || `user-${userId}@meridian.temp`,
-        name: user.discord_username || `User ${userId}`,
+        email: `user-${userId}@meridian.temp`,
+        name: user.username || `User ${userId}`,
         metadata: {
           userId: userId.toString(),
           source: 'meridian_dashboard'
@@ -52,13 +65,14 @@ export async function POST(request: Request) {
     
     return NextResponse.json({
       clientSecret: setupIntent.client_secret,
+      client_secret: setupIntent.client_secret,
       customerId: customerId
     });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Setup intent error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create setup intent' },
+      { error: error instanceof Error ? error.message : 'Failed to create setup intent' },
       { status: 500 }
     );
   }

@@ -22,8 +22,8 @@ export function UserMenu() {
 
   useEffect(() => {
     fetch('/api/auth/session')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setSession(data);
         setLoading(false);
       })
@@ -44,8 +44,8 @@ export function UserMenu() {
 
   if (loading || !session?.authenticated || !session.user) {
     return (
-      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-profit/20 to-profit/5 border border-profit/30 flex items-center justify-center">
-        <div className="h-2 w-2 rounded-full bg-profit animate-pulse" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/35 bg-primary/15">
+        <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
       </div>
     );
   }
@@ -56,81 +56,49 @@ export function UserMenu() {
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="h-10 w-10 rounded-full overflow-hidden border-2 border-profit/30 hover:border-profit/50 transition-all hover:scale-105"
+        className="h-10 w-10 overflow-hidden rounded-full border-2 border-primary/40 transition-all hover:scale-105 hover:border-primary/70"
       >
         {user.avatar ? (
-          <Image
-            src={user.avatar}
-            alt={user.username}
-            width={40}
-            height={40}
-            className="object-cover"
-          />
+          <Image src={user.avatar} alt={user.username} width={40} height={40} className="object-cover" />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-profit/20 to-profit/5 flex items-center justify-center">
-            <span className="text-sm font-bold text-profit">
-              {user.username.charAt(0).toUpperCase()}
-            </span>
+          <div className="flex h-full w-full items-center justify-center bg-primary/20">
+            <span className="text-sm font-bold text-primary">{user.username.charAt(0).toUpperCase()}</span>
           </div>
         )}
       </button>
 
       {showMenu && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowMenu(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
 
-          {/* Menu */}
-          <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-border/50 bg-card/95 backdrop-blur-xl shadow-lg overflow-hidden">
-            {/* User Info */}
-            <div className="p-4 border-b border-border/30">
+          <div className="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-primary/30 bg-[rgba(19,19,28,0.9)] shadow-[0_20px_45px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            <div className="border-b border-primary/20 p-4">
               <div className="flex items-center gap-3">
                 {user.avatar ? (
-                  <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-profit/30">
-                    <Image
-                      src={user.avatar}
-                      alt={user.username}
-                      width={48}
-                      height={48}
-                      className="object-cover"
-                    />
+                  <div className="h-12 w-12 overflow-hidden rounded-full border-2 border-primary/35">
+                    <Image src={user.avatar} alt={user.username} width={48} height={48} className="object-cover" />
                   </div>
                 ) : (
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-profit/20 to-profit/5 flex items-center justify-center border-2 border-profit/30">
-                    <span className="text-lg font-bold text-profit">
-                      {user.username.charAt(0).toUpperCase()}
-                    </span>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-primary/35 bg-primary/20">
+                    <span className="text-lg font-bold text-primary">{user.username.charAt(0).toUpperCase()}</span>
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">
-                    {user.username}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Discord User
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{user.username}</p>
+                  <p className="text-xs text-muted-foreground">Discord User</p>
                 </div>
               </div>
             </div>
 
-            {/* Menu Items */}
             <div className="p-2">
               <button
                 onClick={() => {
                   router.push('/settings');
                   setShowMenu(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg transition-all mb-1"
+                className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -140,46 +108,33 @@ export function UserMenu() {
                 </svg>
                 <span>Settings</span>
               </button>
+
               {session.isAdmin && (
                 <button
                   onClick={() => {
                     router.push('/admin');
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-profit hover:text-profit/80 hover:bg-profit/10 rounded-lg transition-all mb-1"
+                  className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-primary transition-all hover:bg-primary/15 hover:text-primary"
                 >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
                     />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <span>Admin Dashboard</span>
                 </button>
               )}
+
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-lg transition-all"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"

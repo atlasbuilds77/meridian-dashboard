@@ -26,8 +26,7 @@ const pool = new Pool({
 
 interface User {
   id: number;
-  discord_username: string;
-  discord_email: string;
+  username: string;
   stripe_customer_id: string;
   stripe_payment_method_id: string;
 }
@@ -35,6 +34,10 @@ interface User {
 interface WeeklyPnL {
   total_pnl: number;
   trade_count: number;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function getLastWeekDates(): { weekStart: string; weekEnd: string } {
@@ -65,7 +68,7 @@ async function calculateWeeklyPnL(userId: number, weekStart: string, weekEnd: st
     FROM trades
     WHERE user_id = $1
       AND entry_date >= $2
-      AND entry_date <= $3
+      AND entry_date < ($3::date + INTERVAL '1 day')
       AND status = 'closed'
       AND pnl IS NOT NULL`,
     [userId, weekStart, weekEnd]
@@ -78,7 +81,7 @@ async function calculateWeeklyPnL(userId: number, weekStart: string, weekEnd: st
 }
 
 async function processUserBilling(user: User, weekStart: string, weekEnd: string): Promise<void> {
-  console.log(`\n📊 Processing: ${user.discord_username} (ID: ${user.id})`);
+  console.log(`\n📊 Processing: ${user.username} (ID: ${user.id})`);
   
   try {
     // Calculate P&L
@@ -177,7 +180,7 @@ async function processUserBilling(user: User, weekStart: string, weekEnd: string
           paymentIntent.id,
           paymentIntent.latest_charge,
           user.stripe_payment_method_id,
-          paymentIntent.charges?.data[0]?.receipt_url || null
+          null
         ]
       );
       
@@ -194,8 +197,9 @@ async function processUserBilling(user: User, weekStart: string, weekEnd: string
       
       console.log(`   ✅ Payment succeeded: ${paymentIntent.id}`);
       
-    } catch (chargeError: any) {
-      console.error(`   ❌ Payment failed: ${chargeError.message}`);
+    } catch (chargeError: unknown) {
+      const chargeErrorMessage = getErrorMessage(chargeError);
+      console.error(`   ❌ Payment failed: ${chargeErrorMessage}`);
       
       // Update billing period
       await pool.query(
@@ -217,7 +221,7 @@ async function processUserBilling(user: User, weekStart: string, weekEnd: string
           status,
           failure_reason
         ) VALUES ($1, $2, $3, $4, 'failed', $5)`,
-        [user.id, periodId, feeAmount, user.stripe_payment_method_id, chargeError.message]
+        [user.id, periodId, feeAmount, user.stripe_payment_method_id, chargeErrorMessage]
       );
       
       // Log failure
@@ -228,14 +232,14 @@ async function processUserBilling(user: User, weekStart: string, weekEnd: string
           event_type,
           event_data
         ) VALUES ($1, $2, 'charge_failed', $3)`,
-        [user.id, periodId, JSON.stringify({ error: chargeError.message, amount: feeAmount })]
+        [user.id, periodId, JSON.stringify({ error: chargeErrorMessage, amount: feeAmount })]
       );
       
       // TODO: Send notification to user about failed payment
     }
     
-  } catch (error: any) {
-    console.error(`   ❌ Error processing ${user.discord_username}:`, error.message);
+  } catch (error: unknown) {
+    console.error(`   ❌ Error processing ${user.username}:`, getErrorMessage(error));
   }
 }
 
@@ -252,8 +256,7 @@ async function runWeeklyBilling() {
     const usersResult = await pool.query(
       `SELECT 
         u.id,
-        u.discord_username,
-        u.discord_email,
+        u.username,
         u.stripe_customer_id,
         upm.stripe_payment_method_id
       FROM users u
@@ -278,7 +281,7 @@ async function runWeeklyBilling() {
     
     console.log('\n✅ Weekly billing completed successfully');
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Weekly billing failed:', error);
     throw error;
   } finally {

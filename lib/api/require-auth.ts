@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getUserIdFromSession, type SessionPayload } from '@/lib/auth/session';
-
-const fallbackAdminIds = ['326085846216343552'];
-const configuredAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean);
-
-const ADMIN_DISCORD_IDS = configuredAdminIds.length > 0 ? configuredAdminIds : fallbackAdminIds;
+import { hasConfiguredAdminIds, isAdminDiscordId } from '@/lib/auth/admin';
 
 export type UserAuthResult =
   | { ok: true; userId: number }
@@ -56,7 +49,7 @@ export async function requireAdminSession(): Promise<AdminAuthResult> {
     return sessionResult;
   }
 
-  if (!ADMIN_DISCORD_IDS.includes(sessionResult.session.discordId)) {
+  if (!hasConfiguredAdminIds() || !isAdminDiscordId(sessionResult.session.discordId)) {
     return { ok: false, response: forbiddenResponse() };
   }
 

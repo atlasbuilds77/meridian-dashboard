@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { CreditCard, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 interface PaymentMethod {
   id: string;
@@ -54,14 +56,19 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
       return;
     }
 
-    if (setupIntent?.payment_method) {
+    const paymentMethodId =
+      typeof setupIntent?.payment_method === 'string'
+        ? setupIntent.payment_method
+        : setupIntent?.payment_method?.id;
+
+    if (paymentMethodId) {
       // Save to backend
       try {
         const res = await fetch('/api/billing/payment-method', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            payment_method_id: setupIntent.payment_method,
+            paymentMethodId,
           }),
         });
 
@@ -71,9 +78,11 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
         }
 
         onSuccess();
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save payment method');
       }
+    } else {
+      setError('Stripe did not return a valid payment method ID.');
     }
 
     setProcessing(false);
@@ -105,41 +114,51 @@ export function PaymentMethodManager() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const fetchPaymentMethods = async () => {
+  const fetchPaymentMethods = useCallback(async () => {
     try {
       const res = await fetch('/api/billing/payment-method');
       if (res.ok) {
         const data = await res.json();
-        setPaymentMethods(data.payment_methods || []);
+        setPaymentMethods(data.paymentMethods || data.payment_methods || []);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPaymentError(data.error || 'Unable to load payment methods');
       }
     } catch (err) {
       console.error('Failed to fetch payment methods:', err);
+      setPaymentError('Unable to load payment methods');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleAddClick = async () => {
+    setPaymentError(null);
     try {
       const res = await fetch('/api/billing/setup-intent', {
         method: 'POST',
       });
       const data = await res.json();
       
-      if (data.client_secret) {
-        setClientSecret(data.client_secret);
+      if (data.clientSecret || data.client_secret) {
+        setClientSecret(data.clientSecret || data.client_secret);
         setShowAddForm(true);
+      } else {
+        setPaymentError(data.error || 'Unable to initialize card setup');
       }
     } catch (err) {
       console.error('Failed to create setup intent:', err);
+      setPaymentError('Unable to initialize card setup');
     }
   };
 
   const handleSuccess = () => {
+    setPaymentError(null);
     setShowAddForm(false);
     setClientSecret(null);
-    fetchPaymentMethods();
+    void fetchPaymentMethods();
   };
 
   const handleDelete = async (paymentMethodId: string) => {
@@ -149,53 +168,69 @@ export function PaymentMethodManager() {
       const res = await fetch('/api/billing/payment-method', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_method_id: paymentMethodId }),
+        body: JSON.stringify({ paymentMethodId }),
       });
 
       if (res.ok) {
-        fetchPaymentMethods();
+        void fetchPaymentMethods();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPaymentError(data.error || 'Unable to remove payment method');
       }
     } catch (err) {
       console.error('Failed to delete payment method:', err);
+      setPaymentError('Unable to remove payment method');
     }
   };
 
-  React.useEffect(() => {
-    fetchPaymentMethods();
-  }, []);
+  useEffect(() => {
+    void fetchPaymentMethods();
+  }, [fetchPaymentMethods]);
 
   return (
-    <Card className="border-border/50">
+    <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader>
-        <CardTitle>Payment Methods</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-primary" />
+          Payment Methods
+        </CardTitle>
         <CardDescription>
           Manage your payment methods for weekly automation fees (10% of profits)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {paymentError && (
+          <div className="rounded-lg border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+            {paymentError}
+          </div>
+        )}
+
         {/* Existing Payment Methods */}
         {loading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          <div className="rounded-xl border border-border/40 bg-secondary/20 py-8 text-center text-muted-foreground">
+            Loading payment methods...
+          </div>
         ) : paymentMethods.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No payment methods added yet.
+          <div className="rounded-xl border border-dashed border-border/50 bg-secondary/15 py-8 text-center">
+            <p className="text-sm font-medium text-foreground">No payment methods added yet.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Add a card to enable weekly billing.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {paymentMethods.map((method) => (
               <div
                 key={method.id}
-                className="flex items-center justify-between p-4 border border-border/30 rounded-lg"
+                className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 p-4"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-8 bg-secondary rounded flex items-center justify-center text-xs font-semibold uppercase">
-                    {method.card_brand}
+                  <div className="flex h-9 w-14 items-center justify-center rounded bg-background text-xs font-semibold uppercase">
+                    {method.card_brand || 'card'}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">•••• {method.card_last4}</span>
                       {method.is_default && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-profit/20 text-profit">
+                        <span className="text-xs px-2 py-0.5 rounded bg-profit/20 text-primary">
                           Default
                         </span>
                       )}
@@ -211,6 +246,7 @@ export function PaymentMethodManager() {
                   onClick={() => handleDelete(method.stripe_payment_method_id)}
                   className="text-loss hover:bg-loss/10"
                 >
+                  <Trash2 className="mr-1 h-4 w-4" />
                   Remove
                 </Button>
               </div>
@@ -225,26 +261,47 @@ export function PaymentMethodManager() {
             variant="outline"
             className="w-full"
           >
-            + Add Payment Method
+            <Plus className="mr-2 h-4 w-4" />
+            Add Payment Method
           </Button>
-        ) : clientSecret ? (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: 'night',
-                variables: {
-                  colorPrimary: '#00ff88',
-                  colorBackground: '#0a0a0a',
-                  colorText: '#ffffff',
-                  colorDanger: '#ff3b3b',
+        ) : clientSecret && stripePromise ? (
+          <div className="space-y-4 rounded-xl border border-border/40 bg-secondary/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-foreground">Add your card details</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setClientSecret(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            <Elements
+              stripe={stripePromise}
+              options={{
+                clientSecret,
+                appearance: {
+                  theme: 'night',
+                  variables: {
+                    colorPrimary: '#00ff88',
+                    colorBackground: '#0a0a0a',
+                    colorText: '#ffffff',
+                    colorDanger: '#ff3b3b',
+                  },
                 },
-              },
-            }}
-          >
-            <PaymentForm onSuccess={handleSuccess} />
-          </Elements>
+              }}
+            >
+              <PaymentForm onSuccess={handleSuccess} />
+            </Elements>
+          </div>
+        ) : !stripePublishableKey ? (
+          <div className="rounded-lg border border-loss/40 bg-loss/10 p-4 text-sm text-loss">
+            Billing is unavailable. `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is not configured.
+          </div>
         ) : (
           <div className="text-center py-4 text-muted-foreground">
             Creating setup...
@@ -252,8 +309,11 @@ export function PaymentMethodManager() {
         )}
 
         {/* Billing Info */}
-        <div className="mt-6 p-4 bg-secondary/20 rounded-lg border border-border/30">
-          <h4 className="font-semibold text-sm mb-2">Billing Schedule</h4>
+        <div className="mt-6 rounded-lg border border-border/30 bg-secondary/20 p-4">
+          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            Billing Schedule
+          </h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• Charged every Sunday night at 11:59 PM PST</li>
             <li>• 10% fee on weekly profits only (losses = $0 charge)</li>
@@ -265,6 +325,3 @@ export function PaymentMethodManager() {
     </Card>
   );
 }
-
-// Fix React import
-import * as React from 'react';

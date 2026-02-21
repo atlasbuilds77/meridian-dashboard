@@ -37,42 +37,36 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-secondary/20">
-      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-5" />
-
-      <Card className="w-full max-w-md relative border-border/50 bg-card/80 backdrop-blur-xl">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-primary/35 bg-[rgba(19,19,28,0.82)] backdrop-blur-xl shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
         <CardContent className="p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="relative h-24 w-24 mb-4">
+          <div className="mb-8 flex flex-col items-center">
+            <div className="relative mb-4 h-24 w-24">
               <Image
                 src="/meridian-logo.png"
                 alt="Meridian"
                 fill
-                className="object-contain drop-shadow-[0_0_20px_rgba(0,255,136,0.5)] brightness-110"
+                className="object-contain drop-shadow-[0_0_20px_rgba(217,70,239,0.45)]"
               />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent mb-2">
-              MERIDIAN
-            </h1>
-            <p className="text-sm text-muted-foreground text-center">
-              Professional Trading Analytics Dashboard
-            </p>
+            <h1 className="mb-2 text-3xl font-bold tracking-tight nebula-gradient-text">MERIDIAN</h1>
+            <p className="text-center text-sm text-muted-foreground">Professional Trading Analytics Dashboard</p>
           </div>
 
           {errorMessage && (
-            <div className="mb-4 p-3 rounded-lg bg-loss/10 border border-loss/30">
-              <p className="text-sm text-loss text-center font-medium">{errorMessage}</p>
+            <div className="mb-4 rounded-lg border border-loss/35 bg-loss/10 p-3">
+              <p className="text-center text-sm font-medium text-loss">{errorMessage}</p>
             </div>
           )}
 
           <button
             onClick={handleDiscordLogin}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-[#5865F2] hover:bg-[#4752C4] disabled:bg-[#5865F2]/50 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 disabled:cursor-not-allowed group"
+            className="group flex w-full items-center justify-center gap-3 rounded-lg border border-primary/35 bg-gradient-to-r from-[#9333ea] to-[#c026d3] px-6 py-3 font-semibold text-white shadow-[0_14px_34px_rgba(147,51,234,0.35)] transition-all duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <>
-                <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 <span>Connecting...</span>
               </>
             ) : (
@@ -85,16 +79,16 @@ function LoginContent() {
             )}
           </button>
 
-          <div className="mt-6 p-4 rounded-lg bg-secondary/30 border border-border/30">
-            <p className="text-xs text-muted-foreground text-center">
-              <span className="font-semibold text-profit">Singularity Tier Only</span>
+          <div className="mt-6 rounded-lg border border-primary/25 bg-primary/8 p-4">
+            <p className="text-center text-xs text-muted-foreground">
+              <span className="font-semibold text-primary">Singularity Tier Only</span>
               <br />
               Access requires Discord authentication with Singularity role.
             </p>
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <div className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
+            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
             <span>Secure • Encrypted • Live Data</span>
           </div>
         </CardContent>
@@ -108,7 +102,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="h-8 w-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
         </div>
       }
     >

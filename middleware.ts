@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 import { applySecurityHeaders } from '@/lib/security/headers';
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
-const PUBLIC_ROUTES = ['/login', '/api/auth/discord/callback', '/api/auth/discord/login'];
+const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));

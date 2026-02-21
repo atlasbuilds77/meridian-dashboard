@@ -2,8 +2,41 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
 import crypto from 'crypto';
+import { z } from 'zod';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
+
+const requiredRiskTypes = [
+  'options_trading_risk',
+  'no_investment_advice',
+  'user_sole_responsibility',
+  'past_performance_disclaimer',
+  'system_downtime_risk',
+  'no_fdic_insurance',
+] as const;
+
+const submitSchema = z.object({
+  sessionId: z.number().int().positive().optional(),
+  sessionToken: z.string().min(1).optional(),
+  step: z.number().int().min(2).max(5),
+  data: z.unknown(),
+});
+
+const riskStepSchema = z.object({
+  risks: z.array(z.enum(requiredRiskTypes)).min(requiredRiskTypes.length),
+});
+
+const acceptanceSchema = z.object({
+  accepted: z.literal(true),
+  scrollPercentage: z.number().int().min(0).max(100).optional(),
+  timeSpent: z.number().int().min(0).optional(),
+});
+
+const signatureSchema = z.object({
+  signatureName: z.string().trim().min(2).max(200),
+  certifyAge: z.literal(true),
+});
 
 // POST - Submit onboarding step
 export async function POST(request: Request) {
@@ -12,22 +45,58 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'onboarding_submit',
+    limit: 40,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'onboarding_submit');
+  }
   
   try {
     const body = await request.json();
-    const { sessionToken, step, data } = body;
+    const parsed = submitSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid request payload' },
+        { status: 400 }
+      );
+    }
+
+    const { sessionId: requestedSessionId, sessionToken, step, data } = parsed.data;
     
     // Get IP
     const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown';
-    
-    // Verify session belongs to user
-    const sessionCheck = await pool.query(
-      `SELECT id, current_step, status 
-       FROM onboarding_sessions 
-       WHERE session_token = $1 AND user_id = $2`,
-      [sessionToken, userId]
-    );
+    const ip = (forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown').trim();
+
+    // Resolve session for this user. Prefer explicit session id/token for backwards compatibility.
+    const sessionCheck = requestedSessionId
+      ? await pool.query(
+          `SELECT id, current_step, status 
+           FROM onboarding_sessions 
+           WHERE id = $1 AND user_id = $2`,
+          [requestedSessionId, userId]
+        )
+      : sessionToken
+        ? await pool.query(
+            `SELECT id, current_step, status 
+             FROM onboarding_sessions 
+             WHERE session_token = $1 AND user_id = $2`,
+            [sessionToken, userId]
+          )
+        : await pool.query(
+            `SELECT id, current_step, status
+             FROM onboarding_sessions
+             WHERE user_id = $1 AND status = 'in_progress'
+             ORDER BY started_at DESC LIMIT 1`,
+            [userId]
+          );
     
     if (sessionCheck.rows.length === 0) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 400 });
@@ -38,6 +107,13 @@ export async function POST(request: Request) {
     
     if (session.status === 'completed') {
       return NextResponse.json({ error: 'Session already completed' }, { status: 400 });
+    }
+
+    if (session.current_step !== step) {
+      return NextResponse.json(
+        { error: 'Invalid onboarding step', expectedStep: session.current_step },
+        { status: 409 }
+      );
     }
     
     // Handle different steps
@@ -79,6 +155,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           success: true,
           completed: true,
+          currentStep: 5,
           message: 'Onboarding completed successfully'
         });
         
@@ -91,7 +168,7 @@ export async function POST(request: Request) {
       `UPDATE onboarding_sessions 
        SET current_step = $1, last_activity_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
-      [step, sessionId]
+      [step + 1, sessionId]
     );
     
     // Log step completion
@@ -108,12 +185,20 @@ export async function POST(request: Request) {
     
     return NextResponse.json({
       success: true,
-      currentStep: step,
+      currentStep: step + 1,
       nextStep: step < 5 ? step + 1 : null
     });
     
   } catch (error) {
     console.error('Onboarding submit error:', error);
+
+    if (error instanceof Error && (
+      error.message.startsWith('Invalid') ||
+      error.message.includes('required')
+    )) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return NextResponse.json(
       { error: 'Failed to submit onboarding step' },
       { status: 500 }
@@ -121,8 +206,17 @@ export async function POST(request: Request) {
   }
 }
 
-async function handleRiskAcknowledgments(sessionId: number, userId: number, data: any, ip: string) {
-  const { risks } = data;
+async function handleRiskAcknowledgments(sessionId: number, userId: number, rawData: unknown, ip: string) {
+  const parsed = riskStepSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error('Invalid risk acknowledgment payload');
+  }
+
+  const risks = Array.from(new Set(parsed.data.risks));
+
+  if (requiredRiskTypes.some((riskType) => !risks.includes(riskType))) {
+    throw new Error('All risk acknowledgments are required');
+  }
   
   // Insert each risk acknowledgment
   for (const riskType of risks) {
@@ -141,7 +235,12 @@ async function handleRiskAcknowledgments(sessionId: number, userId: number, data
   }
 }
 
-async function handleTermsAcceptance(sessionId: number, userId: number, data: any, ip: string) {
+async function handleTermsAcceptance(sessionId: number, userId: number, rawData: unknown, ip: string) {
+  const parsed = acceptanceSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error('Invalid terms acceptance payload');
+  }
+
   const documentHash = crypto.createHash('sha256').update('terms_of_service_v1.0').digest('hex');
   
   await pool.query(
@@ -158,7 +257,7 @@ async function handleTermsAcceptance(sessionId: number, userId: number, data: an
       time_spent_seconds
     ) VALUES ($1, $2, 'terms_of_service', '1.0', $3, true, CURRENT_TIMESTAMP, $4, $5, $6)
     ON CONFLICT (onboarding_session_id, document_type) DO NOTHING`,
-    [sessionId, userId, documentHash, ip, data.scrollPercentage || 0, data.timeSpent || 0]
+    [sessionId, userId, documentHash, ip, parsed.data.scrollPercentage ?? 0, parsed.data.timeSpent ?? 0]
   );
   
   // Also insert privacy policy and risk disclosure
@@ -183,7 +282,11 @@ async function handleTermsAcceptance(sessionId: number, userId: number, data: an
   );
 }
 
-async function handleFeeAgreement(sessionId: number, userId: number, data: any, ip: string) {
+async function handleFeeAgreement(sessionId: number, userId: number, rawData: unknown, ip: string) {
+  if (!acceptanceSchema.safeParse(rawData).success) {
+    throw new Error('Invalid fee acceptance payload');
+  }
+
   // Record fee agreement acceptance
   await pool.query(
     `INSERT INTO user_consents (
@@ -199,12 +302,13 @@ async function handleFeeAgreement(sessionId: number, userId: number, data: any, 
   );
 }
 
-async function handleSignature(sessionId: number, userId: number, data: any, ip: string, userAgent: string) {
-  const { signatureName, certifyAge } = data;
-  
-  if (!certifyAge) {
-    throw new Error('Age certification required');
+async function handleSignature(sessionId: number, userId: number, rawData: unknown, ip: string, userAgent: string) {
+  const parsed = signatureSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error('Invalid signature payload');
   }
+
+  const signatureName = parsed.data.signatureName;
   
   // Create verification hash
   const verificationData = `${signatureName}|${new Date().toISOString()}|${ip}`;

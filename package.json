@@ -6,7 +6,10 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "eslint"
+    "lint": "eslint",
+    "billing:weekly": "npx tsx scripts/weekly-billing.ts",
+    "billing:migrate": "node scripts/run-billing-migration.js",
+    "db:migrate": "node scripts/run-migrations.js"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.2.0",

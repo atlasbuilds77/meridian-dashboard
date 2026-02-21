@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,19 +54,19 @@ function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
   const isLive = secondsAgo < 60;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-muted-foreground">
       <div className={`h-2 w-2 rounded-full ${isLive ? 'bg-profit animate-pulse' : 'bg-muted-foreground'}`} />
-      <span className="text-xs text-muted-foreground">{isLive ? 'Live' : `${secondsAgo}s ago`}</span>
+      <span>{isLive ? 'Live' : `${secondsAgo}s ago`}</span>
     </div>
   );
 }
 
 function LoadingCard() {
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur animate-pulse">
+    <Card className="animate-pulse">
       <CardContent className="p-6">
-        <div className="h-8 w-32 bg-muted rounded mb-4" />
-        <div className="h-12 w-48 bg-muted rounded" />
+        <div className="mb-4 h-8 w-32 rounded bg-white/10" />
+        <div className="h-12 w-48 rounded bg-white/10" />
       </CardContent>
     </Card>
   );
@@ -73,7 +74,7 @@ function LoadingCard() {
 
 function ErrorCard({ message }: { message: string }) {
   return (
-    <Card className="border-loss/50 bg-loss/5">
+    <Card className="border-loss/50 bg-loss/10">
       <CardContent className="p-6">
         <div className="flex items-center gap-3 text-loss">
           <AlertCircle className="h-5 w-5" />
@@ -104,43 +105,39 @@ function PortfolioHeader() {
   const isPositive = totalPnL >= 0;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card to-secondary p-8">
+    <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
+      <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+
       <div className="relative z-10">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-profit animate-pulse" />
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Portfolio Value</p>
-          </div>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Portfolio Value</p>
           <LiveIndicator lastUpdate={lastUpdate} />
         </div>
-        <div className="flex items-baseline gap-4 mb-6">
-          <h1 className={`text-6xl font-bold tracking-tight ${isPositive ? 'text-profit' : 'text-loss'}`}>
+
+        <div className="mb-5 flex flex-wrap items-end gap-3">
+          <h1 className={`text-4xl font-bold tracking-tight sm:text-6xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
             {formatCurrency(totalValue)}
           </h1>
-          <div className="flex items-center gap-2">
-            {isPositive ? (
-              <ArrowUpRight className="h-6 w-6 text-profit" />
-            ) : (
-              <ArrowDownRight className="h-6 w-6 text-loss" />
-            )}
-            <span className={`text-2xl font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>
+
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5">
+            {isPositive ? <ArrowUpRight className="h-5 w-5 text-profit" /> : <ArrowDownRight className="h-5 w-5 text-loss" />}
+            <span className={`text-lg font-semibold sm:text-2xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
               {formatPercent(totalReturn)}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">P&L:</span>
-            <span className={`text-lg font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>
-              {formatCurrency(totalPnL)}
-            </span>
+
+        <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+          <div className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
+            P&amp;L:{' '}
+            <span className={`font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>{formatCurrency(totalPnL)}</span>
           </div>
-          <div className="h-4 w-px bg-border" />
+
           {market && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">QQQ:</span>
-              <span className="text-lg font-semibold text-foreground">${market.price.toFixed(2)}</span>
-              <span className={`text-sm ${market.change >= 0 ? 'text-profit' : 'text-loss'}`}>
+            <div className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
+              QQQ: <span className="font-semibold text-foreground">${market.price.toFixed(2)}</span>{' '}
+              <span className={market.change >= 0 ? 'text-profit' : 'text-loss'}>
                 {market.change >= 0 ? '+' : ''}
                 {market.changePercent.toFixed(2)}%
               </span>
@@ -148,8 +145,7 @@ function PortfolioHeader() {
           )}
         </div>
       </div>
-      {isPositive && <div className="absolute top-0 right-0 w-96 h-96 bg-profit/5 rounded-full blur-3xl" />}
-    </div>
+    </section>
   );
 }
 
@@ -159,7 +155,7 @@ function StatsGrid() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((item) => (
           <LoadingCard key={item} />
         ))}
@@ -210,16 +206,20 @@ function StatsGrid() {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
-          <Card key={index} className="border-border/50 bg-card/50 backdrop-blur hover:bg-card/80 transition-colors">
+          <Card key={index} className="border-primary/30 hover:border-primary/55">
             <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-4">
+              <div className="mb-4 flex items-start justify-between">
                 <div
-                  className={`p-2 rounded-lg ${
-                    stat.color === 'profit' ? 'bg-profit/10' : stat.color === 'loss' ? 'bg-loss/10' : 'bg-muted/30'
+                  className={`rounded-xl border p-2 ${
+                    stat.color === 'profit'
+                      ? 'border-profit/30 bg-profit/15'
+                      : stat.color === 'loss'
+                      ? 'border-loss/30 bg-loss/15'
+                      : 'border-primary/35 bg-primary/10'
                   }`}
                 >
                   <Icon
@@ -240,7 +240,7 @@ function StatsGrid() {
                   ))}
               </div>
               <div>
-                <p className="text-sm text-muted-foreground mb-1 uppercase tracking-wider">{stat.label}</p>
+                <p className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">{stat.label}</p>
                 <p
                   className={`text-2xl font-bold ${
                     stat.color === 'profit' ? 'text-profit' : stat.color === 'loss' ? 'text-loss' : 'text-foreground'
@@ -271,17 +271,17 @@ function RecentActivity() {
   const recentTrades = (trades.trades as DashboardTrade[]).slice(0, 10);
 
   return (
-    <Card className="col-span-full border-border/50 bg-card/50 backdrop-blur">
-      <CardHeader className="border-b border-border/50 pb-4">
+    <Card className="col-span-full border-primary/30">
+      <CardHeader className="border-b border-primary/20 pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold">Recent Activity</CardTitle>
-          <a href="/trades" className="text-sm text-profit hover:text-profit/80 transition-colors font-medium">
+          <Link href="/trades" className="text-sm font-medium text-primary transition-colors hover:text-primary/80">
             View all →
-          </a>
+          </Link>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-border/30">
+        <div className="divide-y divide-primary/15">
           {recentTrades.map((trade, index) => {
             const direction = (trade.direction || 'UNKNOWN').toUpperCase();
             const bullish = isBullishDirection(direction);
@@ -290,30 +290,34 @@ function RecentActivity() {
             const entryPrice = parseNumber(trade.entry_price);
 
             return (
-              <div key={`${trade.symbol || 'trade'}-${index}`} className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors">
+              <div
+                key={`${trade.symbol || 'trade'}-${index}`}
+                className="flex flex-col gap-3 p-4 transition-colors hover:bg-primary/[0.06] sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex items-center gap-4">
-                  <div className={`flex items-center justify-center h-10 w-10 rounded-lg ${bullish ? 'bg-profit/10' : 'bg-loss/10'}`}>
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
+                      bullish ? 'border-profit/30 bg-profit/15' : 'border-loss/30 bg-loss/15'
+                    }`}
+                  >
                     {bullish ? <TrendingUp className="h-5 w-5 text-profit" /> : <TrendingDown className="h-5 w-5 text-loss" />}
                   </div>
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">{trade.symbol || 'N/A'}</span>
-                      <Badge
-                        variant="outline"
-                        className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}
-                      >
+                      <span className="font-semibold text-foreground">{trade.symbol || 'N/A'}</span>
+                      <Badge variant="outline" className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}>
                         {direction}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {trade.created_at ? formatDate(trade.created_at) : 'Unknown date'}
                       {entryPrice !== null ? ` • Entry: $${entryPrice.toFixed(2)}` : ''}
                     </div>
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <div className={`text-lg font-bold ${isWin ? 'text-profit' : 'text-loss'}`}>
                     {pnlValue !== null ? (
                       <>
@@ -337,8 +341,13 @@ function RecentActivity() {
 
 export default function Dashboard() {
   return (
-    <div className="min-h-screen p-6 md:p-8 lg:p-12">
-      <div className="max-w-[1600px] mx-auto space-y-6">
+    <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <header className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Nebula System Style</p>
+          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+        </header>
+
         <PortfolioHeader />
         <StatsGrid />
         <RecentActivity />

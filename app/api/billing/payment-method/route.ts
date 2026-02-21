@@ -1,17 +1,41 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
+import { z } from 'zod';
 import { 
   attachPaymentMethod, 
   setDefaultPaymentMethod, 
   getPaymentMethod,
   detachPaymentMethod 
 } from '@/lib/stripe/client';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
+const paymentMethodIdSchema = z.union([
+  z.string().min(1),
+  z.object({
+    id: z.string().min(1),
+  }),
+]);
+
+const paymentMethodPayloadSchema = z.object({
+  paymentMethodId: paymentMethodIdSchema.optional(),
+  payment_method_id: paymentMethodIdSchema.optional(),
+});
+
+function normalizePaymentMethodId(
+  value: z.infer<typeof paymentMethodIdSchema> | undefined
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return typeof value === 'string' ? value : value.id;
+}
+
 // GET - Get user's payment methods
-export async function GET(request: Request) {
+export async function GET() {
   const userId = await getUserIdFromSession();
   
   if (!userId) {
@@ -37,7 +61,8 @@ export async function GET(request: Request) {
     );
     
     return NextResponse.json({
-      paymentMethods: result.rows
+      paymentMethods: result.rows,
+      payment_methods: result.rows,
     });
     
   } catch (error) {
@@ -56,9 +81,26 @@ export async function POST(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'billing_payment_method_write',
+    limit: 20,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'billing_payment_method_write');
+  }
   
   try {
-    const { paymentMethodId } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const parsed = paymentMethodPayloadSchema.safeParse(body);
+    const paymentMethodId = parsed.success
+      ? normalizePaymentMethodId(parsed.data.paymentMethodId) ||
+        normalizePaymentMethodId(parsed.data.payment_method_id)
+      : undefined;
     
     if (!paymentMethodId) {
       return NextResponse.json(
@@ -82,14 +124,27 @@ export async function POST(request: Request) {
     
     const customerId = userResult.rows[0].stripe_customer_id;
     
-    // Attach payment method to customer
-    await attachPaymentMethod(paymentMethodId, customerId);
+    // Retrieve and validate ownership before attachment/default updates.
+    let pm = await getPaymentMethod(paymentMethodId);
+    const attachedCustomerId =
+      typeof pm.customer === 'string'
+        ? pm.customer
+        : pm.customer?.id || null;
+
+    if (attachedCustomerId && attachedCustomerId !== customerId) {
+      return NextResponse.json(
+        { error: 'Payment method belongs to another Stripe customer' },
+        { status: 409 }
+      );
+    }
+
+    if (!attachedCustomerId) {
+      await attachPaymentMethod(paymentMethodId, customerId);
+      pm = await getPaymentMethod(paymentMethodId);
+    }
     
     // Set as default
     await setDefaultPaymentMethod(customerId, paymentMethodId);
-    
-    // Get payment method details from Stripe
-    const pm = await getPaymentMethod(paymentMethodId);
     
     // Remove previous default (if any)
     await pool.query(
@@ -111,6 +166,17 @@ export async function POST(request: Request) {
         is_default,
         billing_email
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9)
+      ON CONFLICT (stripe_payment_method_id) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        stripe_customer_id = EXCLUDED.stripe_customer_id,
+        payment_method_type = EXCLUDED.payment_method_type,
+        card_brand = EXCLUDED.card_brand,
+        card_last4 = EXCLUDED.card_last4,
+        card_exp_month = EXCLUDED.card_exp_month,
+        card_exp_year = EXCLUDED.card_exp_year,
+        is_default = true,
+        billing_email = EXCLUDED.billing_email,
+        updated_at = CURRENT_TIMESTAMP
       RETURNING *`,
       [
         userId,
@@ -143,13 +209,14 @@ export async function POST(request: Request) {
     
     return NextResponse.json({
       success: true,
-      paymentMethod: insertResult.rows[0]
+      paymentMethod: insertResult.rows[0],
+      payment_method: insertResult.rows[0],
     });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Save payment method error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to save payment method' },
+      { error: error instanceof Error ? error.message : 'Failed to save payment method' },
       { status: 500 }
     );
   }
@@ -162,10 +229,33 @@ export async function DELETE(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'billing_payment_method_write',
+    limit: 20,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'billing_payment_method_write');
+  }
   
   try {
     const { searchParams } = new URL(request.url);
-    const paymentMethodId = searchParams.get('id');
+    let paymentMethodId = searchParams.get('id') || searchParams.get('paymentMethodId');
+
+    if (!paymentMethodId) {
+      const body = await request.json().catch(() => ({}));
+      const parsed = paymentMethodPayloadSchema.safeParse(body);
+      if (parsed.success) {
+        paymentMethodId =
+          normalizePaymentMethodId(parsed.data.paymentMethodId) ||
+          normalizePaymentMethodId(parsed.data.payment_method_id) ||
+          null;
+      }
+    }
     
     if (!paymentMethodId) {
       return NextResponse.json(
@@ -180,7 +270,7 @@ export async function DELETE(request: Request) {
       [paymentMethodId]
     );
     
-    if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].user_id !== userId) {
+    if (ownerCheck.rows.length === 0 || Number(ownerCheck.rows[0].user_id) !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     
@@ -218,10 +308,10 @@ export async function DELETE(request: Request) {
     
     return NextResponse.json({ success: true });
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Delete payment method error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to delete payment method' },
+      { error: error instanceof Error ? error.message : 'Failed to delete payment method' },
       { status: 500 }
     );
   }

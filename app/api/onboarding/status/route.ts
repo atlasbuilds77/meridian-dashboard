@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,18 @@ export async function GET(request: Request) {
   
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'onboarding_status',
+    limit: 120,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'onboarding_status');
   }
   
   try {
@@ -28,7 +41,7 @@ export async function GET(request: Request) {
     let inProgressSession = null;
     if (!hasCompleted) {
       const inProgressResult = await pool.query(
-        `SELECT id, session_token, current_step 
+        `SELECT id, current_step 
          FROM onboarding_sessions 
          WHERE user_id = $1 AND status = 'in_progress'
          ORDER BY started_at DESC LIMIT 1`,
@@ -45,7 +58,6 @@ export async function GET(request: Request) {
       completedAt: hasCompleted ? result.rows[0].completed_at : null,
       inProgressSession: inProgressSession ? {
         sessionId: inProgressSession.id,
-        sessionToken: inProgressSession.session_token,
         currentStep: inProgressSession.current_step
       } : null
     });

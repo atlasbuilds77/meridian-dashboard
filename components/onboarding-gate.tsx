@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
@@ -9,20 +9,18 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const [hasCompleted, setHasCompleted] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(true);
   
-  useEffect(() => {
-    // Skip check if already on onboarding page
-    if (pathname === '/onboarding') {
-      setChecking(false);
-      setHasCompleted(true); // Allow access to onboarding page
-      return;
-    }
-    
-    checkOnboardingStatus();
-  }, [pathname]);
-  
-  async function checkOnboardingStatus() {
+  const isPublicRoute = pathname === '/login' || pathname.startsWith('/legal/');
+
+  const checkOnboardingStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/onboarding/status');
+
+      if (response.status === 401) {
+        setHasCompleted(false);
+        router.push('/login');
+        return;
+      }
+
       const data = await response.json();
       
       setHasCompleted(data.hasCompleted);
@@ -33,12 +31,26 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Onboarding check error:', error);
-      // On error, allow access (fail open)
-      setHasCompleted(true);
+      // Fail closed for protected routes.
+      setHasCompleted(false);
+      if (pathname !== '/onboarding') {
+        router.push('/onboarding');
+      }
     } finally {
       setChecking(false);
     }
-  }
+  }, [pathname, router]);
+
+  useEffect(() => {
+    // Skip checks for public routes.
+    if (pathname === '/onboarding' || isPublicRoute) {
+      setChecking(false);
+      setHasCompleted(true); // Allow access to public/onboarding routes
+      return;
+    }
+    
+    void checkOnboardingStatus();
+  }, [pathname, checkOnboardingStatus, isPublicRoute, router]);
   
   if (checking) {
     return (

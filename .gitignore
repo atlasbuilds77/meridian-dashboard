@@ -43,3 +43,5 @@ next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+.local-secrets/
+STRIPE-KEYS-LOCAL-BACKUP.md
