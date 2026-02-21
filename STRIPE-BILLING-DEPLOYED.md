@@ -218,11 +218,10 @@ runMigration().catch(console.error);
 **Render Web Service → Environment:**
 
 ```bash
-# Stripe Keys (REQUIRED)
-STRIPE_SECRET_KEY=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
-
-# Public key (for frontend)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_... # Get from Stripe dashboard
+# Stripe Keys (REQUIRED - Get from https://dashboard.stripe.com/apikeys)
+STRIPE_SECRET_KEY=sk_live_YOUR_SECRET_KEY_HERE
+STRIPE_WEBHOOK_SECRET=whsec_YOUR_WEBHOOK_SECRET_HERE
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_YOUR_PUBLISHABLE_KEY_HERE
 ```
 
 **Get your keys:**
