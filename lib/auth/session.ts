@@ -25,9 +25,8 @@ export async function createSession(
   payload: SessionPayload,
   options?: CreateSessionOptions
 ): Promise<string> {
-  // Default: 2 hours for financial app security
-  // Remember Me: 7 days (opt-in only)
-  const expiresIn = options?.rememberMe ? '7d' : '2h';
+  // Default: 7 days (trading platform, users want extended sessions)
+  const expiresIn = '7d';
   
   return new SignJWT({ ...payload, authorized: true })
     .setProtectedHeader({ alg: 'HS256' })
@@ -40,7 +39,7 @@ export async function createSession(
  * Get session duration in seconds based on options
  */
 export function getSessionDuration(options?: CreateSessionOptions): number {
-  return options?.rememberMe ? 7 * 24 * 60 * 60 : 2 * 60 * 60;
+  return 7 * 24 * 60 * 60; // 7 days
 }
 
 export async function getUserIdFromSession(): Promise<number | null> {

@@ -64,19 +64,17 @@ cat .env.local | grep -E "SESSION_SECRET|ENCRYPTION_KEY|DATABASE"
 
 ---
 
-### 3. Session Expiration Reduced
+### 3. Session Expiration
 
-**Old:** 24 hours  
-**New:** 2 hours (default)
+**Duration:** 7 days (reverted from initial 2-hour change per user request)
 
 **Impact:**
-- ✅ Better security (shorter window for session hijacking)
-- ⚠️ Users will be logged out more frequently
-- ✅ Optional "Remember Me" feature available (7 days) - not yet implemented in UI
+- Session lasts one week before requiring re-login
+- Matches trading platform usage patterns (users want extended sessions)
 
 **User experience:**
-- Users will need to re-login every 2 hours
-- Consider adding "Remember Me" checkbox to login flow
+- Users stay logged in for 7 days
+- No frequent re-authentication required
 
 ---
 
@@ -181,16 +179,9 @@ DATABASE_SSL_REJECT_UNAUTHORIZED=true
 
 ### Sessions Keep Expiring
 
-Sessions now expire after 2 hours instead of 24 hours.
+Sessions now expire after 7 days (same as before the security update).
 
-**Short-term fix:** Update users via email/banner  
-**Long-term solution:** Implement "Remember Me" checkbox in UI:
-
-```typescript
-// When user checks "Remember Me":
-const token = await createSession(payload, { rememberMe: true });
-// Session will last 7 days instead of 2 hours
-```
+**This is expected behavior.** Users will need to re-login once per week.
 
 ---
 
@@ -199,7 +190,7 @@ const token = await createSession(payload, { rememberMe: true });
 | Item | Before | After | Impact |
 |------|--------|-------|--------|
 | Encryption | scrypt with static salt | Direct base64 key | ✅ Stronger, no shared salt |
-| Session Duration | 24 hours | 2 hours | ✅ Reduced attack window |
+| Session Duration | 24 hours | 7 days | ↔️ Extended for UX |
 | Startup Checks | None | Full validation | ✅ Fail fast on misconfig |
 | Admin IDs | No validation | Format + timing-safe | ✅ Harder to brute force |
 | Stripe Webhooks | No timestamp check | 5-min tolerance | ✅ Prevents replay attacks |
