@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getOrCreateUser } from '@/lib/db/users';
-import { createSession } from '@/lib/auth/session';
+import { createSession, getSessionDuration } from '@/lib/auth/session';
 import {
   OAUTH_STATE_COOKIE,
   verifyOAuthStateToken,
@@ -160,7 +160,7 @@ export async function GET(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60,
+      maxAge: getSessionDuration(), // 2 hours (can be extended with rememberMe)
       path: '/',
     });
 

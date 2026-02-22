@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { getUserIdFromSession } from '@/lib/auth/session';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,14 +12,26 @@ export async function GET(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'billing_history',
+    limit: 60,
+    windowMs: 60_000,
+    userId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'billing_history');
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
-    
+
     // Get billing periods
     const periodsResult = await pool.query(
-      `SELECT 
+      `SELECT
         bp.id,
         bp.week_start,
         bp.week_end,
@@ -36,10 +49,10 @@ export async function GET(request: Request) {
       LIMIT $2`,
       [userId, limit]
     );
-    
+
     // Get summary stats
     const statsResult = await pool.query(
-      `SELECT 
+      `SELECT
         COUNT(*) as total_periods,
         COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_periods,
         COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_periods,
@@ -49,9 +62,9 @@ export async function GET(request: Request) {
       WHERE user_id = $1`,
       [userId]
     );
-    
+
     const stats = statsResult.rows[0];
-    
+
     return NextResponse.json({
       periods: periodsResult.rows,
       summary: {
@@ -62,7 +75,7 @@ export async function GET(request: Request) {
         lifetimePnL: parseFloat(stats.lifetime_pnl)
       }
     });
-    
+
   } catch (error) {
     console.error('Billing history error:', error);
     return NextResponse.json(

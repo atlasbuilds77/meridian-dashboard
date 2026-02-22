@@ -16,12 +16,31 @@ export interface SessionPayload {
   avatar: string | null;
 }
 
-export async function createSession(payload: SessionPayload): Promise<string> {
+export interface CreateSessionOptions {
+  /** Set to true for extended 7-day session (remember me) */
+  rememberMe?: boolean;
+}
+
+export async function createSession(
+  payload: SessionPayload,
+  options?: CreateSessionOptions
+): Promise<string> {
+  // Default: 2 hours for financial app security
+  // Remember Me: 7 days (opt-in only)
+  const expiresIn = options?.rememberMe ? '7d' : '2h';
+  
   return new SignJWT({ ...payload, authorized: true })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('24h') // Reduced from 7 days
+    .setExpirationTime(expiresIn)
     .sign(secret);
+}
+
+/**
+ * Get session duration in seconds based on options
+ */
+export function getSessionDuration(options?: CreateSessionOptions): number {
+  return options?.rememberMe ? 7 * 24 * 60 * 60 : 2 * 60 * 60;
 }
 
 export async function getUserIdFromSession(): Promise<number | null> {

@@ -14,12 +14,22 @@ function getEncryptionKey(): Buffer {
     throw new Error('ENCRYPTION_KEY environment variable is required');
   }
   
-  if (key.length < 32) {
-    throw new Error('ENCRYPTION_KEY must be at least 32 characters');
+  // Expect base64-encoded 32-byte key from: openssl rand -base64 32
+  try {
+    const decoded = Buffer.from(key, 'base64');
+    
+    if (decoded.length < 32) {
+      throw new Error('ENCRYPTION_KEY must be at least 32 bytes when base64 decoded. Generate with: openssl rand -base64 32');
+    }
+    
+    // Use first 32 bytes for AES-256
+    return decoded.slice(0, 32);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('ENCRYPTION_KEY must be')) {
+      throw error;
+    }
+    throw new Error('ENCRYPTION_KEY must be valid base64. Generate with: openssl rand -base64 32');
   }
-  
-  // Derive a 256-bit key from the environment variable
-  return crypto.scryptSync(key, 'meridian-salt', 32);
 }
 
 /**
@@ -104,9 +114,9 @@ export function generateEncryptionKey(): string {
  */
 export function validateEncryptionKey(key: string): boolean {
   try {
-    if (!key || key.length < 32) return false;
-    crypto.scryptSync(key, 'test-salt', 32);
-    return true;
+    if (!key) return false;
+    const decoded = Buffer.from(key, 'base64');
+    return decoded.length >= 32;
   } catch {
     return false;
   }

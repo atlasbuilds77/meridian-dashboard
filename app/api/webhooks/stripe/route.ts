@@ -185,8 +185,19 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.text();
-    event = getStripeClient().webhooks.constructEvent(payload, signature, getWebhookSecret());
+    // Add 300 second (5 min) tolerance to prevent replay attacks
+    const tolerance = 300;
+    event = getStripeClient().webhooks.constructEvent(
+      payload,
+      signature,
+      getWebhookSecret(),
+      tolerance
+    );
   } catch (error) {
+    if (error instanceof Error && error.message.includes('timestamp')) {
+      console.error('Stripe webhook timestamp too old (possible replay attack):', error);
+      return NextResponse.json({ error: 'Webhook timestamp invalid' }, { status: 400 });
+    }
     console.error('Invalid Stripe webhook signature:', error);
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 });
   }
