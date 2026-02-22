@@ -9,6 +9,7 @@ import {
   detachPaymentMethod 
 } from '@/lib/stripe/client';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,12 @@ export async function POST(request: Request) {
   
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({
@@ -228,6 +235,12 @@ export async function DELETE(request: Request) {
   
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({

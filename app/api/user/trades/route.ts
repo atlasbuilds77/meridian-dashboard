@@ -3,6 +3,7 @@ import pool from '@/lib/db/pool';
 import { TradeSchema, TradeUpdateSchema } from '@/lib/validation/schemas';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 import format from 'pg-format';
 
 export const dynamic = 'force-dynamic';
@@ -111,6 +112,12 @@ export async function POST(request: Request) {
     return authResult.response;
   }
 
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
+
   const limiterResult = await enforceRateLimit({
     request,
     name: 'user_trades_write',
@@ -198,6 +205,12 @@ export async function PATCH(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({
@@ -303,6 +316,12 @@ export async function DELETE(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({

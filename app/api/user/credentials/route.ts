@@ -13,6 +13,7 @@ import { verifyPolymarketAddress } from '@/lib/api-clients/polymarket';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { extractClientIp } from '@/lib/security/client-ip';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,12 @@ export async function POST(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({
@@ -158,6 +165,12 @@ export async function DELETE(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const limiterResult = await enforceRateLimit({

@@ -4,6 +4,7 @@ import { AccountSchema, AccountUpdateSchema } from '@/lib/validation/schemas';
 import { getApiCredential } from '@/lib/db/api-credentials';
 import { TradierClient } from '@/lib/api-clients/tradier';
 import { requireUserId } from '@/lib/api/require-auth';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 import format from 'pg-format';
 
 type TradierBalanceWithMargin = {
@@ -80,6 +81,12 @@ export async function POST(request: Request) {
     return authResult.response;
   }
 
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
+
   try {
     const body = await request.json();
     const validation = AccountSchema.safeParse(body);
@@ -118,6 +125,12 @@ export async function PATCH(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   try {
@@ -177,6 +190,12 @@ export async function DELETE(request: Request) {
   const authResult = await requireUserId();
   if (!authResult.ok) {
     return authResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const { searchParams } = new URL(request.url);
