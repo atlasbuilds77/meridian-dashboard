@@ -4,6 +4,7 @@ import { AccountSchema, AccountUpdateSchema } from '@/lib/validation/schemas';
 import { getApiCredential } from '@/lib/db/api-credentials';
 import { TradierClient } from '@/lib/api-clients/tradier';
 import { requireUserId } from '@/lib/api/require-auth';
+import format from 'pg-format';
 
 type TradierBalanceWithMargin = {
   margin?: {
@@ -150,7 +151,8 @@ export async function PATCH(request: Request) {
     let paramCount = 1;
 
     for (const [key, value] of Object.entries(validatedUpdates)) {
-      updateFields.push(`${key} = $${paramCount++}`);
+      // Use pg-format to safely escape column identifier
+      updateFields.push(format('%I = $%s', key, paramCount++));
       values.push(value);
     }
 

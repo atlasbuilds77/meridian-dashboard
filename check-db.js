@@ -4,6 +4,7 @@
  */
 
 const { Pool } = require('pg');
+const format = require('pg-format');
 require('dotenv').config({ path: '.env.local' });
 
 const pool = new Pool({
@@ -30,7 +31,9 @@ async function main() {
 
     console.log('\n📋 Table row counts:');
     for (const { table_name } of tables) {
-      const { rows } = await pool.query(`SELECT COUNT(*) FROM ${table_name}`);
+      // Use pg-format to safely escape table identifier
+      const query = format('SELECT COUNT(*) FROM %I', table_name);
+      const { rows } = await pool.query(query);
       console.log(`  ${table_name}: ${rows[0].count} rows`);
     }
 

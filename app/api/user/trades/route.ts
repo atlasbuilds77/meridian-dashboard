@@ -3,6 +3,7 @@ import pool from '@/lib/db/pool';
 import { TradeSchema, TradeUpdateSchema } from '@/lib/validation/schemas';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import format from 'pg-format';
 
 export const dynamic = 'force-dynamic';
 
@@ -275,7 +276,8 @@ export async function PATCH(request: Request) {
 
     for (const [key, value] of Object.entries(validatedUpdates)) {
       if (key !== 'exit_price') {
-        updateFields.push(`${key} = $${paramCount++}`);
+        // Use pg-format to safely escape column identifier
+        updateFields.push(format('%I = $%s', key, paramCount++));
         values.push(value);
       }
     }
