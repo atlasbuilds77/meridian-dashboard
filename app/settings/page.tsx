@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PaymentMethodManager } from '@/components/payment-method-form';
+import { RiskSettingsCard } from '@/components/risk-settings';
 import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -185,6 +186,8 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        <RiskSettingsCard />
 
         {error && (
           <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
