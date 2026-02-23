@@ -76,7 +76,15 @@ export async function GET(
         discord_username: user.username,
         discord_avatar: user.avatar,
       },
-      trades: tradesResult.rows,
+      trades: tradesResult.rows.map(trade => ({
+        ...trade,
+        entry_price: parseFloat(String(trade.entry_price)),
+        exit_price: trade.exit_price ? parseFloat(String(trade.exit_price)) : null,
+        pnl: parseFloat(String(trade.pnl || 0)),
+        pnl_percent: parseFloat(String(trade.pnl_percent || 0)),
+        stop_loss: trade.stop_loss ? parseFloat(String(trade.stop_loss)) : null,
+        take_profit: trade.take_profit ? parseFloat(String(trade.take_profit)) : null,
+      })),
       stats: {
         total_trades: parseInt(String(stats.total_trades), 10),
         wins: parseInt(String(stats.wins), 10),
