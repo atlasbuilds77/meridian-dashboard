@@ -143,17 +143,17 @@ export async function GET(request: Request) {
       return redirectWithError(request, 'no_singularity_role');
     }
 
-    const avatarUrl = userData.avatar
-      ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png`
-      : undefined;
+    // Store just the avatar hash, not the full URL
+    // Frontend will build the URL when needed
+    const avatarHash = userData.avatar || undefined;
 
-    const dbUser = await getOrCreateUser(userData.id, fullUsername, avatarUrl);
+    const dbUser = await getOrCreateUser(userData.id, fullUsername, avatarHash);
 
     const token = await createSession({
       discordId: userData.id,
       dbUserId: dbUser.id,
       username: fullUsername,
-      avatar: avatarUrl || null,
+      avatar: avatarHash || null,
     });
 
     cookieStore.set('meridian_session', token, {
