@@ -169,13 +169,30 @@ export async function PATCH(req: NextRequest) {
       }
       
       // Also update user_trading_settings (meridian_trader reads from this table)
+      // Convert size_pct from 1-100 (dashboard) to 0.0-1.0 (trading system)
+      const settingsUpdates: string[] = [];
+      const settingsValues: unknown[] = [];
+      let settingsParamIndex = 1;
+
+      if (typeof trading_enabled === 'boolean') {
+        settingsUpdates.push(`trading_enabled = $${settingsParamIndex++}`);
+        settingsValues.push(trading_enabled);
+      }
+
+      if (typeof size_pct === 'number') {
+        settingsUpdates.push(`size_pct = $${settingsParamIndex++}`);
+        settingsValues.push(size_pct / 100); // Convert 1-100 → 0.0-1.0
+      }
+
+      settingsValues.push(user_id);
+
       const settingsQuery = `
-        INSERT INTO user_trading_settings (user_id, ${updates.map(u => u.split(' =')[0].trim()).join(', ')}, updated_at)
-        VALUES ($${paramIndex}, ${values.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, NOW())
+        INSERT INTO user_trading_settings (user_id, ${settingsUpdates.map(u => u.split(' =')[0].trim()).join(', ')}, updated_at)
+        VALUES ($${settingsParamIndex}, ${settingsValues.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, NOW())
         ON CONFLICT (user_id)
-        DO UPDATE SET ${updates.join(', ')}, updated_at = NOW()
+        DO UPDATE SET ${settingsUpdates.join(', ')}, updated_at = NOW()
       `;
-      await client.query(settingsQuery, values);
+      await client.query(settingsQuery, settingsValues);
       
       await client.query('COMMIT');
       return NextResponse.json({ success: true, account: apiResult.rows[0] });
