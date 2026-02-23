@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getOrCreateUser } from '@/lib/db/users';
-import { createSession, getSessionDuration } from '@/lib/auth/session';
+import { createSession } from '@/lib/auth/session';
 import {
   OAUTH_STATE_COOKIE,
   verifyOAuthStateToken,
@@ -10,7 +10,6 @@ import {
   enforceRateLimit,
   rateLimitExceededResponse,
 } from '@/lib/security/rate-limit';
-import { getPublicOrigin } from '@/lib/url/origin';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +25,10 @@ const DISCORD_CLIENT_SECRET: string = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_GUILD_ID: string = process.env.DISCORD_GUILD_ID;
 const SINGULARITY_ROLE_ID: string = process.env.SINGULARITY_ROLE_ID;
 
-async function redirectWithError(request: Request, errorCode: string): Promise<NextResponse> {
-  const origin = await getPublicOrigin(request);
-  return NextResponse.redirect(new URL(`/login?error=${errorCode}`, origin));
+function redirectWithError(request: Request, errorCode: string): NextResponse {
+  const origin = new URL(request.url).origin;
+  const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
+  return NextResponse.redirect(new URL(`/login?error=${errorCode}`, baseUrl));
 }
 
 export async function GET(request: Request) {
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const origin = await getPublicOrigin(request);
+    const origin = new URL(request.url).origin;
     const redirectUri = process.env.DISCORD_REDIRECT_URI || `${origin}/api/auth/discord/callback`;
 
     const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -160,11 +160,13 @@ export async function GET(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: getSessionDuration(), // 2 hours (can be extended with rememberMe)
+      maxAge: 24 * 60 * 60,
       path: '/',
     });
 
-    return NextResponse.redirect(new URL('/', origin));
+    // Use BASE_URL for redirect to ensure correct domain
+    const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
+    return NextResponse.redirect(new URL('/', baseUrl));
   } catch (error) {
     console.error('Discord OAuth callback failed:', error);
     return redirectWithError(request, 'auth_failed');

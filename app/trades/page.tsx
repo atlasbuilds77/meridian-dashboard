@@ -27,6 +27,10 @@ type Trade = {
   created_at?: string;
   status: string;
   pnl?: number | null;
+  stop_loss?: number | null;
+  take_profit?: number | null;
+  entry_reasoning?: string | null;
+  setup_type?: string | null;
 };
 
 function parseNumber(value: number | string | null | undefined): number {
@@ -132,9 +136,12 @@ export default function TradesPage() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Date</TableHead>
+                    <TableHead>Setup</TableHead>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead className="text-right">Entry</TableHead>
+                    <TableHead className="text-right">Stop</TableHead>
+                    <TableHead className="text-right">Target</TableHead>
                     <TableHead className="text-right">Exit</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">P&L</TableHead>
@@ -144,7 +151,7 @@ export default function TradesPage() {
                 <TableBody>
                   {trades.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                         No trades yet. Trades will appear here when Meridian executes them.
                       </TableCell>
                     </TableRow>
@@ -162,6 +169,7 @@ export default function TradesPage() {
                         <TableRow
                           key={trade.id || `${trade.entry_date}-${trade.symbol}-${index}`}
                           className="group hover:bg-secondary/30"
+                          title={trade.entry_reasoning || undefined}
                         >
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
@@ -173,6 +181,11 @@ export default function TradesPage() {
                                 })}
                               </span>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {trade.setup_type || 'N/A'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <span className="font-semibold">{trade.symbol}</span>
@@ -198,6 +211,16 @@ export default function TradesPage() {
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             ${parseNumber(trade.entry_price).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-red-500">
+                            {trade.stop_loss !== undefined && trade.stop_loss !== null
+                              ? `$${parseNumber(trade.stop_loss).toFixed(2)}`
+                              : '—'}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-emerald-500">
+                            {trade.take_profit !== undefined && trade.take_profit !== null
+                              ? `$${parseNumber(trade.take_profit).toFixed(2)}`
+                              : '—'}
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             {trade.exit_price !== undefined && trade.exit_price !== null

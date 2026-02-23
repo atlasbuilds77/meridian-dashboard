@@ -10,5 +10,7 @@ export async function POST() {
 
 export async function GET(request: Request) {
   await destroySession();
-  return NextResponse.redirect(new URL('/login', request.url));
+  const origin = new URL(request.url).origin;
+  const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
+  return NextResponse.redirect(new URL('/login', baseUrl));
 }
