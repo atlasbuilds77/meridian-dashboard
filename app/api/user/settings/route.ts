@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionUserId } from '@/lib/auth/session';
+import { getUserIdFromSession } from '@/lib/auth/session';
 import pool from '@/lib/db/pool';
 
 export async function GET(req: NextRequest) {
-  const userId = await getSessionUserId(req);
+  const userId = await getUserIdFromSession();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const userId = await getSessionUserId(req);
+  const userId = await getUserIdFromSession();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
