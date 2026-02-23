@@ -9,11 +9,14 @@ import { NextResponse } from 'next/server';
 import { createHmac, randomBytes } from 'crypto';
 import { getUserIdFromSession } from '@/lib/auth/session';
 
-const CSRF_SECRET = process.env.SESSION_SECRET;
+const SESSION_SECRET = process.env.SESSION_SECRET;
 
-if (!CSRF_SECRET || CSRF_SECRET.length < 32) {
+if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
   throw new Error('SESSION_SECRET must be at least 32 characters for CSRF protection');
 }
+
+// TypeScript now knows this is defined
+const CSRF_SECRET: string = SESSION_SECRET;
 
 /**
  * Generate a CSRF token for the current session
