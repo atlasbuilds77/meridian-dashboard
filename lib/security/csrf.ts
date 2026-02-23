@@ -5,7 +5,7 @@
  * a valid CSRF token for all state-changing operations (POST/PATCH/DELETE).
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createHmac, randomBytes } from 'crypto';
 import { getUserIdFromSession } from '@/lib/auth/session';
 
@@ -65,7 +65,7 @@ export function validateCsrfToken(token: string, userId: number): boolean {
 /**
  * Middleware to enforce CSRF protection on state-changing requests
  */
-export async function requireCsrfToken(request: NextRequest): Promise<NextResponse | null> {
+export async function requireCsrfToken(request: Request): Promise<NextResponse | null> {
   const method = request.method;
   
   // Only enforce CSRF on state-changing methods
@@ -106,7 +106,7 @@ export async function requireCsrfToken(request: NextRequest): Promise<NextRespon
 /**
  * Helper to extract CSRF token from request (for use in route handlers)
  */
-export async function validateCsrfFromRequest(request: NextRequest): Promise<{
+export async function validateCsrfFromRequest(request: Request): Promise<{
   valid: boolean;
   response?: NextResponse;
 }> {
