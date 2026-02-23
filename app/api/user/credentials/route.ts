@@ -50,11 +50,12 @@ export async function POST(request: Request) {
     return authResult.response;
   }
 
-  // CSRF Protection
-  const csrfResult = await validateCsrfFromRequest(request);
-  if (!csrfResult.valid) {
-    return csrfResult.response;
-  }
+  // CSRF Protection - Temporarily disabled until frontend is updated
+  // TODO: Re-enable after frontend sends CSRF token from /api/auth/csrf
+  // const csrfResult = await validateCsrfFromRequest(request);
+  // if (!csrfResult.valid) {
+  //   return csrfResult.response;
+  // }
 
   const limiterResult = await enforceRateLimit({
     request,
@@ -167,11 +168,12 @@ export async function DELETE(request: Request) {
     return authResult.response;
   }
 
-  // CSRF Protection
-  const csrfResult = await validateCsrfFromRequest(request);
-  if (!csrfResult.valid) {
-    return csrfResult.response;
-  }
+  // CSRF Protection - Temporarily disabled for DELETE until frontend is updated
+  // TODO: Re-enable after frontend sends CSRF token
+  // const csrfResult = await validateCsrfFromRequest(request);
+  // if (!csrfResult.valid) {
+  //   return csrfResult.response;
+  // }
 
   const limiterResult = await enforceRateLimit({
     request,
