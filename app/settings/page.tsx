@@ -160,18 +160,47 @@ export default function SettingsPage() {
   const availablePlatforms = Object.entries(platformInfo).filter(([platform]) => !connectedSet.has(platform));
   const selectedPlatformInfo = selectedPlatform ? platformInfo[selectedPlatform] : undefined;
 
+  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated && data.user) {
+          setUserSession({ username: data.user.username, avatar: data.user.avatar });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-6xl space-y-8">
         <section className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card to-secondary/60 p-6 sm:p-8">
           <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
           <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary/90">Account Configuration</p>
-              <h1 className="mt-2 text-3xl font-bold text-foreground">Settings</h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                Connect your trading platforms and billing method once. Meridian validates keys before enabling automation.
-              </p>
+            <div className="flex items-start gap-4">
+              {userSession?.avatar && (
+                <div className="shrink-0">
+                  <img
+                    src={userSession.avatar}
+                    alt={userSession.username}
+                    className="h-16 w-16 rounded-full border-2 border-primary/40"
+                  />
+                </div>
+              )}
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary/90">Account Configuration</p>
+                <h1 className="mt-2 text-3xl font-bold text-foreground">Settings</h1>
+                {userSession && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {userSession.username}
+                  </p>
+                )}
+                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                  Connect your trading platforms and billing method once. Meridian validates keys before enabling automation.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:min-w-80">

@@ -340,12 +340,36 @@ function RecentActivity() {
 }
 
 export default function Dashboard() {
+  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated && data.user) {
+          setUserSession({ username: data.user.username, avatar: data.user.avatar });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
       <div className="mx-auto max-w-[1600px] space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Nebula System Style</p>
-          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+        <header className="flex items-center gap-4">
+          {userSession?.avatar && (
+            <img
+              src={userSession.avatar}
+              alt={userSession.username}
+              className="h-12 w-12 rounded-full border-2 border-primary/40"
+            />
+          )}
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {userSession ? `Welcome back, ${userSession.username}` : 'Nebula System Style'}
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+          </div>
         </header>
 
         <PortfolioHeader />
