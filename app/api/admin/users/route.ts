@@ -149,20 +149,42 @@ export async function PATCH(req: NextRequest) {
 
     values.push(user_id);
 
-    const query = `
-      UPDATE api_credentials
-      SET ${updates.join(', ')}, updated_at = NOW()
-      WHERE user_id = $${paramIndex} AND platform = 'tradier'
-      RETURNING *
-    `;
-
-    const { rows } = await pool.query(query, values);
-
-    if (rows.length === 0) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    // Update BOTH tables to keep them in sync (trading system reads from user_trading_settings)
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Update api_credentials
+      const apiCredQuery = `
+        UPDATE api_credentials
+        SET ${updates.join(', ')}, updated_at = NOW()
+        WHERE user_id = $${paramIndex} AND platform = 'tradier'
+        RETURNING *
+      `;
+      const apiResult = await client.query(apiCredQuery, values);
+      
+      if (apiResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      }
+      
+      // Also update user_trading_settings (meridian_trader reads from this table)
+      const settingsQuery = `
+        INSERT INTO user_trading_settings (user_id, ${updates.map(u => u.split(' =')[0].trim()).join(', ')}, updated_at)
+        VALUES ($${paramIndex}, ${values.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, NOW())
+        ON CONFLICT (user_id)
+        DO UPDATE SET ${updates.join(', ')}, updated_at = NOW()
+      `;
+      await client.query(settingsQuery, values);
+      
+      await client.query('COMMIT');
+      return NextResponse.json({ success: true, account: apiResult.rows[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    return NextResponse.json({ success: true, account: rows[0] });
   } catch (error) {
     console.error('Admin update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
