@@ -62,7 +62,7 @@ function isBullish(direction: string): boolean {
 export default function UserDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const userId = params?.userId as string;
+  const userId = Array.isArray(params?.userId) ? params.userId[0] : (params?.userId as string);
 
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +70,12 @@ export default function UserDetailPage() {
 
   useEffect(() => {
     async function fetchUserTrades() {
+      if (!userId) {
+        setError('Invalid user ID');
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await fetch(`/api/admin/users/${userId}/trades`);
         if (res.status === 401) {
@@ -78,22 +84,25 @@ export default function UserDetailPage() {
         }
         if (res.status === 403) {
           setError('Access denied. Admin only.');
+          setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed to fetch user trades');
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Failed to fetch user trades: ${errorText}`);
+        }
 
         const result = await res.json();
         setData(result);
       } catch (err) {
+        console.error('User trades fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
       }
     }
 
-    if (userId) {
-      fetchUserTrades();
-    }
+    fetchUserTrades();
   }, [userId, router]);
 
   if (loading) {
@@ -114,7 +123,7 @@ export default function UserDetailPage() {
 
   const { user, trades, stats } = data;
   const profitFactor =
-    stats.avg_loss !== 0 ? Math.abs(stats.avg_win / stats.avg_loss) : stats.avg_win > 0 ? 999 : 0;
+    stats.avg_loss !== 0 ? Math.abs((stats.avg_win || 0) / (stats.avg_loss || 1)) : (stats.avg_win || 0) > 0 ? 999 : 0;
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
@@ -167,8 +176,8 @@ export default function UserDetailPage() {
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Win Rate</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${stats.win_rate >= 50 ? 'text-profit' : 'text-loss'}`}>
-                {stats.win_rate.toFixed(1)}%
+              <div className={`text-3xl font-bold ${(stats.win_rate || 0) >= 50 ? 'text-profit' : 'text-loss'}`}>
+                {(stats.win_rate || 0).toFixed(1)}%
               </div>
             </CardContent>
           </Card>
@@ -178,8 +187,8 @@ export default function UserDetailPage() {
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Total P&L</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${stats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCurrency(stats.total_pnl)}
+              <div className={`text-3xl font-bold ${(stats.total_pnl || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {formatCurrency(stats.total_pnl || 0)}
               </div>
             </CardContent>
           </Card>
@@ -189,7 +198,7 @@ export default function UserDetailPage() {
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Avg Win</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-profit">{formatCurrency(stats.avg_win)}</div>
+              <div className="text-3xl font-bold text-profit">{formatCurrency(stats.avg_win || 0)}</div>
             </CardContent>
           </Card>
 
@@ -198,7 +207,7 @@ export default function UserDetailPage() {
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Profit Factor</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{profitFactor.toFixed(2)}</div>
+              <div className="text-3xl font-bold text-primary">{(profitFactor || 0).toFixed(2)}</div>
             </CardContent>
           </Card>
         </div>
@@ -283,22 +292,22 @@ export default function UserDetailPage() {
                               </Badge>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-mono">{trade.quantity}</TableCell>
+                          <TableCell className="text-right font-mono">{trade.quantity || 0}</TableCell>
                           <TableCell className="text-right font-mono">
-                            ${trade.entry_price.toFixed(2)}
+                            ${(trade.entry_price || 0).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right font-mono">
-                            {trade.exit_price ? `$${trade.exit_price.toFixed(2)}` : '—'}
+                            {trade.exit_price ? `$${(trade.exit_price || 0).toFixed(2)}` : '—'}
                           </TableCell>
                           <TableCell
                             className={`text-right font-mono font-semibold ${
                               isWin ? 'text-emerald-500' : 'text-red-500'
                             }`}
                           >
-                            {formatCurrency(trade.pnl)}
+                            {formatCurrency(trade.pnl || 0)}
                           </TableCell>
                           <TableCell className={`text-right font-mono ${isWin ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {formatPercent(trade.pnl_percent)}
+                            {formatPercent(trade.pnl_percent || 0)}
                           </TableCell>
                         </TableRow>
                       );
