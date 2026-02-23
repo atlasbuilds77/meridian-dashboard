@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface User {
   id: string;
@@ -181,7 +182,12 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         <div>
-                          <div className="font-medium">{stats.user.discord_username}</div>
+                          <Link 
+                            href={`/admin/users/${stats.user.id}`}
+                            className="font-medium hover:text-primary transition-colors cursor-pointer"
+                          >
+                            {stats.user.discord_username}
+                          </Link>
                           <div className="text-xs text-muted-foreground">{stats.user.discord_id}</div>
                         </div>
                       </div>
