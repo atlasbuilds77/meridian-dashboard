@@ -170,7 +170,7 @@ export async function PATCH(req: NextRequest) {
       
       // Also update user_trading_settings (meridian_trader reads from this table)
       // Convert size_pct from 1-100 (dashboard) to 0.0-1.0 (trading system)
-      if (settingsUpdates.length > 0 || typeof size_pct === 'number' || typeof trading_enabled === 'boolean') {
+      if (typeof size_pct === 'number' || typeof trading_enabled === 'boolean') {
         const upsertCols: string[] = [];
         const upsertVals: unknown[] = [user_id]; // user_id is always first
         let upsertIdx = 2; // Start from $2 since $1 is user_id
