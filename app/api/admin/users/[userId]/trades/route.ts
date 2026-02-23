@@ -4,14 +4,15 @@ import { requireAdminSession } from '@/lib/api/require-auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
   }
 
-  const userId = parseInt(params.userId, 10);
+  const resolvedParams = await params;
+  const userId = parseInt(resolvedParams.userId, 10);
   if (!userId || isNaN(userId)) {
     return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
   }
