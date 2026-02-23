@@ -100,7 +100,9 @@ function PortfolioHeader() {
 
   const totalPnL = trades.summary.totalPnL || 0;
   const accountBalance = accounts?.totalBalance || 0;
-  const totalValue = accountBalance + totalPnL;
+  // Portfolio value = current balance (already includes today's P/L)
+  // Don't add totalPnL again - that would double-count!
+  const totalValue = accountBalance;
   const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   const isPositive = totalPnL >= 0;
 

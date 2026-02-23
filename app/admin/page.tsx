@@ -236,7 +236,7 @@ export default function AdminDashboard() {
 
                     <td className="p-4">
                       {stats.trades_count > 0 ? (
-                        <div className="font-mono">{(stats.win_rate * 100).toFixed(1)}%</div>
+                        <div className="font-mono">{stats.win_rate.toFixed(1)}%</div>
                       ) : (
                         <div className="text-muted-foreground">—</div>
                       )}
