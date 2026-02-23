@@ -170,29 +170,36 @@ export async function PATCH(req: NextRequest) {
       
       // Also update user_trading_settings (meridian_trader reads from this table)
       // Convert size_pct from 1-100 (dashboard) to 0.0-1.0 (trading system)
-      const settingsUpdates: string[] = [];
-      const settingsValues: unknown[] = [];
-      let settingsParamIndex = 1;
+      if (settingsUpdates.length > 0 || typeof size_pct === 'number' || typeof trading_enabled === 'boolean') {
+        const upsertCols: string[] = [];
+        const upsertVals: unknown[] = [user_id]; // user_id is always first
+        let upsertIdx = 2; // Start from $2 since $1 is user_id
 
-      if (typeof trading_enabled === 'boolean') {
-        settingsUpdates.push(`trading_enabled = $${settingsParamIndex++}`);
-        settingsValues.push(trading_enabled);
+        if (typeof trading_enabled === 'boolean') {
+          upsertCols.push('trading_enabled');
+          upsertVals.push(trading_enabled);
+          upsertIdx++;
+        }
+
+        if (typeof size_pct === 'number') {
+          upsertCols.push('size_pct');
+          upsertVals.push(size_pct / 100); // Convert 1-100 → 0.0-1.0
+          upsertIdx++;
+        }
+
+        const colsList = upsertCols.join(', ');
+        const valsList = upsertVals.slice(1).map((_, i) => `$${i + 2}`).join(', ');
+        const updateSet = upsertCols.map((col, i) => `${col} = $${i + 2}`).join(', ');
+
+        const settingsQuery = `
+          INSERT INTO user_trading_settings (user_id, ${colsList}, updated_at)
+          VALUES ($1, ${valsList}, NOW())
+          ON CONFLICT (user_id)
+          DO UPDATE SET ${updateSet}, updated_at = NOW()
+        `;
+        
+        await client.query(settingsQuery, upsertVals);
       }
-
-      if (typeof size_pct === 'number') {
-        settingsUpdates.push(`size_pct = $${settingsParamIndex++}`);
-        settingsValues.push(size_pct / 100); // Convert 1-100 → 0.0-1.0
-      }
-
-      settingsValues.push(user_id);
-
-      const settingsQuery = `
-        INSERT INTO user_trading_settings (user_id, ${settingsUpdates.map(u => u.split(' =')[0].trim()).join(', ')}, updated_at)
-        VALUES ($${settingsParamIndex}, ${settingsValues.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')}, NOW())
-        ON CONFLICT (user_id)
-        DO UPDATE SET ${settingsUpdates.join(', ')}, updated_at = NOW()
-      `;
-      await client.query(settingsQuery, settingsValues);
       
       await client.query('COMMIT');
       return NextResponse.json({ success: true, account: apiResult.rows[0] });
