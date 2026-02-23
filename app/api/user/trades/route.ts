@@ -4,7 +4,6 @@ import { TradeSchema, TradeUpdateSchema } from '@/lib/validation/schemas';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
-import format from 'pg-format';
 
 export const dynamic = 'force-dynamic';
 
@@ -289,8 +288,12 @@ export async function PATCH(request: Request) {
 
     for (const [key, value] of Object.entries(validatedUpdates)) {
       if (key !== 'exit_price') {
-        // Use pg-format to safely escape column identifier
-        updateFields.push(format('%I = $%s', key, paramCount++));
+        // Keys are already validated by zod schema, but double-check format
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+          throw new Error(`Invalid column name: ${key}`);
+        }
+        // Safe to use directly since it passed zod validation + format check
+        updateFields.push(`${key} = $${paramCount++}`);
         values.push(value);
       }
     }

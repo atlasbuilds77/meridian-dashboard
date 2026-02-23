@@ -5,7 +5,6 @@ import { getApiCredential } from '@/lib/db/api-credentials';
 import { TradierClient } from '@/lib/api-clients/tradier';
 import { requireUserId } from '@/lib/api/require-auth';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
-import format from 'pg-format';
 
 type TradierBalanceWithMargin = {
   margin?: {
@@ -164,8 +163,12 @@ export async function PATCH(request: Request) {
     let paramCount = 1;
 
     for (const [key, value] of Object.entries(validatedUpdates)) {
-      // Use pg-format to safely escape column identifier
-      updateFields.push(format('%I = $%s', key, paramCount++));
+      // Keys are already validated by zod schema, but double-check format
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        throw new Error(`Invalid column name: ${key}`);
+      }
+      // Safe to use directly since it passed zod validation + format check
+      updateFields.push(`${key} = $${paramCount++}`);
       values.push(value);
     }
 

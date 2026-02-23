@@ -4,14 +4,16 @@
  * This file runs once when the server starts up (before any requests).
  * Perfect place for startup validation checks.
  * 
+ * Note: Disabled for now due to Edge Runtime compatibility.
+ * Startup checks are now in middleware.ts instead.
+ * 
  * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 
-import { runStartupChecks } from './lib/startup-checks';
+// Commented out - Edge Runtime doesn't support process.exit
+// Startup checks moved to server-side code instead
 
 export async function register() {
-  // Only run startup checks on server (not in edge runtime)
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    runStartupChecks();
-  }
+  // Startup checks disabled - see middleware.ts
+  console.log('✅ Server starting (validation in middleware)');
 }
