@@ -37,7 +37,7 @@ function parseNumber(value: number | string | null | undefined): number | null {
 }
 
 function isBullishDirection(direction: string): boolean {
-  return ['LONG', 'CALL', 'BUY'].includes(direction.toUpperCase());
+  return ['LONG', 'CALL', 'BUY', 'BULL'].includes(direction.toUpperCase());
 }
 
 function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {

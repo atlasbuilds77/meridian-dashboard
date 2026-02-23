@@ -42,7 +42,7 @@ function parseNumber(value: number | string | null | undefined): number {
 
 function isBullish(direction: string): boolean {
   const normalized = direction.toUpperCase();
-  return normalized === 'LONG' || normalized === 'CALL';
+  return normalized === 'LONG' || normalized === 'CALL' || normalized === 'BULL';
 }
 
 function calculatePnL(trade: Trade): number {
