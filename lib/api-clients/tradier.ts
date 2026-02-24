@@ -127,6 +127,7 @@ export class TradierClient {
 
 /**
  * Verify Tradier API key works and fetch account details
+ * Tries both production and sandbox endpoints automatically
  */
 export async function verifyTradierKey(apiKey: string, useSandbox = false): Promise<{
   valid: boolean;
@@ -136,15 +137,47 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
   cashAvailable?: number;
   settledCash?: number;
   error?: string;
+  environment?: 'production' | 'sandbox';
 }> {
+  // Try the specified environment first
   try {
     const client = new TradierClient(apiKey, useSandbox);
     const profile = await client.getProfile();
     
     if (!profile.profile?.account?.account_number) {
+      // No account in profile - try the OTHER environment
+      console.log(`[Tradier] No account in ${useSandbox ? 'sandbox' : 'production'}, trying ${useSandbox ? 'production' : 'sandbox'}...`);
+      
+      const otherClient = new TradierClient(apiKey, !useSandbox);
+      const otherProfile = await otherClient.getProfile();
+      
+      if (!otherProfile.profile?.account?.account_number) {
+        return {
+          valid: false,
+          error: 'No account found in profile. Please verify your Tradier account is fully set up and approved.',
+        };
+      }
+      
+      // Found account in OTHER environment - use that
+      const accountNumber = otherProfile.profile.account.account_number;
+      let balances: TradierBalance | null = null;
+      
+      try {
+        balances = await otherClient.getBalances(accountNumber);
+      } catch (balanceError) {
+        console.warn('[Tradier] Could not fetch balances:', balanceError);
+      }
+      
+      console.log(`[Tradier] ✅ Found account in ${!useSandbox ? 'sandbox' : 'production'} (auto-detected)`);
+      
       return {
-        valid: false,
-        error: 'No account found in profile',
+        valid: true,
+        accountNumber,
+        balance: balances?.total_equity,
+        buyingPower: balances?.buying_power,
+        cashAvailable: balances?.cash_available,
+        settledCash: balances?.total_cash,
+        environment: !useSandbox ? 'sandbox' : 'production',
       };
     }
     
@@ -166,11 +199,48 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
       buyingPower: balances?.buying_power,
       cashAvailable: balances?.cash_available,
       settledCash: balances?.total_cash,
+      environment: useSandbox ? 'sandbox' : 'production',
     };
   } catch (error: any) {
-    return {
-      valid: false,
-      error: error.message || 'Invalid API key',
-    };
+    // First environment failed - try the other
+    try {
+      console.log(`[Tradier] ${useSandbox ? 'Sandbox' : 'Production'} failed (${error.message}), trying ${useSandbox ? 'production' : 'sandbox'}...`);
+      
+      const otherClient = new TradierClient(apiKey, !useSandbox);
+      const otherProfile = await otherClient.getProfile();
+      
+      if (!otherProfile.profile?.account?.account_number) {
+        return {
+          valid: false,
+          error: 'No account found in profile. Please verify your Tradier account is fully set up and approved.',
+        };
+      }
+      
+      const accountNumber = otherProfile.profile.account.account_number;
+      let balances: TradierBalance | null = null;
+      
+      try {
+        balances = await otherClient.getBalances(accountNumber);
+      } catch (balanceError) {
+        console.warn('[Tradier] Could not fetch balances:', balanceError);
+      }
+      
+      console.log(`[Tradier] ✅ Found account in ${!useSandbox ? 'sandbox' : 'production'} (fallback)`);
+      
+      return {
+        valid: true,
+        accountNumber,
+        balance: balances?.total_equity,
+        buyingPower: balances?.buying_power,
+        cashAvailable: balances?.cash_available,
+        settledCash: balances?.total_cash,
+        environment: !useSandbox ? 'sandbox' : 'production',
+      };
+    } catch (otherError: any) {
+      return {
+        valid: false,
+        error: error.message || 'Invalid API key or no Tradier account found',
+      };
+    }
   }
 }
