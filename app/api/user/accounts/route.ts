@@ -5,6 +5,7 @@ import { getApiCredential } from '@/lib/db/api-credentials';
 import { TradierClient } from '@/lib/api-clients/tradier';
 import { requireUserId } from '@/lib/api/require-auth';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { isDuplicateRequest, clearPendingRequest } from '@/lib/security/request-dedup';
 
 type TradierBalanceWithMargin = {
   margin?: {
@@ -86,8 +87,33 @@ export async function POST(request: Request) {
     return csrfResult.response;
   }
 
+  const bodyText = await request.text();
+  
+  // Request deduplication - Prevent rapid-fire duplicate account creation
+  const isDuplicate = await isDuplicateRequest(
+    authResult.userId.toString(),
+    '/api/user/accounts',
+    'POST',
+    bodyText,
+    2000 // 2 second window
+  );
+
+  if (isDuplicate) {
+    console.warn('[Accounts] Duplicate POST request blocked', {
+      userId: authResult.userId,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json(
+      { 
+        error: 'Duplicate request detected. Please wait a moment before trying again.',
+        code: 'DUPLICATE_REQUEST',
+      },
+      { status: 429 }
+    );
+  }
+
   try {
-    const body = await request.json();
+    const body = JSON.parse(bodyText);
     const validation = AccountSchema.safeParse(body);
 
     if (!validation.success) {
@@ -113,9 +139,11 @@ export async function POST(request: Request) {
       ]
     );
 
+    clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'POST');
     return NextResponse.json({ success: true, account: result.rows[0] });
   } catch (error) {
     console.error('Account creation error:', error);
+    clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'POST');
     return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 }
@@ -132,8 +160,33 @@ export async function PATCH(request: Request) {
     return csrfResult.response;
   }
 
+  const bodyText = await request.text();
+  
+  // Request deduplication - Prevent rapid-fire duplicate account updates
+  const isDuplicate = await isDuplicateRequest(
+    authResult.userId.toString(),
+    '/api/user/accounts',
+    'PATCH',
+    bodyText,
+    2000 // 2 second window
+  );
+
+  if (isDuplicate) {
+    console.warn('[Accounts] Duplicate PATCH request blocked', {
+      userId: authResult.userId,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json(
+      { 
+        error: 'Duplicate request detected. Please wait a moment before trying again.',
+        code: 'DUPLICATE_REQUEST',
+      },
+      { status: 429 }
+    );
+  }
+
   try {
-    const body = await request.json();
+    const body = JSON.parse(bodyText);
     const { id, ...updates } = body as { id?: number; [key: string]: unknown };
 
     if (!id) {
@@ -182,9 +235,11 @@ export async function PATCH(request: Request) {
       [...values, id, authResult.userId]
     );
 
+    clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'PATCH');
     return NextResponse.json({ success: true, account: result.rows[0] });
   } catch (error) {
     console.error('Account update error:', error);
+    clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'PATCH');
     return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
   }
 }

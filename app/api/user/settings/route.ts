@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserIdFromSession } from '@/lib/auth/session';
 import pool from '@/lib/db/pool';
+import { isDuplicateRequest, clearPendingRequest } from '@/lib/security/request-dedup';
 
 export async function GET(req: NextRequest) {
   const userId = await getUserIdFromSession();
@@ -55,8 +56,32 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await req.json();
+  const bodyText = await req.text();
+  const body = JSON.parse(bodyText);
   const { trading_enabled, size_pct, max_position_size } = body;
+
+  // Request deduplication - Prevent rapid-fire duplicate setting changes
+  const isDuplicate = await isDuplicateRequest(
+    userId.toString(),
+    '/api/user/settings',
+    'PATCH',
+    bodyText,
+    2000 // 2 second window
+  );
+
+  if (isDuplicate) {
+    console.warn('[Settings] Duplicate request blocked', {
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+    return NextResponse.json(
+      { 
+        error: 'Duplicate request detected. Please wait a moment before trying again.',
+        code: 'DUPLICATE_REQUEST',
+      },
+      { status: 429 }
+    );
+  }
 
   // Validation
   if (size_pct !== undefined) {
@@ -126,9 +151,11 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');
     return NextResponse.json({ success: true, settings: result.rows[0] });
   } catch (error) {
     console.error('Failed to update settings:', error);
+    clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');
     return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
   } finally {
     client.release();
