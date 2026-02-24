@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
+import { PnLShareButton } from '@/components/pnl-share-button';
 
 interface User {
   id: string;
@@ -30,6 +31,16 @@ interface UserStats {
   trades_count: number;
   total_pnl: number;
   win_rate: number;
+}
+
+function formatSignedUsd(value: number): string {
+  return `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(2)}`;
+}
+
+function buildClientShareText(stats: UserStats): string {
+  const winRateText =
+    stats.trades_count > 0 ? `${stats.win_rate.toFixed(1)}% win rate` : 'no closed trades yet';
+  return `Meridian client update: ${stats.user.discord_username} is ${formatSignedUsd(stats.total_pnl)} across ${stats.trades_count} trades (${winRateText}).`;
 }
 
 export default function AdminDashboard() {
@@ -139,12 +150,63 @@ export default function AdminDashboard() {
             <div className="text-3xl font-bold text-foreground">{totalTrades}</div>
           </div>
           <div className="nebula-panel rounded-xl p-5">
-            <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Combined P&amp;L</div>
+            <div className="mb-1 flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+              <span>Combined P&amp;L</span>
+              <PnLShareButton
+                title="Meridian Combined P&L"
+                text={`Meridian combined client P&L: ${formatSignedUsd(totalPnL)} across ${totalTrades} trades.`}
+              />
+            </div>
             <div className={`text-3xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
               {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
             </div>
           </div>
         </div>
+
+        {users.length > 0 && (
+          <div className="mb-8 space-y-3">
+            <h2 className="text-xl font-bold text-primary">Client P&amp;L Cards</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {users.map((stats) => (
+                <div
+                  key={`pnl-card-${stats.user.id}`}
+                  className={`nebula-panel rounded-xl border p-5 ${stats.total_pnl >= 0 ? 'border-profit/30' : 'border-loss/30'}`}
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-lg font-semibold text-foreground">{stats.user.discord_username}</div>
+                      <div className="text-xs text-muted-foreground">{stats.account?.account_number || 'No tradier account'}</div>
+                    </div>
+                    <PnLShareButton
+                      title={`Client P&L: ${stats.user.discord_username}`}
+                      text={buildClientShareText(stats)}
+                    />
+                  </div>
+
+                  <div className={`mb-4 text-3xl font-bold ${stats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatSignedUsd(stats.total_pnl)}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
+                      Trades: <span className="text-foreground">{stats.trades_count}</span>
+                    </span>
+                    <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
+                      Win Rate:{' '}
+                      <span className="text-foreground">{stats.trades_count > 0 ? `${stats.win_rate.toFixed(1)}%` : '—'}</span>
+                    </span>
+                    <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
+                      Trading:{' '}
+                      <span className={stats.account?.trading_enabled ? 'text-profit' : 'text-muted-foreground'}>
+                        {stats.account?.trading_enabled ? 'ON' : 'OFF'}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="nebula-panel overflow-hidden rounded-xl">
           <div className="border-b border-primary/25 p-6">

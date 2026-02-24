@@ -20,6 +20,7 @@ import {
 import { useTradeData, useMarketData, useAccountData, useSystemStatus } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent, formatDate } from '@/lib/utils-client';
 import { ShareCardModal } from '@/components/share-card-modal';
+import { PnLShareButton } from '@/components/pnl-share-button';
 
 type DashboardTrade = {
   symbol?: string;
@@ -108,6 +109,7 @@ function PortfolioHeader() {
   const totalValue = accountBalance;
   const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   const isPositive = totalPnL >= 0;
+  const shareText = `Meridian P&L update: ${formatCurrency(totalPnL)} on ${formatCurrency(totalValue)} portfolio value (${formatPercent(totalReturn)}).`;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
@@ -117,7 +119,10 @@ function PortfolioHeader() {
       <div className="relative z-10">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Portfolio Value</p>
-          <LiveIndicator lastUpdate={lastUpdate} />
+          <div className="flex flex-wrap items-center gap-2">
+            <LiveIndicator lastUpdate={lastUpdate} />
+            <PnLShareButton title="Meridian P&L" text={shareText} />
+          </div>
         </div>
 
         <div className="mb-5 flex flex-wrap items-end gap-3">
