@@ -76,8 +76,15 @@ export class TradierClient {
   
   /**
    * Get user profile (verify API key works)
+   * Note: account can be a single object OR an array if user has multiple accounts
    */
-  async getProfile(): Promise<{ profile: { id: string; name: string; account: { account_number: string } } }> {
+  async getProfile(): Promise<{ 
+    profile: { 
+      id: string; 
+      name: string; 
+      account: { account_number: string } | { account_number: string }[] 
+    } 
+  }> {
     return this.fetch('/user/profile');
   }
   
@@ -126,6 +133,27 @@ export class TradierClient {
 }
 
 /**
+ * Extract account number from Tradier profile
+ * Handles both single account (object) and multiple accounts (array)
+ */
+function extractAccountNumber(profile: any): string | null {
+  if (!profile?.profile?.account) {
+    return null;
+  }
+  
+  const account = profile.profile.account;
+  
+  // Multiple accounts (array) - use first active account
+  if (Array.isArray(account)) {
+    const activeAccount = account.find(a => a.status === 'active');
+    return activeAccount?.account_number || account[0]?.account_number || null;
+  }
+  
+  // Single account (object)
+  return account.account_number || null;
+}
+
+/**
  * Verify Tradier API key works and fetch account details
  * Tries both production and sandbox endpoints automatically
  */
@@ -144,14 +172,18 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
     const client = new TradierClient(apiKey, useSandbox);
     const profile = await client.getProfile();
     
-    if (!profile.profile?.account?.account_number) {
+    let accountNumber = extractAccountNumber(profile);
+    
+    if (!accountNumber) {
       // No account in profile - try the OTHER environment
       console.log(`[Tradier] No account in ${useSandbox ? 'sandbox' : 'production'}, trying ${useSandbox ? 'production' : 'sandbox'}...`);
       
       const otherClient = new TradierClient(apiKey, !useSandbox);
       const otherProfile = await otherClient.getProfile();
       
-      if (!otherProfile.profile?.account?.account_number) {
+      accountNumber = extractAccountNumber(otherProfile);
+      
+      if (!accountNumber) {
         return {
           valid: false,
           error: 'No account found in profile. Please verify your Tradier account is fully set up and approved.',
@@ -159,7 +191,6 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
       }
       
       // Found account in OTHER environment - use that
-      const accountNumber = otherProfile.profile.account.account_number;
       let balances: TradierBalance | null = null;
       
       try {
@@ -181,8 +212,7 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
       };
     }
     
-    const accountNumber = profile.profile.account.account_number;
-    
+    // Account found in primary environment
     // Fetch balances to get buying power and cash info
     let balances: TradierBalance | null = null;
     try {
@@ -209,14 +239,16 @@ export async function verifyTradierKey(apiKey: string, useSandbox = false): Prom
       const otherClient = new TradierClient(apiKey, !useSandbox);
       const otherProfile = await otherClient.getProfile();
       
-      if (!otherProfile.profile?.account?.account_number) {
+      const accountNumber = extractAccountNumber(otherProfile);
+      
+      if (!accountNumber) {
         return {
           valid: false,
           error: 'No account found in profile. Please verify your Tradier account is fully set up and approved.',
         };
       }
       
-      const accountNumber = otherProfile.profile.account.account_number;
+      // Found account in fallback environment
       let balances: TradierBalance | null = null;
       
       try {
