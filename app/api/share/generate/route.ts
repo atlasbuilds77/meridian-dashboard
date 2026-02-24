@@ -7,20 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import pool from '@/lib/db/pool';
 import { 
   generateShareCard, 
   calculateEdition, 
   type Edition, 
   type UserStats 
 } from '@/lib/share-card-generator';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
 
 interface GenerateCardRequest {
   userId?: string;
