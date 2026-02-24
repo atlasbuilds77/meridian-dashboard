@@ -126,27 +126,46 @@ export class TradierClient {
 }
 
 /**
- * Verify Tradier API key works
+ * Verify Tradier API key works and fetch account details
  */
 export async function verifyTradierKey(apiKey: string, useSandbox = false): Promise<{
   valid: boolean;
   accountNumber?: string;
+  balance?: number;
+  buyingPower?: number;
+  cashAvailable?: number;
+  settledCash?: number;
   error?: string;
 }> {
   try {
     const client = new TradierClient(apiKey, useSandbox);
-    const response = await client.getProfile();
+    const profile = await client.getProfile();
     
-    if (response.profile?.account?.account_number) {
+    if (!profile.profile?.account?.account_number) {
       return {
-        valid: true,
-        accountNumber: response.profile.account.account_number,
+        valid: false,
+        error: 'No account found in profile',
       };
     }
     
+    const accountNumber = profile.profile.account.account_number;
+    
+    // Fetch balances to get buying power and cash info
+    let balances: TradierBalance | null = null;
+    try {
+      balances = await client.getBalances(accountNumber);
+    } catch (balanceError) {
+      console.warn('[Tradier] Could not fetch balances:', balanceError);
+      // Still return valid if profile check passed
+    }
+    
     return {
-      valid: false,
-      error: 'No account found in profile',
+      valid: true,
+      accountNumber,
+      balance: balances?.total_equity,
+      buyingPower: balances?.buying_power,
+      cashAvailable: balances?.cash_available,
+      settledCash: balances?.total_cash,
     };
   } catch (error: any) {
     return {

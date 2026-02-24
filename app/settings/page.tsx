@@ -9,6 +9,7 @@ import { PaymentMethodManager } from '@/components/payment-method-form';
 import { RiskSettingsCard } from '@/components/risk-settings';
 import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCsrfToken, fetchWithCsrf } from '@/hooks/use-csrf-token';
 
 interface Platform {
   id: number;
@@ -73,6 +74,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
 
+  // CSRF token
+  const { token: csrfToken, loading: csrfLoading, error: csrfError } = useCsrfToken();
+
   // Form state
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -103,19 +107,29 @@ export default function SettingsPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    
+    if (!csrfToken) {
+      setError('Security token not ready. Please wait and try again.');
+      return;
+    }
+    
     setAdding(selectedPlatform);
 
     try {
-      const res = await fetch('/api/user/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: selectedPlatform,
-          api_key: apiKey,
-          api_secret: apiSecret || undefined,
-          key_name: keyName || undefined,
-        }),
-      });
+      const res = await fetchWithCsrf(
+        '/api/user/credentials',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: selectedPlatform,
+            api_key: apiKey,
+            api_secret: apiSecret || undefined,
+            key_name: keyName || undefined,
+          }),
+        },
+        csrfToken
+      );
 
       const data = await res.json();
 
@@ -139,10 +153,19 @@ export default function SettingsPage() {
   const handleDeletePlatform = async (platform: string) => {
     if (!confirm(`Remove ${platform} API key?`)) return;
 
+    if (!csrfToken) {
+      setError('Security token not ready. Please wait and try again.');
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/user/credentials?platform=${encodeURIComponent(platform)}`, {
-        method: 'DELETE',
-      });
+      const res = await fetchWithCsrf(
+        `/api/user/credentials?platform=${encodeURIComponent(platform)}`,
+        {
+          method: 'DELETE',
+        },
+        csrfToken
+      );
 
       if (res.ok) {
         setSuccess(`${platformInfo[platform]?.name || platform} API key removed.`);
@@ -217,6 +240,12 @@ export default function SettingsPage() {
         </section>
 
         <RiskSettingsCard />
+
+        {csrfError && (
+          <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+            <strong>Security Error:</strong> {csrfError}. Please refresh the page.
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
@@ -379,8 +408,8 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <Button type="submit" disabled={adding === selectedPlatform} className="w-full">
-                      {adding === selectedPlatform ? 'Verifying...' : 'Connect Platform'}
+                    <Button type="submit" disabled={adding === selectedPlatform || csrfLoading || !csrfToken} className="w-full">
+                      {adding === selectedPlatform ? 'Verifying...' : csrfLoading ? 'Loading...' : 'Connect Platform'}
                     </Button>
                   </>
                 )}

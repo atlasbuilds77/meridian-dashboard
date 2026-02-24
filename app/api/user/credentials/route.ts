@@ -14,6 +14,7 @@ import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { extractClientIp } from '@/lib/security/client-ip';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { isDuplicateRequest, clearPendingRequest } from '@/lib/security/request-dedup';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,12 +51,11 @@ export async function POST(request: Request) {
     return authResult.response;
   }
 
-  // CSRF Protection - Temporarily disabled until frontend is updated
-  // TODO: Re-enable after frontend sends CSRF token from /api/auth/csrf
-  // const csrfResult = await validateCsrfFromRequest(request);
-  // if (!csrfResult.valid) {
-  //   return csrfResult.response;
-  // }
+  // CSRF Protection - ENABLED (Frontend integration completed)
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
 
   const limiterResult = await enforceRateLimit({
     request,
@@ -71,7 +71,32 @@ export async function POST(request: Request) {
 
   try {
     const clientIp = extractClientIp(request);
-    const body = await request.json();
+    const bodyText = await request.text();
+    const body = JSON.parse(bodyText);
+    
+    // Request deduplication - Prevent rapid-fire duplicate credential saves
+    const isDuplicate = await isDuplicateRequest(
+      authResult.userId.toString(),
+      '/api/user/credentials',
+      'POST',
+      bodyText,
+      3000 // 3 second window
+    );
+    
+    if (isDuplicate) {
+      console.warn('[Credentials] Duplicate request blocked', {
+        userId: authResult.userId,
+        platform: body.platform,
+        ip: clientIp,
+      });
+      return NextResponse.json(
+        { 
+          error: 'Duplicate request detected. Please wait a moment before trying again.',
+          code: 'DUPLICATE_REQUEST',
+        },
+        { status: 429 }
+      );
+    }
     const parsed = createCredentialSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -88,11 +113,24 @@ export async function POST(request: Request) {
       error?: string;
       accountNumber?: string;
       balance?: number;
+      buyingPower?: number;
+      cashAvailable?: number;
+      settledCash?: number;
     };
 
     switch (platform) {
       case 'tradier':
         verificationResult = await verifyTradierKey(api_key);
+        console.log('[Credentials] Tradier verification result:', {
+          userId: authResult.userId,
+          valid: verificationResult.valid,
+          accountNumber: verificationResult.accountNumber,
+          balance: verificationResult.balance,
+          buyingPower: verificationResult.buyingPower,
+          cashAvailable: verificationResult.cashAvailable,
+          settledCash: verificationResult.settledCash,
+          timestamp: new Date().toISOString(),
+        });
         break;
       case 'polymarket':
         verificationResult = await verifyPolymarketAddress(api_key);
@@ -116,6 +154,16 @@ export async function POST(request: Request) {
         request.headers.get('user-agent') || undefined,
         { platform, error: verificationResult.error }
       );
+
+      console.error('[Credentials] Verification failed:', {
+        userId: authResult.userId,
+        platform,
+        error: verificationResult.error,
+        ip: clientIp,
+        timestamp: new Date().toISOString(),
+      });
+
+      clearPendingRequest(authResult.userId.toString(), '/api/user/credentials', 'POST');
 
       return NextResponse.json(
         { error: verificationResult.error || 'API key verification failed' },
@@ -142,6 +190,17 @@ export async function POST(request: Request) {
       { platform, verified: true }
     );
 
+    console.log('[Credentials] Successfully added and verified:', {
+      userId: authResult.userId,
+      platform,
+      credentialId: credential.id,
+      accountNumber: verificationResult.accountNumber,
+      balance: verificationResult.balance,
+      timestamp: new Date().toISOString(),
+    });
+
+    clearPendingRequest(authResult.userId.toString(), '/api/user/credentials', 'POST');
+
     return NextResponse.json({
       success: true,
       credential: {
@@ -154,11 +213,29 @@ export async function POST(request: Request) {
       verification: {
         account_number: verificationResult.accountNumber,
         balance: verificationResult.balance,
+        buying_power: verificationResult.buyingPower,
+        cash_available: verificationResult.cashAvailable,
+        settled_cash: verificationResult.settledCash,
       },
     });
   } catch (error) {
-    console.error('Failed to store credential:', error);
-    return NextResponse.json({ error: 'Failed to store credential' }, { status: 500 });
+    console.error('[Credentials] Failed to store credential:', {
+      error: error instanceof Error ? error.message : String(error),
+      userId: authResult.userId,
+      platform: body?.platform,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
+    
+    clearPendingRequest(authResult.userId.toString(), '/api/user/credentials', 'POST');
+    
+    return NextResponse.json(
+      { 
+        error: 'Failed to store credential',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -168,12 +245,11 @@ export async function DELETE(request: Request) {
     return authResult.response;
   }
 
-  // CSRF Protection - Temporarily disabled for DELETE until frontend is updated
-  // TODO: Re-enable after frontend sends CSRF token
-  // const csrfResult = await validateCsrfFromRequest(request);
-  // if (!csrfResult.valid) {
-  //   return csrfResult.response;
-  // }
+  // CSRF Protection - ENABLED (Frontend integration completed)
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
 
   const limiterResult = await enforceRateLimit({
     request,
