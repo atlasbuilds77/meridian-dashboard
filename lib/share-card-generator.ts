@@ -69,6 +69,13 @@ function formatCurrency(amount: number): string {
 }
 
 /**
+ * Escape special regex characters
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Load and populate HTML template
  */
 async function loadTemplate(edition: Edition, stats: UserStats): Promise<string> {
@@ -96,7 +103,7 @@ async function loadTemplate(edition: Edition, stats: UserStats): Promise<string>
   
   // Apply replacements
   for (const [find, replace] of Object.entries(replacements)) {
-    html = html.replace(new RegExp(find, 'g'), replace);
+    html = html.replace(new RegExp(escapeRegex(find), 'g'), replace);
   }
   
   // Avatar URL handling
