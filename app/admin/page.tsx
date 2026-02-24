@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Share2 } from 'lucide-react';
+import { ShareCardModal } from '@/components/share-card-modal';
 
 interface User {
   id: string;
@@ -35,6 +37,8 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareUserId, setShareUserId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     fetchUsers();
@@ -159,6 +163,7 @@ export default function AdminDashboard() {
                   <th className="p-4">P&amp;L</th>
                   <th className="p-4">Win Rate</th>
                   <th className="p-4">Last Login</th>
+                  <th className="p-4">Share</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,6 +258,23 @@ export default function AdminDashboard() {
                     </td>
 
                     <td className="p-4 text-sm text-muted-foreground">{new Date(stats.user.last_login).toLocaleDateString()}</td>
+
+                    <td className="p-4">
+                      {stats.trades_count > 0 ? (
+                        <button
+                          onClick={() => {
+                            setShareUserId(stats.user.id);
+                            setShareModalOpen(true);
+                          }}
+                          className="flex items-center gap-2 rounded border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                          Share
+                        </button>
+                      ) : (
+                        <div className="text-muted-foreground text-xs">No trades</div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -265,6 +287,13 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+
+        {/* Share Card Modal */}
+        <ShareCardModal
+          open={shareModalOpen}
+          onOpenChange={setShareModalOpen}
+          userId={shareUserId}
+        />
       </div>
     </div>
   );

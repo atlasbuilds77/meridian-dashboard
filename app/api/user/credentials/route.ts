@@ -69,10 +69,11 @@ export async function POST(request: Request) {
     return rateLimitExceededResponse(limiterResult, 'user_credentials_write');
   }
 
+  let body: any;
   try {
     const clientIp = extractClientIp(request);
     const bodyText = await request.text();
-    const body = JSON.parse(bodyText);
+    body = JSON.parse(bodyText);
     
     // Request deduplication - Prevent rapid-fire duplicate credential saves
     const isDuplicate = await isDuplicateRequest(

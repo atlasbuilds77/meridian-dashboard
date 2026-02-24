@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   TrendingUp,
   TrendingDown,
@@ -14,9 +15,11 @@ import {
   ArrowDownRight,
   RefreshCw,
   AlertCircle,
+  Share2,
 } from 'lucide-react';
 import { useTradeData, useMarketData, useAccountData, useSystemStatus } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent, formatDate } from '@/lib/utils-client';
+import { ShareCardModal } from '@/components/share-card-modal';
 
 type DashboardTrade = {
   symbol?: string;
@@ -342,14 +345,19 @@ function RecentActivity() {
 }
 
 export default function Dashboard() {
-  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null } | null>(null);
+  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; userId: string | null } | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/session')
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.user) {
-          setUserSession({ username: data.user.username, avatar: data.user.avatar });
+          setUserSession({ 
+            username: data.user.username, 
+            avatar: data.user.avatar,
+            userId: data.user.id 
+          });
         }
       })
       .catch(() => {});
@@ -358,25 +366,44 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
       <div className="mx-auto max-w-[1600px] space-y-6">
-        <header className="flex items-center gap-4">
-          {userSession?.avatar && (
-            <img
-              src={userSession.avatar}
-              alt={userSession.username}
-              className="h-12 w-12 rounded-full border-2 border-primary/40"
-            />
-          )}
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              {userSession ? `Welcome back, ${userSession.username}` : 'Nebula System Style'}
-            </p>
-            <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {userSession?.avatar && (
+              <img
+                src={userSession.avatar}
+                alt={userSession.username}
+                className="h-12 w-12 rounded-full border-2 border-primary/40"
+              />
+            )}
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                {userSession ? `Welcome back, ${userSession.username}` : 'Nebula System Style'}
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+            </div>
           </div>
+
+          {/* Share P&L Button */}
+          <Button
+            onClick={() => setShareModalOpen(true)}
+            size="lg"
+            className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+          >
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Share P&L</span>
+          </Button>
         </header>
 
         <PortfolioHeader />
         <StatsGrid />
         <RecentActivity />
+
+        {/* Share Card Modal */}
+        <ShareCardModal
+          open={shareModalOpen}
+          onOpenChange={setShareModalOpen}
+          userId={userSession?.userId || undefined}
+        />
       </div>
     </div>
   );
