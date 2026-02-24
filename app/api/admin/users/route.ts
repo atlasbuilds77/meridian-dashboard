@@ -71,7 +71,7 @@ export async function GET() {
       ORDER BY u.created_at DESC
     `);
 
-    const users = rows.map((row) => ({
+    const users = rows.map((row: any) => ({
       user: {
         id: row.id,
         discord_id: row.discord_id,
