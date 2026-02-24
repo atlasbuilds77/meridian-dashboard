@@ -76,7 +76,7 @@ export async function GET(
         discord_username: user.username,
         discord_avatar: user.avatar,
       },
-      trades: tradesResult.rows.map(trade => ({
+      trades: tradesResult.rows.map((trade: any) => ({
         ...trade,
         entry_price: parseFloat(String(trade.entry_price)),
         exit_price: trade.exit_price ? parseFloat(String(trade.exit_price)) : null,
