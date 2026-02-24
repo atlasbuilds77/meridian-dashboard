@@ -39,7 +39,7 @@ export async function GET() {
       platforms: platformsList,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to fetch credentials:', error);
     return NextResponse.json({ error: 'Failed to fetch credentials' }, { status: 500 });
   }
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
         settled_cash: verificationResult.settledCash,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Credentials] Failed to store credential:', {
       error: error instanceof Error ? error.message : String(error),
       userId: authResult.userId,
@@ -292,7 +292,7 @@ export async function DELETE(request: Request) {
     );
 
     return NextResponse.json({ success: true, message: 'Credential deleted successfully' });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to delete credential:', error);
     return NextResponse.json({ error: 'Failed to delete credential' }, { status: 500 });
   }

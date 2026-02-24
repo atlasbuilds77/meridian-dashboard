@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       } : null
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Onboarding status error:', error);
     return NextResponse.json(
       { error: 'Failed to check onboarding status' },

@@ -23,7 +23,7 @@ export async function GET() {
       winRate: Number.parseFloat(String(stats.win_rate || 0)) || 0,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Stats fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }

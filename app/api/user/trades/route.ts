@@ -99,7 +99,7 @@ export async function GET(request: Request) {
       },
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Trades fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch trades' }, { status: 500 });
   }
@@ -194,7 +194,7 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json({ success: true, trade: result.rows[0] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Trade creation error:', error);
     return NextResponse.json({ error: 'Failed to create trade' }, { status: 500 });
   }
@@ -309,7 +309,7 @@ export async function PATCH(request: Request) {
     );
 
     return NextResponse.json({ success: true, trade: result.rows[0] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Trade update error:', error);
     return NextResponse.json({ error: 'Failed to update trade' }, { status: 500 });
   }
@@ -357,7 +357,7 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true, deletedId: id });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Trade deletion error:', error);
     return NextResponse.json({ error: 'Failed to delete trade' }, { status: 500 });
   }

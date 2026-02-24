@@ -264,7 +264,7 @@ export async function GET() {
           dailyResults.length > 0 ? closedTrades.length / dailyResults.length : 0,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error calculating stats:', error);
     return NextResponse.json(
       {

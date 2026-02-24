@@ -66,7 +66,7 @@ export async function GET() {
       payment_methods: result.rows,
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Get payment methods error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch payment methods' },
@@ -220,7 +220,7 @@ export async function POST(request: Request) {
       payment_method: insertResult.rows[0],
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Save payment method error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to save payment method' },
@@ -321,7 +321,7 @@ export async function DELETE(request: Request) {
     
     return NextResponse.json({ success: true });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Delete payment method error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete payment method' },

@@ -95,7 +95,7 @@ export async function GET(
         avg_loss: parseFloat(String(stats.avg_loss)),
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('User trades fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

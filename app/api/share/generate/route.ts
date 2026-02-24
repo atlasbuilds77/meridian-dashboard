@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         totalTrades: stats.totalTrades,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Share card generation error:', error);
     
     return NextResponse.json(

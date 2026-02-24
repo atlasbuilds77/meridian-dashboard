@@ -167,7 +167,7 @@ export async function GET(request: Request) {
     // Use BASE_URL for redirect to ensure correct domain
     const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
     return NextResponse.redirect(new URL('/', baseUrl));
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Discord OAuth callback failed:', error);
     return redirectWithError(request, 'auth_failed');
   }

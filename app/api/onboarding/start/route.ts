@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       currentStep: result.rows[0].current_step
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Onboarding start error:', error);
     return NextResponse.json(
       { error: 'Failed to start onboarding' },

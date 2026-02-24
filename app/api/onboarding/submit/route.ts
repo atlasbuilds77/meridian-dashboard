@@ -189,7 +189,7 @@ export async function POST(request: Request) {
       nextStep: step < 5 ? step + 1 : null
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Onboarding submit error:', error);
 
     if (error instanceof Error && (

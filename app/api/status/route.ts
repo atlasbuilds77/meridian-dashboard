@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       systems,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Status check error:', error);
     return NextResponse.json(
       {

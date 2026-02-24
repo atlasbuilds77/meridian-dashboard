@@ -69,7 +69,7 @@ export async function GET() {
       totalBalance: balances.total_equity || 0,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Accounts fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
   }
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
 
     clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'POST');
     return NextResponse.json({ success: true, account: result.rows[0] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Account creation error:', error);
     clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'POST');
     return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
@@ -237,7 +237,7 @@ export async function PATCH(request: Request) {
 
     clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'PATCH');
     return NextResponse.json({ success: true, account: result.rows[0] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Account update error:', error);
     clearPendingRequest(authResult.userId.toString(), '/api/user/accounts', 'PATCH');
     return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
@@ -277,7 +277,7 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true, deletedId: id });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Account deletion error:', error);
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
   }

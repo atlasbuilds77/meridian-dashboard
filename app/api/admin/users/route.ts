@@ -96,7 +96,7 @@ export async function GET() {
     }));
 
     return NextResponse.json({ users });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Admin users fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -203,13 +203,13 @@ export async function PATCH(req: NextRequest) {
       
       await client.query('COMMIT');
       return NextResponse.json({ success: true, account: apiResult.rows[0] });
-    } catch (error) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Admin update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

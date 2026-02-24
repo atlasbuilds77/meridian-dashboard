@@ -98,7 +98,7 @@ export async function GET(request: Request) {
       },
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Database error:', error);
     return NextResponse.json(
       {

@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       customerId: customerId
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Setup intent error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create setup intent' },

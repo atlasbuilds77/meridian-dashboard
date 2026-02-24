@@ -87,7 +87,7 @@ export async function GET(request: Request) {
       low: quote.low || price,
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Market data fetch failed:', error);
     return NextResponse.json({ error: 'Failed to fetch market data' }, { status: 503 });
   }

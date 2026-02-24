@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Billing history error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch billing history' },

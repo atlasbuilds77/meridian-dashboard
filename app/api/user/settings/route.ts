@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       max_position_size: settings.max_position_size ? parseFloat(settings.max_position_size) : null,
       updated_at: settings.updated_at,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to fetch settings:', error);
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
   } finally {
@@ -153,7 +153,7 @@ export async function PATCH(req: NextRequest) {
 
     clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');
     return NextResponse.json({ success: true, settings: result.rows[0] });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to update settings:', error);
     clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');
     return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
