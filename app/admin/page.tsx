@@ -82,7 +82,7 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, trading_enabled: enabled }),
+        body: JSON.stringify({ user_id: parseInt(userId, 10), trading_enabled: enabled }),
       });
 
       if (!res.ok) throw new Error('Failed to update');
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, size_pct: sizePct }),
+        body: JSON.stringify({ user_id: parseInt(userId, 10), size_pct: sizePct }),
       });
 
       if (!res.ok) throw new Error('Failed to update');
