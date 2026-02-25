@@ -80,7 +80,7 @@ export default function AdminDashboard() {
   }
 
   async function toggleTrading(userId: string, enabled: boolean) {
-    if (!csrfToken) {
+    if (!csrfToken.token) {
       alert('CSRF token not ready. Please refresh.');
       return;
     }
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken,
+          'x-csrf-token': csrfToken.token,
         },
         body: JSON.stringify({ user_id: parseInt(userId, 10), trading_enabled: enabled }),
       });
@@ -103,7 +103,7 @@ export default function AdminDashboard() {
   }
 
   async function updateSizePct(userId: string, sizePct: number) {
-    if (!csrfToken) {
+    if (!csrfToken.token) {
       alert('CSRF token not ready. Please refresh.');
       return;
     }
@@ -113,7 +113,7 @@ export default function AdminDashboard() {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken,
+          'x-csrf-token': csrfToken.token,
         },
         body: JSON.stringify({ user_id: parseInt(userId, 10), size_pct: sizePct }),
       });
