@@ -64,9 +64,19 @@ function PaymentForm({ onSuccess }: { onSuccess: () => void }) {
     if (paymentMethodId) {
       // Save to backend
       try {
+        // Get CSRF token first
+        const csrfRes = await fetch('/api/auth/csrf');
+        if (!csrfRes.ok) {
+          throw new Error('Failed to get CSRF token');
+        }
+        const { token: csrfToken } = await csrfRes.json();
+
         const res = await fetch('/api/billing/payment-method', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken,
+          },
           body: JSON.stringify({
             paymentMethodId,
           }),
@@ -137,8 +147,18 @@ export function PaymentMethodManager() {
   const handleAddClick = async () => {
     setPaymentError(null);
     try {
+      // Get CSRF token first
+      const csrfRes = await fetch('/api/auth/csrf');
+      if (!csrfRes.ok) {
+        throw new Error('Failed to get CSRF token');
+      }
+      const { token: csrfToken } = await csrfRes.json();
+
       const res = await fetch('/api/billing/setup-intent', {
         method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken,
+        },
       });
       const data = await res.json();
       
@@ -165,9 +185,19 @@ export function PaymentMethodManager() {
     if (!confirm('Remove this payment method?')) return;
 
     try {
+      // Get CSRF token first
+      const csrfRes = await fetch('/api/auth/csrf');
+      if (!csrfRes.ok) {
+        throw new Error('Failed to get CSRF token');
+      }
+      const { token: csrfToken } = await csrfRes.json();
+
       const res = await fetch('/api/billing/payment-method', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
         body: JSON.stringify({ paymentMethodId }),
       });
 
