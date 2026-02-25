@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
 import { PnLShareButton } from '@/components/pnl-share-button';
+import { useCsrfToken } from '@/hooks/use-csrf-token';
 
 interface User {
   id: string;
@@ -45,6 +46,7 @@ function buildClientShareText(stats: UserStats): string {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const csrfToken = useCsrfToken();
   const [users, setUsers] = useState<UserStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,10 +80,18 @@ export default function AdminDashboard() {
   }
 
   async function toggleTrading(userId: string, enabled: boolean) {
+    if (!csrfToken) {
+      alert('CSRF token not ready. Please refresh.');
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
         body: JSON.stringify({ user_id: parseInt(userId, 10), trading_enabled: enabled }),
       });
 
@@ -93,10 +103,18 @@ export default function AdminDashboard() {
   }
 
   async function updateSizePct(userId: string, sizePct: number) {
+    if (!csrfToken) {
+      alert('CSRF token not ready. Please refresh.');
+      return;
+    }
+
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
         body: JSON.stringify({ user_id: parseInt(userId, 10), size_pct: sizePct }),
       });
 
