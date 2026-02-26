@@ -173,16 +173,6 @@ export async function PATCH(req: NextRequest) {
     try {
       await client.query('BEGIN');
       
-      // First, check current trading_enabled state if we're updating it
-      let currentTradingEnabled: boolean | null = null;
-      if (typeof trading_enabled === 'boolean') {
-        const currentResult = await client.query(
-          'SELECT trading_enabled FROM user_trading_settings WHERE user_id = $1',
-          [user_id]
-        );
-        currentTradingEnabled = currentResult.rows[0]?.trading_enabled ?? false;
-      }
-      
       // Update api_credentials
       const apiCredQuery = `
         UPDATE api_credentials
@@ -200,44 +190,29 @@ export async function PATCH(req: NextRequest) {
       // Also update user_trading_settings (meridian_trader reads from this table)
       // Convert size_pct from 1-100 (dashboard) to 0.0-1.0 (trading system)
       if (typeof size_pct === 'number' || typeof trading_enabled === 'boolean') {
-        // Build the upsert query with conditional enabled_at/enabled_by
         let settingsQuery = '';
         const settingsParams: unknown[] = [user_id];
-        let paramIndex = 2; // Start from $2 since $1 is user_id
         
         if (typeof trading_enabled === 'boolean' && typeof size_pct === 'number') {
-          // Both trading_enabled and size_pct are being updated
           settingsQuery = `
-            INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, updated_at${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at, enabled_by' : ''})
-            VALUES ($1, $2, $3, NOW()${trading_enabled === true && currentTradingEnabled === false ? ', NOW(), $4' : ''})
+            INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, updated_at)
+            VALUES ($1, $2, $3, NOW())
             ON CONFLICT (user_id) DO UPDATE SET
               trading_enabled = $2,
               size_pct = $3,
               updated_at = NOW()
-              ${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at = NOW(), enabled_by = $4' : ''}
-              ${trading_enabled === false ? ', enabled_at = NULL, enabled_by = NULL' : ''}
           `;
           settingsParams.push(trading_enabled, size_pct / 100);
-          if (trading_enabled === true && currentTradingEnabled === false) {
-            settingsParams.push(adminResult.session.discordId);
-          }
         } else if (typeof trading_enabled === 'boolean') {
-          // Only trading_enabled is being updated
           settingsQuery = `
-            INSERT INTO user_trading_settings (user_id, trading_enabled, updated_at${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at, enabled_by' : ''})
-            VALUES ($1, $2, NOW()${trading_enabled === true && currentTradingEnabled === false ? ', NOW(), $3' : ''})
+            INSERT INTO user_trading_settings (user_id, trading_enabled, updated_at)
+            VALUES ($1, $2, NOW())
             ON CONFLICT (user_id) DO UPDATE SET
               trading_enabled = $2,
               updated_at = NOW()
-              ${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at = NOW(), enabled_by = $3' : ''}
-              ${trading_enabled === false ? ', enabled_at = NULL, enabled_by = NULL' : ''}
           `;
           settingsParams.push(trading_enabled);
-          if (trading_enabled === true && currentTradingEnabled === false) {
-            settingsParams.push(adminResult.session.discordId);
-          }
         } else if (typeof size_pct === 'number') {
-          // Only size_pct is being updated
           settingsQuery = `
             INSERT INTO user_trading_settings (user_id, size_pct, updated_at)
             VALUES ($1, $2, NOW())
