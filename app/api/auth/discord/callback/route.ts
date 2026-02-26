@@ -164,6 +164,7 @@ export async function GET(request: Request) {
 
     // IMPORTANT: set cookies on the response (not via cookies()) so they are reliably
     // included even on redirects.
+    console.log('[CALLBACK] Setting session cookie on response, token preview:', token.substring(0, 30));
     response.cookies.set('meridian_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

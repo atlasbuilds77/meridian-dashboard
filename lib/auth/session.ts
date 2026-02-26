@@ -46,12 +46,16 @@ export async function getUserIdFromSession(): Promise<number | null> {
   const cookieStore = await cookies();
   const session = cookieStore.get('meridian_session');
   
-  if (!session) return null;
+  if (!session) {
+    console.log('[SESSION] No cookie found in cookieStore');
+    return null;
+  }
   
   try {
     const { payload } = await jwtVerify(session.value, secret);
     return payload.dbUserId as number;
-  } catch {
+  } catch (e) {
+    console.log('[SESSION] JWT verify failed:', e);
     return null; // Invalid/tampered token
   }
 }

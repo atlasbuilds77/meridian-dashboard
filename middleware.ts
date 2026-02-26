@@ -27,7 +27,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = request.cookies.get('meridian_session');
+  console.log('[MIDDLEWARE] Path:', pathname, '| Cookie exists:', !!session, '| Cookie value preview:', session?.value?.substring(0, 20));
   if (!session) {
+    console.log('[MIDDLEWARE] No session cookie, redirecting to login');
     const loginUrl = new URL('/login', request.url);
     return withHeaders(NextResponse.redirect(loginUrl));
   }
