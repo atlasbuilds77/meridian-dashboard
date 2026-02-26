@@ -381,7 +381,7 @@ export async function POST(
           const client = new EmergencyTradierClient(credential.api_key, env.useSandbox);
           
           // Try to get account number from credential or detect it
-          let accountNumber = credential.account_number;
+          let accountNumber = (credential as any).account_number;
           
           if (!accountNumber) {
             // Try to detect account number

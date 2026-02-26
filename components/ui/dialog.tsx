@@ -85,3 +85,16 @@ export function DialogDescription({ children, className }: DialogDescriptionProp
     </p>
   );
 }
+
+interface DialogFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function DialogFooter({ children, className }: DialogFooterProps) {
+  return (
+    <div className={`flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 ${className || ''}`}>
+      {children}
+    </div>
+  );
+}

@@ -153,7 +153,7 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
   
   // Launch Puppeteer with production-friendly configuration
   const browser = await puppeteer.launch({
-    headless: 'new', // Use new headless mode for better compatibility
+    headless: true, // Use new headless mode for better compatibility
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
