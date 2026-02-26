@@ -235,7 +235,12 @@ export async function PATCH(req: NextRequest) {
       client.release();
     }
   } catch (error: unknown) {
-    console.error('Admin update error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error('Admin update error:', { message: errMsg, stack: errStack });
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      detail: process.env.NODE_ENV === 'development' ? errMsg : undefined 
+    }, { status: 500 });
   }
 }
