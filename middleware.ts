@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { applySecurityHeaders } from '@/lib/security/headers';
+import { isAdminDiscordId, hasConfiguredAdminIds } from '@/lib/auth/admin';
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
@@ -40,7 +41,20 @@ export async function middleware(request: NextRequest) {
 
   try {
     const secret = new TextEncoder().encode(SESSION_SECRET);
-    await jwtVerify(session.value, secret);
+    const { payload } = await jwtVerify(session.value, secret);
+    
+    // Check if accessing admin routes
+    if (pathname.startsWith('/admin')) {
+      // Verify admin access
+      const discordId = payload.discordId as string;
+      
+      if (!hasConfiguredAdminIds() || !isAdminDiscordId(discordId)) {
+        // Not an admin, redirect to home or show access denied
+        const homeUrl = new URL('/', request.url);
+        return withHeaders(NextResponse.redirect(homeUrl));
+      }
+    }
+    
     return withHeaders(NextResponse.next());
   } catch {
     const loginUrl = new URL('/login?error=session_expired', request.url);

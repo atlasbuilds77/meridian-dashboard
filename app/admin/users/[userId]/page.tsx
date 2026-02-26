@@ -6,6 +6,17 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -14,8 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/utils-client';
+import { toastSuccess, toastError } from '@/lib/toast';
 
 type Trade = {
   id: number;
@@ -52,6 +64,11 @@ type UserData = {
     avg_win: number;
     avg_loss: number;
   };
+  settings?: {
+    trading_enabled: boolean;
+    size_pct: number;
+    max_daily_loss_pct?: number;
+  };
 };
 
 function isBullish(direction: string): boolean {
@@ -67,9 +84,17 @@ export default function UserDetailPage() {
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFlattenDialog, setShowFlattenDialog] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [isFlattening, setIsFlattening] = useState(false);
+  const [localSettings, setLocalSettings] = useState({
+    trading_enabled: false,
+    size_pct: 50,
+    max_daily_loss_pct: 5,
+  });
 
   useEffect(() => {
-    async function fetchUserTrades() {
+    async function fetchUserData() {
       if (!userId) {
         setError('Invalid user ID');
         setLoading(false);
@@ -77,32 +102,62 @@ export default function UserDetailPage() {
       }
 
       try {
-        const res = await fetch(`/api/admin/users/${userId}/trades`);
-        if (res.status === 401) {
+        // Fetch trades data
+        const tradesRes = await fetch(`/api/admin/users/${userId}/trades`);
+        if (tradesRes.status === 401) {
           router.push('/login?error=session_expired');
           return;
         }
-        if (res.status === 403) {
+        if (tradesRes.status === 403) {
           setError('Access denied. Admin only.');
           setLoading(false);
           return;
         }
-        if (!res.ok) {
-          const errorText = await res.text();
+        if (!tradesRes.ok) {
+          const errorText = await tradesRes.text();
           throw new Error(`Failed to fetch user trades: ${errorText}`);
         }
 
-        const result = await res.json();
-        setData(result);
+        const tradesData = await tradesRes.json();
+        
+        // Fetch user settings from admin users endpoint
+        const settingsRes = await fetch('/api/admin/users');
+        if (!settingsRes.ok) {
+          console.warn('Failed to fetch user settings, using defaults');
+        } else {
+          const settingsData = await settingsRes.json();
+          const userSettings = settingsData.users?.find((u: any) => u.user.id === parseInt(userId));
+          
+          if (userSettings?.account) {
+            setLocalSettings({
+              trading_enabled: userSettings.account.trading_enabled || false,
+              size_pct: userSettings.account.size_pct || 50,
+              max_daily_loss_pct: 5, // Default value, not in current schema
+            });
+            
+            setData({
+              ...tradesData,
+              settings: {
+                trading_enabled: userSettings.account.trading_enabled || false,
+                size_pct: userSettings.account.size_pct || 50,
+                max_daily_loss_pct: 5,
+              },
+            });
+            return;
+          }
+        }
+        
+        // If no settings found, use defaults
+        setData(tradesData);
       } catch (err) {
-        console.error('User trades fetch error:', err);
+        console.error('User data fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
       }
     }
 
-    fetchUserTrades();
+    fetchUserData();
   }, [userId, router]);
 
   if (loading) {
@@ -112,6 +167,92 @@ export default function UserDetailPage() {
       </div>
     );
   }
+
+  // Update local settings when data changes
+  useEffect(() => {
+    if (data?.settings) {
+      setLocalSettings({
+        trading_enabled: data.settings.trading_enabled,
+        size_pct: data.settings.size_pct,
+        max_daily_loss_pct: data.settings.max_daily_loss_pct || 5,
+      });
+    }
+  }, [data?.settings]);
+
+  const handleUpdateSettings = async () => {
+    if (!userId) return;
+    
+    setIsUpdatingSettings(true);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: parseInt(userId),
+          trading_enabled: localSettings.trading_enabled,
+          size_pct: localSettings.size_pct,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update settings');
+      }
+
+      // Update local data
+      if (data) {
+        setData({
+          ...data,
+          settings: {
+            ...data.settings!,
+            trading_enabled: localSettings.trading_enabled,
+            size_pct: localSettings.size_pct,
+          },
+        });
+      }
+
+      toastSuccess('User settings updated successfully');
+    } catch (err) {
+      console.error('Update settings error:', err);
+      toastError(err instanceof Error ? err.message : 'Failed to update settings');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleFlattenPositions = async () => {
+    if (!userId) return;
+    
+    setIsFlattening(true);
+    try {
+      // Note: This endpoint doesn't exist yet, we'll need to create it
+      const response = await fetch(`/api/admin/users/${userId}/flatten`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to flatten positions');
+      }
+
+      toastSuccess('All positions flattened successfully');
+      setShowFlattenDialog(false);
+      
+      // Refresh trades data
+      const tradesRes = await fetch(`/api/admin/users/${userId}/trades`);
+      if (tradesRes.ok) {
+        const tradesData = await tradesRes.json();
+        setData((prev) => prev ? { ...prev, ...tradesData } : tradesData);
+      }
+    } catch (err) {
+      console.error('Flatten positions error:', err);
+      toastError(err instanceof Error ? err.message : 'Failed to flatten positions');
+    } finally {
+      setIsFlattening(false);
+    }
+  };
 
   if (error || !data) {
     return (
@@ -211,6 +352,144 @@ export default function UserDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Trading Controls */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Trading Controls</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Manage user trading permissions and risk settings
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Trading Enabled Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="trading-enabled" className="text-base font-medium">
+                  Trading Enabled
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow this user to execute trades through the system
+                </p>
+              </div>
+              <Switch
+                id="trading-enabled"
+                checked={localSettings.trading_enabled}
+                onCheckedChange={(checked) =>
+                  setLocalSettings({ ...localSettings, trading_enabled: checked })
+                }
+              />
+            </div>
+
+            {/* Max Position Size */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="position-size" className="text-base font-medium">
+                  Max Position Size
+                </Label>
+                <span className="text-lg font-bold text-primary">{localSettings.size_pct}%</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Maximum percentage of account equity per trade (1-100%)
+              </p>
+              <div className="pt-2">
+                <Slider
+                  id="position-size"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={[localSettings.size_pct]}
+                  onValueChange={([value]) =>
+                    setLocalSettings({ ...localSettings, size_pct: value })
+                  }
+                  className="w-full"
+                />
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                  <span>1%</span>
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Max Daily Loss */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="daily-loss" className="text-base font-medium">
+                  Max Daily Loss
+                </Label>
+                <span className="text-lg font-bold text-primary">{localSettings.max_daily_loss_pct}%</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Maximum daily loss percentage before auto-stop (coming soon)
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {[2, 5, 10, 20].map((pct) => (
+                  <Button
+                    key={pct}
+                    type="button"
+                    variant={localSettings.max_daily_loss_pct === pct ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() =>
+                      setLocalSettings({ ...localSettings, max_daily_loss_pct: pct })
+                    }
+                    className="w-full"
+                  >
+                    {pct}%
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                {data.settings ? (
+                  <>
+                    Current: Trading is{' '}
+                    <Badge variant={data.settings.trading_enabled ? 'default' : 'secondary'}>
+                      {data.settings.trading_enabled ? 'ENABLED' : 'DISABLED'}
+                    </Badge>
+                    , Max position: <Badge variant="outline">{data.settings.size_pct}%</Badge>
+                  </>
+                ) : (
+                  'No settings loaded'
+                )}
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (data.settings) {
+                      setLocalSettings({
+                        trading_enabled: data.settings.trading_enabled,
+                        size_pct: data.settings.size_pct,
+                        max_daily_loss_pct: data.settings.max_daily_loss_pct || 5,
+                      });
+                    }
+                  }}
+                  disabled={!data.settings || isUpdatingSettings}
+                >
+                  Reset
+                </Button>
+                <Button
+                  onClick={handleUpdateSettings}
+                  disabled={isUpdatingSettings || !data.settings}
+                >
+                  {isUpdatingSettings ? 'Saving...' : 'Save Settings'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowFlattenDialog(true)}
+                  disabled={isFlattening}
+                >
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Flatten All Positions
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Trades Table */}
         <Card className="border-primary/30">
@@ -318,6 +597,45 @@ export default function UserDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Flatten Confirmation Dialog */}
+        <Dialog open={showFlattenDialog} onOpenChange={setShowFlattenDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-loss">
+                <AlertTriangle className="h-5 w-5" />
+                Flatten All Positions
+              </DialogTitle>
+              <DialogDescription>
+                This will immediately close ALL open positions for{' '}
+                <span className="font-semibold text-foreground">{user.discord_username}</span>.
+                <br />
+                <br />
+                <span className="font-medium text-loss">
+                  This action cannot be undone and may result in realized losses.
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={() => setShowFlattenDialog(false)}
+                disabled={isFlattening}
+                className="sm:flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleFlattenPositions}
+                disabled={isFlattening}
+                className="sm:flex-1"
+              >
+                {isFlattening ? 'Flattening...' : 'Confirm Flatten'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

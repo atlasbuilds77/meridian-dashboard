@@ -3,6 +3,7 @@ import { z } from 'zod';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 const updateSchema = z
   .object({
@@ -14,10 +15,22 @@ const updateSchema = z
     message: 'No valid updates provided',
   });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
+  }
+
+  const limiterResult = await enforceRateLimit({
+    request: req,
+    name: 'admin_users_get',
+    limit: 60,
+    windowMs: 60_000,
+    userId: adminResult.session.dbUserId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'admin_users_get');
   }
 
   try {
@@ -108,6 +121,12 @@ export async function PATCH(req: NextRequest) {
     return adminResult.response;
   }
 
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(req);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
+
   const limiterResult = await enforceRateLimit({
     request: req,
     name: 'admin_users_patch',
@@ -154,6 +173,16 @@ export async function PATCH(req: NextRequest) {
     try {
       await client.query('BEGIN');
       
+      // First, check current trading_enabled state if we're updating it
+      let currentTradingEnabled: boolean | null = null;
+      if (typeof trading_enabled === 'boolean') {
+        const currentResult = await client.query(
+          'SELECT trading_enabled FROM user_trading_settings WHERE user_id = $1',
+          [user_id]
+        );
+        currentTradingEnabled = currentResult.rows[0]?.trading_enabled ?? false;
+      }
+      
       // Update api_credentials
       const apiCredQuery = `
         UPDATE api_credentials
@@ -171,34 +200,55 @@ export async function PATCH(req: NextRequest) {
       // Also update user_trading_settings (meridian_trader reads from this table)
       // Convert size_pct from 1-100 (dashboard) to 0.0-1.0 (trading system)
       if (typeof size_pct === 'number' || typeof trading_enabled === 'boolean') {
-        const upsertCols: string[] = [];
-        const upsertVals: unknown[] = [user_id]; // user_id is always first
-        let upsertIdx = 2; // Start from $2 since $1 is user_id
-
-        if (typeof trading_enabled === 'boolean') {
-          upsertCols.push('trading_enabled');
-          upsertVals.push(trading_enabled);
-          upsertIdx++;
-        }
-
-        if (typeof size_pct === 'number') {
-          upsertCols.push('size_pct');
-          upsertVals.push(size_pct / 100); // Convert 1-100 → 0.0-1.0
-          upsertIdx++;
-        }
-
-        const colsList = upsertCols.join(', ');
-        const valsList = upsertVals.slice(1).map((_, i) => `$${i + 2}`).join(', ');
-        const updateSet = upsertCols.map((col, i) => `${col} = $${i + 2}`).join(', ');
-
-        const settingsQuery = `
-          INSERT INTO user_trading_settings (user_id, ${colsList}, updated_at)
-          VALUES ($1, ${valsList}, NOW())
-          ON CONFLICT (user_id)
-          DO UPDATE SET ${updateSet}, updated_at = NOW()
-        `;
+        // Build the upsert query with conditional enabled_at/enabled_by
+        let settingsQuery = '';
+        const settingsParams: unknown[] = [user_id];
+        let paramIndex = 2; // Start from $2 since $1 is user_id
         
-        await client.query(settingsQuery, upsertVals);
+        if (typeof trading_enabled === 'boolean' && typeof size_pct === 'number') {
+          // Both trading_enabled and size_pct are being updated
+          settingsQuery = `
+            INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, updated_at${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at, enabled_by' : ''})
+            VALUES ($1, $2, $3, NOW()${trading_enabled === true && currentTradingEnabled === false ? ', NOW(), $4' : ''})
+            ON CONFLICT (user_id) DO UPDATE SET
+              trading_enabled = $2,
+              size_pct = $3,
+              updated_at = NOW()
+              ${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at = NOW(), enabled_by = $4' : ''}
+              ${trading_enabled === false ? ', enabled_at = NULL, enabled_by = NULL' : ''}
+          `;
+          settingsParams.push(trading_enabled, size_pct / 100);
+          if (trading_enabled === true && currentTradingEnabled === false) {
+            settingsParams.push(adminResult.session.discordId);
+          }
+        } else if (typeof trading_enabled === 'boolean') {
+          // Only trading_enabled is being updated
+          settingsQuery = `
+            INSERT INTO user_trading_settings (user_id, trading_enabled, updated_at${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at, enabled_by' : ''})
+            VALUES ($1, $2, NOW()${trading_enabled === true && currentTradingEnabled === false ? ', NOW(), $3' : ''})
+            ON CONFLICT (user_id) DO UPDATE SET
+              trading_enabled = $2,
+              updated_at = NOW()
+              ${trading_enabled === true && currentTradingEnabled === false ? ', enabled_at = NOW(), enabled_by = $3' : ''}
+              ${trading_enabled === false ? ', enabled_at = NULL, enabled_by = NULL' : ''}
+          `;
+          settingsParams.push(trading_enabled);
+          if (trading_enabled === true && currentTradingEnabled === false) {
+            settingsParams.push(adminResult.session.discordId);
+          }
+        } else if (typeof size_pct === 'number') {
+          // Only size_pct is being updated
+          settingsQuery = `
+            INSERT INTO user_trading_settings (user_id, size_pct, updated_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+              size_pct = $2,
+              updated_at = NOW()
+          `;
+          settingsParams.push(size_pct / 100);
+        }
+        
+        await client.query(settingsQuery, settingsParams);
       }
       
       await client.query('COMMIT');

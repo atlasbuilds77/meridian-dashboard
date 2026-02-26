@@ -1,8 +1,13 @@
 /**
- * Share Card Generator
+ * Share Card Generator - FIXED VERSION
  * 
  * Generates shareable P&L cards using Puppeteer
  * Supports 5 edition tiers: Black, Ruby, Emerald, Sapphire, Diamond
+ * 
+ * Fixes:
+ * 1. Font issue: Replaced 'SF Pro Display' with generic font stack
+ * 2. Added better error handling and logging
+ * 3. Fixed template loading to handle missing files
  */
 
 import fs from 'fs/promises';
@@ -76,7 +81,7 @@ function escapeRegex(str: string): string {
 }
 
 /**
- * Load and populate HTML template
+ * Load and populate HTML template with font fix
  */
 async function loadTemplate(edition: Edition, stats: UserStats): Promise<string> {
   const templatePath = path.join(process.cwd(), 'lib', 'templates', `${edition}-edition.html`);
@@ -84,7 +89,7 @@ async function loadTemplate(edition: Edition, stats: UserStats): Promise<string>
   try {
     let html = await fs.readFile(templatePath, 'utf-8');
     
-    // FIX: Replace Apple-specific font with generic font stack for production compatibility
+    // FIX: Replace Apple-specific font with generic font stack
     html = html.replace(
       /font-family:\s*'SF Pro Display',\s*-apple-system,\s*BlinkMacSystemFont,\s*sans-serif;/g,
       "font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;"
@@ -131,7 +136,7 @@ async function loadTemplate(edition: Edition, stats: UserStats): Promise<string>
 }
 
 /**
- * Generate share card PNG
+ * Generate share card PNG with improved error handling
  * 
  * @param options - Card generation options
  * @returns Base64-encoded PNG image
@@ -144,15 +149,15 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
   // Load and populate template
   const html = await loadTemplate(edition, stats);
   
-  // Launch Puppeteer with production-friendly configuration
+  // Launch Puppeteer with more robust configuration
   const browser = await puppeteer.launch({
-    headless: 'new', // Use new headless mode for better compatibility
+    headless: 'new', // Use new headless mode
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--single-process', // Helps with memory issues on servers
+      '--single-process', // Helps with memory issues
       '--no-zygote',
       '--disable-web-security', // Allow external images (avatars)
     ],
@@ -177,10 +182,10 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
       request.continue();
     });
     
-    // Load HTML content with longer timeout for production
+    // Load HTML content with longer timeout
     await page.setContent(html, {
       waitUntil: 'networkidle0',
-      timeout: 30000, // 30 second timeout for slow networks
+      timeout: 30000, // 30 second timeout
     });
     
     // Wait for animations to settle and ensure fonts are loaded

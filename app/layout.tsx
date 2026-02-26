@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { UserMenu } from '@/components/user-menu';
 import { OnboardingGate } from '@/components/onboarding-gate';
+import { ToastContainer } from '@/components/ui/toast';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -94,6 +95,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <main className="pt-16">
         <OnboardingGate>{children}</OnboardingGate>
       </main>
+      <ToastContainer />
     </>
   );
 }
