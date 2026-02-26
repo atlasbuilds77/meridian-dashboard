@@ -2,10 +2,17 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { applySecurityHeaders } from '@/lib/security/headers';
-import { isAdminDiscordId, hasConfiguredAdminIds } from '@/lib/auth/admin';
+
+// Force Node.js runtime so we can use crypto module
+export const runtime = 'nodejs';
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
+
+// Inline admin check to avoid importing module that uses Node crypto
+const ADMIN_IDS = new Set(
+  (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim()).filter(Boolean)
+);
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -27,9 +34,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = request.cookies.get('meridian_session');
-  console.log('[MIDDLEWARE] Path:', pathname, '| Cookie exists:', !!session, '| Cookie value preview:', session?.value?.substring(0, 20));
   if (!session) {
-    console.log('[MIDDLEWARE] No session cookie, redirecting to login');
     const loginUrl = new URL('/login', request.url);
     return withHeaders(NextResponse.redirect(loginUrl));
   }
@@ -47,11 +52,9 @@ export async function middleware(request: NextRequest) {
     
     // Check if accessing admin routes
     if (pathname.startsWith('/admin')) {
-      // Verify admin access
       const discordId = payload.discordId as string;
       
-      if (!hasConfiguredAdminIds() || !isAdminDiscordId(discordId)) {
-        // Not an admin, redirect to home or show access denied
+      if (ADMIN_IDS.size === 0 || !ADMIN_IDS.has(discordId)) {
         const homeUrl = new URL('/', request.url);
         return withHeaders(NextResponse.redirect(homeUrl));
       }
