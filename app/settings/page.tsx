@@ -190,7 +190,15 @@ export default function SettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.user) {
-          setUserSession({ username: data.user.username, avatar: data.user.avatar });
+          // Construct full avatar URL if it's just a hash
+          const avatarHash = data.user.avatar;
+          const discordId = data.user.discordId;
+          const fullAvatarUrl = avatarHash 
+            ? (avatarHash.startsWith('http') 
+                ? avatarHash 
+                : `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png`)
+            : null;
+          setUserSession({ username: data.user.username, avatar: fullAvatarUrl });
         }
       })
       .catch(() => {});

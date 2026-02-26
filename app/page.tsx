@@ -350,7 +350,7 @@ function RecentActivity() {
 }
 
 export default function Dashboard() {
-  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; userId: string | null } | null>(null);
+  const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; discordId: string | null; userId: string | null } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   useEffect(() => {
@@ -358,9 +358,19 @@ export default function Dashboard() {
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated && data.user) {
+          // Construct full avatar URL if it's just a hash
+          const avatarHash = data.user.avatar;
+          const discordId = data.user.discordId;
+          const fullAvatarUrl = avatarHash 
+            ? (avatarHash.startsWith('http') 
+                ? avatarHash 
+                : `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png`)
+            : null;
+          
           setUserSession({ 
             username: data.user.username, 
-            avatar: data.user.avatar,
+            avatar: fullAvatarUrl,
+            discordId: discordId,
             userId: data.user.id 
           });
         }
