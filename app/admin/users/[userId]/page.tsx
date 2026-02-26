@@ -158,7 +158,7 @@ export default function UserDetailPage() {
     }
 
     fetchUserData();
-  }, [userId, router]);
+  }, [userId]);
 
   if (loading) {
     return (
