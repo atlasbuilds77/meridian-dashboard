@@ -24,6 +24,14 @@ export function UserMenu() {
     fetch('/api/auth/session')
       .then((res) => res.json())
       .then((data) => {
+        // Construct full avatar URL if it's just a hash
+        if (data.authenticated && data.user && data.user.avatar) {
+          const avatarHash = data.user.avatar;
+          const discordId = data.user.discordId;
+          data.user.avatar = avatarHash.startsWith('http')
+            ? avatarHash
+            : `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png`;
+        }
         setSession(data);
         setLoading(false);
       })
