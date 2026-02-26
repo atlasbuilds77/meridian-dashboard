@@ -63,10 +63,12 @@ export async function GET(request: Request) {
   }
 
   const isValidState = await verifyOAuthStateToken(stateCookieValue, state);
-  cookieStore.delete(OAUTH_STATE_COOKIE);
 
   if (!isValidState) {
-    return redirectWithError(request, 'invalid_state');
+    // Best-effort clear of state cookie so a stale/invalid value doesn't stick around
+    const res = redirectWithError(request, 'invalid_state');
+    res.cookies.delete(OAUTH_STATE_COOKIE);
+    return res;
   }
 
   try {
@@ -156,17 +158,25 @@ export async function GET(request: Request) {
       avatar: avatarHash || null,
     });
 
-    cookieStore.set('meridian_session', token, {
+    // Use BASE_URL for redirect to ensure correct domain
+    const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
+    const response = NextResponse.redirect(new URL('/', baseUrl));
+
+    // IMPORTANT: set cookies on the response (not via cookies()) so they are reliably
+    // included even on redirects.
+    response.cookies.set('meridian_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60,
+      // Keep in sync with createSession() which currently issues 7d JWTs.
+      maxAge: 7 * 24 * 60 * 60,
       path: '/',
     });
 
-    // Use BASE_URL for redirect to ensure correct domain
-    const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
-    return NextResponse.redirect(new URL('/', baseUrl));
+    // Clear OAuth state cookie now that the flow succeeded
+    response.cookies.delete(OAUTH_STATE_COOKIE);
+
+    return response;
   } catch (error: unknown) {
     console.error('Discord OAuth callback failed:', error);
     return redirectWithError(request, 'auth_failed');
