@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserIdFromSession } from '@/lib/auth/session';
 import pool from '@/lib/db/pool';
 import { isDuplicateRequest, clearPendingRequest } from '@/lib/security/request-dedup';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 export async function GET(req: NextRequest) {
   const userId = await getUserIdFromSession();
@@ -56,6 +57,12 @@ export async function PATCH(req: NextRequest) {
   const userId = await getUserIdFromSession();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(req);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   const bodyText = await req.text();

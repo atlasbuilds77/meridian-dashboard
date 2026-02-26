@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
 import { PnLShareButton } from '@/components/pnl-share-button';
+import { AdminAccountValues } from '@/components/admin-account-values';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
 
 interface User {
@@ -183,6 +184,9 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Live Account Values Section */}
+        <AdminAccountValues />
 
         {users.length > 0 && (
           <div className="mb-8 space-y-3">

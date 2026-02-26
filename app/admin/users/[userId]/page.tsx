@@ -28,6 +28,7 @@ import {
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/utils-client';
 import { toastSuccess, toastError } from '@/lib/toast';
+import { useCsrfToken } from '@/hooks/use-csrf-token';
 
 type Trade = {
   id: number;
@@ -80,6 +81,7 @@ export default function UserDetailPage() {
   const router = useRouter();
   const params = useParams();
   const userId = Array.isArray(params?.userId) ? params.userId[0] : (params?.userId as string);
+  const csrfToken = useCsrfToken();
 
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,12 +184,18 @@ export default function UserDetailPage() {
   const handleUpdateSettings = async () => {
     if (!userId) return;
     
+    if (!csrfToken.token) {
+      toastError('Security token not ready. Please refresh the page.');
+      return;
+    }
+    
     setIsUpdatingSettings(true);
     try {
       const response = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken.token,
         },
         body: JSON.stringify({
           user_id: parseInt(userId),
@@ -225,11 +233,19 @@ export default function UserDetailPage() {
   const handleFlattenPositions = async () => {
     if (!userId) return;
     
+    if (!csrfToken.token) {
+      toastError('Security token not ready. Please refresh the page.');
+      return;
+    }
+    
     setIsFlattening(true);
     try {
       // Note: This endpoint doesn't exist yet, we'll need to create it
       const response = await fetch(`/api/admin/users/${userId}/flatten`, {
         method: 'POST',
+        headers: {
+          'x-csrf-token': csrfToken.token,
+        },
       });
 
       if (!response.ok) {

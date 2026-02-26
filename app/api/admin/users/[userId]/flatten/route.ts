@@ -5,6 +5,7 @@ import { requireAdminSession } from '@/lib/api/require-auth';
 import { getApiCredential } from '@/lib/db/api-credentials';
 import { TradierClient } from '@/lib/api-clients/tradier';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 const paramsSchema = z.object({
   userId: z.string().regex(/^\d+$/, 'User ID must be a number'),
@@ -304,6 +305,12 @@ export async function POST(
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
+  }
+  
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(req);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
   
   const adminSession = adminResult.session;

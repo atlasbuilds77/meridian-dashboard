@@ -59,25 +59,59 @@ export async function GET(request: Request) {
     : 100;
 
   try {
+    // Include computed pnl_value for trades where pnl is NULL but exit_price exists
     const tradesResult = await pool.query(
-      `SELECT * FROM trades
+      `SELECT *,
+        COALESCE(
+          pnl,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN (exit_price - entry_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN (entry_price - exit_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS computed_pnl
+       FROM trades
        WHERE user_id = $1
        ORDER BY entry_date DESC
        LIMIT $2`,
       [authResult.userId, limit]
     );
 
+    // Use fallback PnL calculation when pnl is NULL but exit_price exists
     const summaryResult = await pool.query(
-      `SELECT
+      `WITH trade_pnl AS (
+        SELECT
+          id,
+          COALESCE(
+            pnl,
+            CASE
+              WHEN exit_price IS NULL THEN NULL
+              WHEN UPPER(direction) IN ('LONG', 'CALL')
+                THEN (exit_price - entry_price) * quantity * 
+                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              WHEN UPPER(direction) IN ('SHORT', 'PUT')
+                THEN (entry_price - exit_price) * quantity * 
+                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              ELSE NULL
+            END
+          ) AS pnl_value
+        FROM trades
+        WHERE user_id = $1 AND status = 'closed'
+      )
+      SELECT
         COUNT(*) as total_trades,
-        COUNT(*) FILTER (WHERE pnl > 0) as wins,
-        COUNT(*) FILTER (WHERE pnl < 0) as losses,
-        COALESCE(SUM(pnl), 0) as total_pnl,
-        COALESCE(AVG(pnl) FILTER (WHERE pnl > 0), 0) as avg_win,
-        COALESCE(AVG(pnl) FILTER (WHERE pnl < 0), 0) as avg_loss,
-        COALESCE(100.0 * COUNT(*) FILTER (WHERE pnl > 0) / NULLIF(COUNT(*), 0), 0) as win_rate
-       FROM trades
-       WHERE user_id = $1 AND status = 'closed'`,
+        COUNT(*) FILTER (WHERE pnl_value > 0) as wins,
+        COUNT(*) FILTER (WHERE pnl_value < 0) as losses,
+        COALESCE(SUM(pnl_value), 0) as total_pnl,
+        COALESCE(AVG(pnl_value) FILTER (WHERE pnl_value > 0), 0) as avg_win,
+        COALESCE(AVG(pnl_value) FILTER (WHERE pnl_value < 0), 0) as avg_loss,
+        COALESCE(100.0 * COUNT(*) FILTER (WHERE pnl_value > 0) / NULLIF(COUNT(*), 0), 0) as win_rate
+       FROM trade_pnl`,
       [authResult.userId]
     );
 
@@ -85,8 +119,14 @@ export async function GET(request: Request) {
     const avgLoss = Number.parseFloat(String(summary.avg_loss || 0)) || 0;
     const avgWin = Number.parseFloat(String(summary.avg_win || 0)) || 0;
 
+    // Map trades to use computed_pnl as pnl for display
+    const tradesWithPnl = tradesResult.rows.map((trade: any) => ({
+      ...trade,
+      pnl: trade.computed_pnl ?? trade.pnl,
+    }));
+
     return NextResponse.json({
-      trades: tradesResult.rows,
+      trades: tradesWithPnl,
       summary: {
         totalTrades: Number.parseInt(String(summary.total_trades || 0), 10) || 0,
         wins: Number.parseInt(String(summary.wins || 0), 10) || 0,

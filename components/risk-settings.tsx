@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Shield, TrendingUp, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCsrfToken } from '@/hooks/use-csrf-token';
 
 interface RiskSettings {
   trading_enabled: boolean;
@@ -28,6 +29,7 @@ export function RiskSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const csrfToken = useCsrfToken();
 
   useEffect(() => {
     fetchSettings();
@@ -53,6 +55,11 @@ export function RiskSettingsCard() {
   }
 
   async function saveSettings() {
+    if (!csrfToken.token) {
+      setError('Security token not ready. Please wait and try again.');
+      return;
+    }
+    
     setSaving(true);
     setError('');
     setSuccess('');
@@ -60,7 +67,10 @@ export function RiskSettingsCard() {
     try {
       const res = await fetch('/api/user/settings', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken.token,
+        },
         body: JSON.stringify(settings),
       });
 
@@ -240,8 +250,8 @@ export function RiskSettingsCard() {
         )}
 
         {/* Save Button */}
-        <Button onClick={saveSettings} disabled={saving} className="w-full">
-          {saving ? 'Saving...' : 'Save Risk Settings'}
+        <Button onClick={saveSettings} disabled={saving || csrfToken.loading || !csrfToken.token} className="w-full">
+          {saving ? 'Saving...' : csrfToken.loading ? 'Loading...' : 'Save Risk Settings'}
         </Button>
       </CardContent>
     </Card>

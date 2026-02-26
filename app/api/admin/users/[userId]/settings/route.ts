@@ -3,6 +3,7 @@ import { z } from 'zod';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
 // Schema for updating user settings
 const updateSettingsSchema = z.object({
@@ -125,6 +126,12 @@ export async function PUT(
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
+  }
+
+  // CSRF Protection
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
   }
 
   // Rate limiting
