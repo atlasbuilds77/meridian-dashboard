@@ -95,7 +95,10 @@ export default function AdminDashboard() {
         body: JSON.stringify({ user_id: parseInt(userId, 10), trading_enabled: enabled }),
       });
 
-      if (!res.ok) throw new Error('Failed to update');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update: ' + res.status);
+      }
       await fetchUsers();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Update failed');
