@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     // Get user trading settings
     const result = await client.query(
-      `SELECT trading_enabled, size_pct, max_position_size, updated_at
+      `SELECT trading_enabled, size_pct, max_position_size, max_daily_loss, updated_at
        FROM user_trading_settings
        WHERE user_id = $1`,
       [userId]
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         trading_enabled: true,
         size_pct: 1.0,
         max_position_size: null,
+        max_daily_loss: null,
       });
     }
 
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
       trading_enabled: settings.trading_enabled,
       size_pct: parseFloat(settings.size_pct),
       max_position_size: settings.max_position_size ? parseFloat(settings.max_position_size) : null,
+      max_daily_loss: settings.max_daily_loss ? parseFloat(settings.max_daily_loss) : null,
       updated_at: settings.updated_at,
     });
   } catch (error: unknown) {
@@ -58,7 +60,7 @@ export async function PATCH(req: NextRequest) {
 
   const bodyText = await req.text();
   const body = JSON.parse(bodyText);
-  const { trading_enabled, size_pct, max_position_size } = body;
+  const { trading_enabled, size_pct, max_position_size, max_daily_loss } = body;
 
   // Request deduplication - Prevent rapid-fire duplicate setting changes
   const isDuplicate = await isDuplicateRequest(
@@ -102,6 +104,15 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  if (max_daily_loss !== undefined && max_daily_loss !== null) {
+    if (typeof max_daily_loss !== 'number' || max_daily_loss <= 0) {
+      return NextResponse.json(
+        { error: 'max_daily_loss must be positive or null' },
+        { status: 400 }
+      );
+    }
+  }
+
   const client = await pool.connect();
   try {
     // Build update query dynamically
@@ -124,6 +135,11 @@ export async function PATCH(req: NextRequest) {
       values.push(max_position_size);
     }
 
+    if (max_daily_loss !== undefined) {
+      updates.push(`max_daily_loss = $${paramIndex++}`);
+      values.push(max_daily_loss);
+    }
+
     updates.push(`updated_at = NOW()`);
     values.push(userId);
 
@@ -131,28 +147,60 @@ export async function PATCH(req: NextRequest) {
       UPDATE user_trading_settings
       SET ${updates.join(', ')}
       WHERE user_id = $${paramIndex}
-      RETURNING trading_enabled, size_pct, max_position_size, updated_at
+      RETURNING trading_enabled, size_pct, max_position_size, max_daily_loss, updated_at
     `;
 
     const result = await client.query(query, values);
 
+    let settingsRow = result.rows[0];
+
     if (result.rows.length === 0) {
       // Create if doesn't exist
-      await client.query(
-        `INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, max_position_size)
-         VALUES ($1, $2, $3, $4)
+      const insertResult = await client.query(
+        `INSERT INTO user_trading_settings (user_id, trading_enabled, size_pct, max_position_size, max_daily_loss)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (user_id) DO UPDATE
          SET trading_enabled = EXCLUDED.trading_enabled,
              size_pct = EXCLUDED.size_pct,
              max_position_size = EXCLUDED.max_position_size,
+             max_daily_loss = EXCLUDED.max_daily_loss,
              updated_at = NOW()
-         RETURNING trading_enabled, size_pct, max_position_size`,
-        [userId, trading_enabled ?? true, size_pct ?? 1.0, max_position_size ?? null]
+         RETURNING trading_enabled, size_pct, max_position_size, max_daily_loss, updated_at`,
+        [userId, trading_enabled ?? true, size_pct ?? 1.0, max_position_size ?? null, max_daily_loss ?? null]
       );
+      settingsRow = insertResult.rows[0];
+    }
+
+    // Keep api_credentials in sync so admin list views (and any downstream systems) reflect changes
+    if (trading_enabled !== undefined || size_pct !== undefined) {
+      const apiUpdates: string[] = [];
+      const apiValues: unknown[] = [];
+      let apiParamIndex = 1;
+
+      if (trading_enabled !== undefined) {
+        apiUpdates.push(`trading_enabled = $${apiParamIndex++}`);
+        apiValues.push(trading_enabled);
+      }
+
+      if (size_pct !== undefined) {
+        // Convert from 0.01-1.0 to 1-100 for api_credentials table
+        apiUpdates.push(`size_pct = $${apiParamIndex++}`);
+        apiValues.push(Math.round(size_pct * 100));
+      }
+
+      if (apiUpdates.length > 0) {
+        apiValues.push(userId);
+        const apiQuery = `
+          UPDATE api_credentials
+          SET ${apiUpdates.join(', ')}, updated_at = NOW()
+          WHERE user_id = $${apiParamIndex} AND platform = 'tradier'
+        `;
+        await client.query(apiQuery, apiValues);
+      }
     }
 
     clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');
-    return NextResponse.json({ success: true, settings: result.rows[0] });
+    return NextResponse.json({ success: true, settings: settingsRow });
   } catch (error: unknown) {
     console.error('Failed to update settings:', error);
     clearPendingRequest(userId.toString(), '/api/user/settings', 'PATCH');

@@ -14,6 +14,7 @@ interface RiskSettings {
   trading_enabled: boolean;
   size_pct: number;
   max_position_size: number | null;
+  max_daily_loss: number | null;
 }
 
 export function RiskSettingsCard() {
@@ -21,6 +22,7 @@ export function RiskSettingsCard() {
     trading_enabled: true,
     size_pct: 1.0,
     max_position_size: null,
+    max_daily_loss: null,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,6 +42,7 @@ export function RiskSettingsCard() {
           trading_enabled: data.trading_enabled,
           size_pct: data.size_pct,
           max_position_size: data.max_position_size,
+          max_daily_loss: data.max_daily_loss ?? null,
         });
       }
     } catch (err) {
@@ -185,6 +188,32 @@ export function RiskSettingsCard() {
           </div>
           <p className="text-xs text-muted-foreground">
             Hard cap on position size regardless of account balance. Leave empty for no limit.
+          </p>
+        </div>
+
+        {/* Max Daily Loss (Optional) */}
+        <div className="space-y-2">
+          <Label htmlFor="maxDailyLoss">Max Daily Loss (Optional)</Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+              <Input
+                id="maxDailyLoss"
+                type="number"
+                placeholder="No limit"
+                value={settings.max_daily_loss ?? ''}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    max_daily_loss: e.target.value ? parseFloat(e.target.value) : null,
+                  }))
+                }
+                className="pl-7"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Optional daily loss limit. Meridian should stop trading for the day if this limit is hit.
           </p>
         </div>
 
