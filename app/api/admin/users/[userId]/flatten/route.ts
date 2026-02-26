@@ -322,6 +322,19 @@ export async function POST(
   }
   
   try {
+    // Check if user exists
+    const userCheck = await pool.query(
+      `SELECT id FROM users WHERE id = $1`,
+      [userId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+    
     const result: FlattenResult = {
       success: false,
       message: '',

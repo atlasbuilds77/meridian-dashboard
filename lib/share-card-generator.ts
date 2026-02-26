@@ -85,9 +85,16 @@ async function loadTemplate(edition: Edition, stats: UserStats): Promise<string>
     let html = await fs.readFile(templatePath, 'utf-8');
     
     // FIX: Replace Apple-specific font with generic font stack for production compatibility
+    // More robust replacement that handles different formatting
     html = html.replace(
-      /font-family:\s*'SF Pro Display',\s*-apple-system,\s*BlinkMacSystemFont,\s*sans-serif;/g,
+      /font-family\s*:\s*['"]?SF Pro Display['"]?\s*,\s*['"]?-apple-system['"]?\s*,\s*['"]?BlinkMacSystemFont['"]?\s*,\s*['"]?sans-serif['"]?\s*;/gi,
       "font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;"
+    );
+    
+    // Also replace any standalone 'SF Pro Display' references
+    html = html.replace(
+      /['"]SF Pro Display['"]/gi,
+      "'Segoe UI'"
     );
     
     const meta = getEditionMeta(edition);
@@ -155,6 +162,23 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
       '--single-process', // Helps with memory issues on servers
       '--no-zygote',
       '--disable-web-security', // Allow external images (avatars)
+      '--disable-features=site-per-process', // Disable site isolation for better compatibility
+      '--disable-accelerated-2d-canvas',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-extensions',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+      '--disable-renderer-backgrounding',
+      '--disable-software-rasterizer',
+      '--force-color-profile=srgb',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-first-run',
+      '--no-default-browser-check',
     ],
     defaultViewport: null,
   });
@@ -173,8 +197,23 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
     await page.setRequestInterception(true);
     
     page.on('request', (request) => {
-      // Allow all requests for now
-      request.continue();
+      // Block unnecessary resources to speed up loading
+      const resourceType = request.resourceType();
+      if (['image', 'font', 'stylesheet'].includes(resourceType)) {
+        // Allow images (including avatars), fonts, and stylesheets
+        request.continue();
+      } else if (resourceType === 'document') {
+        request.continue();
+      } else {
+        // Block other resources (scripts, media, etc.)
+        request.abort();
+      }
+    });
+    
+    // Handle failed requests gracefully
+    page.on('requestfailed', (request) => {
+      console.warn(`Request failed: ${request.url()} - ${request.failure()?.errorText}`);
+      // Don't fail the whole process if an avatar fails to load
     });
     
     // Load HTML content with longer timeout for production
@@ -186,11 +225,20 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
     // Wait for animations to settle and ensure fonts are loaded
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Take screenshot
+    // Take screenshot with timeout
     const screenshot = await page.screenshot({
       type: 'png',
       encoding: 'base64',
       fullPage: false,
+    }).catch(async (error) => {
+      console.error('Screenshot failed, trying alternative method:', error.message);
+      
+      // Try alternative: capture viewport only
+      return await page.screenshot({
+        type: 'png',
+        encoding: 'base64',
+        clip: { x: 0, y: 0, width: 600, height: 800 },
+      });
     });
     
     console.log(`Successfully generated share card for ${stats.username}`);

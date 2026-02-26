@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 // Schema for updating user settings
 const updateSettingsSchema = z.object({
@@ -19,6 +20,19 @@ export async function GET(
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
+  }
+
+  // Rate limiting
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'admin_user_settings_get',
+    limit: 60,
+    windowMs: 60_000,
+    userId: adminResult.session.dbUserId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'admin_user_settings_get');
   }
 
   const resolvedParams = await params;
@@ -113,6 +127,19 @@ export async function PUT(
     return adminResult.response;
   }
 
+  // Rate limiting
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'admin_user_settings_put',
+    limit: 30,
+    windowMs: 60_000,
+    userId: adminResult.session.dbUserId,
+  });
+
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'admin_user_settings_put');
+  }
+
   const resolvedParams = await params;
   const userId = parseInt(resolvedParams.userId, 10);
   
@@ -188,7 +215,7 @@ export async function PUT(
       UPDATE user_trading_settings
       SET ${updates.join(', ')}
       WHERE user_id = $${paramIndex}
-      RETURNING trading_enabled, size_pct, max_position_size, updated_at
+      RETURNING trading_enabled, size_pct, max_position_size, max_daily_loss, risk_level, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
@@ -265,7 +292,7 @@ export async function PUT(
         trading_enabled: settings.trading_enabled,
         size_pct: sizePct,
         max_position_size: settings.max_position_size ? parseFloat(String(settings.max_position_size)) : null,
-        max_daily_loss: null, // Not in schema
+        max_daily_loss: settings.max_daily_loss ? parseFloat(String(settings.max_daily_loss)) : null,
         risk_level: riskLevel,
         created_at: settings.created_at,
         updated_at: settings.updated_at,
