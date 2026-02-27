@@ -320,7 +320,7 @@ export function ShareCardModal({ open, onOpenChange, userId, mode = 'user' }: Sh
 
           {!loading && !cardData && !error && (
             <div className="flex justify-center py-8">
-              <Button onClick={generateCard} size="lg">
+              <Button onClick={() => void generateCard()} size="lg">
                 <Share2 className="mr-2 h-4 w-4" />
                 Generate Share Card
               </Button>
