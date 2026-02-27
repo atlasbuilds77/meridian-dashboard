@@ -162,14 +162,6 @@ export default function UserDetailPage() {
     fetchUserData();
   }, [userId]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-xl text-primary">Loading user trades...</div>
-      </div>
-    );
-  }
-
   // Update local settings when data changes
   useEffect(() => {
     if (data?.settings) {
@@ -180,6 +172,14 @@ export default function UserDetailPage() {
       });
     }
   }, [data?.settings]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-xl text-primary">Loading user trades...</div>
+      </div>
+    );
+  }
 
   const handleUpdateSettings = async () => {
     if (!userId) return;
