@@ -27,6 +27,8 @@ export interface TradierPosition {
   cost_basis: number;
   date_acquired: string;
   id: number;
+  option_symbol?: string;
+  security_type?: 'equity' | 'option' | string;
 }
 
 export interface TradierHistory {
@@ -100,10 +102,12 @@ export class TradierClient {
    * Get current positions
    */
   async getPositions(accountNumber: string): Promise<TradierPosition[]> {
-    const data = await this.fetch<{ positions: { position: TradierPosition[] } | null }>(
+    const data = await this.fetch<{ positions: { position: TradierPosition | TradierPosition[] } | null }>(
       `/accounts/${accountNumber}/positions`
     );
-    return data.positions?.position || [];
+    const rawPositions = data.positions?.position;
+    if (!rawPositions) return [];
+    return Array.isArray(rawPositions) ? rawPositions : [rawPositions];
   }
   
   /**

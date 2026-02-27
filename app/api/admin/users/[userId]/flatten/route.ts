@@ -65,23 +65,46 @@ class EmergencyTradierClient {
   /**
    * Close a position by symbol
    * @param accountNumber Tradier account number
-   * @param symbol Stock/option symbol
+   * @param symbol Stock symbol or OCC option symbol
    * @param quantity Quantity to close (negative for short, positive for long)
+   * @param underlyingSymbol Optional underlying symbol hint for options
    * @returns Order confirmation
    */
   async closePosition(
     accountNumber: string,
     symbol: string,
-    quantity: number
+    quantity: number,
+    underlyingSymbol?: string
   ): Promise<{ success: boolean; orderId?: string; error?: string }> {
     try {
-      // Determine order type based on quantity
-      // Positive quantity = long position = sell to close
-      // Negative quantity = short position = buy to cover
-      const side = quantity > 0 ? 'sell' : 'buy';
+      const normalizedSymbol = String(symbol || '').trim().toUpperCase();
+      const optionMatch = normalizedSymbol.match(/^([A-Z]{1,6})\d{6}[CP]\d{8}$/);
+      const isOption = Boolean(optionMatch);
+      const baseSymbol = (underlyingSymbol || optionMatch?.[1] || normalizedSymbol).toUpperCase();
+
+      // Determine order side based on instrument type and long/short quantity.
+      const side = isOption
+        ? (quantity > 0 ? 'sell_to_close' : 'buy_to_close')
+        : (quantity > 0 ? 'sell' : 'buy');
       const absQuantity = Math.abs(quantity);
       
       const url = `${this.getBaseUrl()}/accounts/${accountNumber}/orders`;
+      const params = new URLSearchParams({
+        quantity: absQuantity.toString(),
+        type: 'market',
+        duration: 'day',
+      });
+
+      if (isOption) {
+        params.set('class', 'option');
+        params.set('symbol', baseSymbol);
+        params.set('option_symbol', normalizedSymbol);
+        params.set('side', side);
+      } else {
+        params.set('class', 'equity');
+        params.set('symbol', normalizedSymbol);
+        params.set('side', side);
+      }
       
       const response = await fetch(url, {
         method: 'POST',
@@ -90,14 +113,7 @@ class EmergencyTradierClient {
           'Accept': 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          class: 'equity',
-          symbol,
-          side,
-          quantity: absQuantity.toString(),
-          type: 'market',
-          duration: 'day',
-        }),
+        body: params,
       });
       
       if (!response.ok) {
@@ -159,14 +175,16 @@ class EmergencyTradierClient {
       
       // Close each position
       for (const position of positions) {
+        const targetSymbol = (position.option_symbol || position.symbol || '').toUpperCase();
         const result = await this.closePosition(
           accountNumber,
-          position.symbol,
-          position.quantity
+          targetSymbol,
+          position.quantity,
+          position.symbol
         );
         
         results.push({
-          symbol: position.symbol,
+          symbol: targetSymbol,
           quantity: position.quantity,
           success: result.success,
           error: result.error,
@@ -175,7 +193,7 @@ class EmergencyTradierClient {
         if (result.success) {
           closed++;
         } else {
-          errors.push(`${position.symbol}: ${result.error}`);
+          errors.push(`${targetSymbol}: ${result.error}`);
         }
         
         // Small delay between orders to avoid rate limiting
