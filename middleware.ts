@@ -6,7 +6,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/api/auth/discord/callback'];
+  const publicRoutes = ['/login', '/api/auth'];
   
   // Check if the current path is public
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
@@ -49,6 +49,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$|api/auth).*)',
   ],
 };

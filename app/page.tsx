@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -17,9 +18,19 @@ import { useTradeData, useMarketData, useAccountData, useSystemStatus } from "@/
 import { formatCurrency, formatPercent, formatDate } from "@/lib/utils-client";
 
 function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
   if (!lastUpdate) return null;
   
-  const secondsAgo = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0;
+  const secondsAgo = Math.floor((nowMs - lastUpdate.getTime()) / 1000);
   const isLive = secondsAgo < 60;
   
   return (
@@ -69,10 +80,10 @@ function PortfolioHeader() {
     return <ErrorCard message="Failed to load portfolio data" />;
   }
   
-  const totalPnL = trades.summary.totalPnL;
-  const accountBalance = accounts?.totalBalance || 90000; // fallback
+  const totalPnL = trades.summary.totalPnL || 0;
+  const accountBalance = accounts?.totalBalance || 0; // Real balance from Tradier
   const totalValue = accountBalance + totalPnL;
-  const totalReturn = (totalPnL / accountBalance) * 100;
+  const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   
   const isPositive = totalPnL >= 0;
   
@@ -153,21 +164,21 @@ function StatsGrid() {
   const stats = [
     {
       label: "Win Rate",
-      value: `${summary.winRate.toFixed(1)}%`,
-      change: summary.winRate >= 50 ? "up" : "down",
+      value: summary.winRate ? `${summary.winRate.toFixed(1)}%` : "0.0%",
+      change: (summary.winRate || 0) >= 50 ? "up" : "down",
       icon: Target,
-      color: summary.winRate >= 50 ? "profit" : "loss"
+      color: (summary.winRate || 0) >= 50 ? "profit" : "loss"
     },
     {
       label: "Profit Factor",
-      value: summary.profitFactor.toFixed(2),
-      change: summary.profitFactor >= 1.5 ? "up" : "down",
+      value: summary.profitFactor ? summary.profitFactor.toFixed(2) : "0.00",
+      change: (summary.profitFactor || 0) >= 1.5 ? "up" : "down",
       icon: BarChart3,
-      color: summary.profitFactor >= 1.5 ? "profit" : "loss"
+      color: (summary.profitFactor || 0) >= 1.5 ? "profit" : "loss"
     },
     {
       label: "Total Trades",
-      value: summary.totalTrades.toString(),
+      value: (summary.totalTrades || 0).toString(),
       icon: Activity,
       color: "muted"
     },

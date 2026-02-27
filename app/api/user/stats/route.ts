@@ -1,29 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getUserIdFromSession } from '@/lib/auth/session';
 import { getUserStats } from '@/lib/db/users';
 
 export const dynamic = 'force-dynamic';
-
-async function getUserIdFromSession() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('meridian_session');
-  
-  if (!session) {
-    return null;
-  }
-  
-  try {
-    const sessionData = JSON.parse(session.value);
-    
-    if (sessionData.expiresAt < Date.now() || !sessionData.authorized) {
-      return null;
-    }
-    
-    return sessionData.dbUserId;
-  } catch {
-    return null;
-  }
-}
 
 export async function GET() {
   const userId = await getUserIdFromSession();
