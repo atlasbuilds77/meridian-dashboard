@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
+import { requireAdminSession, requireSession } from '@/lib/api/require-auth';
 import { 
   generateShareCard, 
   calculateEdition, 
@@ -18,12 +19,13 @@ import {
 interface GenerateCardRequest {
   userId?: string;
   edition?: Edition;
+  mode?: 'user' | 'combined';
 }
 
 /**
  * Fetch user stats from database
  */
-async function fetchUserStats(userId: string): Promise<UserStats | null> {
+async function fetchUserStats(userId: number): Promise<UserStats | null> {
   const client = await pool.connect();
   
   try {
@@ -97,36 +99,101 @@ async function fetchUserStats(userId: string): Promise<UserStats | null> {
   }
 }
 
+async function fetchCombinedStats(): Promise<UserStats> {
+  const client = await pool.connect();
+
+  try {
+    const combinedQuery = `
+      SELECT
+        COUNT(*) as total_trades,
+        COUNT(DISTINCT user_id) as total_users,
+        SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
+        SUM(pnl) as total_pnl,
+        MAX(pnl) as best_trade,
+        SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) as total_wins,
+        SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) as total_losses
+      FROM trades
+      WHERE status = 'closed'
+        AND pnl IS NOT NULL
+    `;
+    const combinedResult = await client.query(combinedQuery);
+    const stats = combinedResult.rows[0] || {};
+
+    const totalTrades = Number.parseInt(String(stats.total_trades || 0), 10) || 0;
+    const totalUsers = Number.parseInt(String(stats.total_users || 0), 10) || 0;
+    const wins = Number.parseInt(String(stats.wins || 0), 10) || 0;
+    const totalPnl = Number.parseFloat(String(stats.total_pnl || 0)) || 0;
+    const bestTrade = Number.parseFloat(String(stats.best_trade || 0)) || 0;
+    const totalWins = Number.parseFloat(String(stats.total_wins || 0)) || 0;
+    const totalLosses = Number.parseFloat(String(stats.total_losses || 0)) || 0;
+
+    const winRate = totalTrades > 0 ? Math.round((wins / totalTrades) * 100) : 0;
+    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 99.9 : 0;
+
+    // Heuristic baseline for combined account return card.
+    const startingCapital = Math.max(totalUsers * 5000, 5000);
+    const returnPercent = Math.round((totalPnl / startingCapital) * 100);
+
+    return {
+      username: 'Meridian Combined',
+      totalProfit: totalPnl,
+      returnPercent,
+      winRate,
+      totalTrades,
+      bestTrade,
+      profitFactor,
+    };
+  } finally {
+    client.release();
+  }
+}
+
+function parseUserId(raw?: string): number | null {
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body: GenerateCardRequest = await request.json();
-    const { userId, edition } = body;
-    
-    // Get session user ID if not provided (for user's own card)
-    let targetUserId = userId;
-    
-    if (!targetUserId) {
-      // Get from session cookie
-      const sessionCookie = request.cookies.get('meridian_session');
-      if (!sessionCookie) {
-        return NextResponse.json(
-          { error: 'Not authenticated' },
-          { status: 401 }
-        );
-      }
-      
-      // Decode session to get user_id
-      // TODO: Implement proper session decoding
-      // For now, require userId to be passed
-      return NextResponse.json(
-        { error: 'userId required' },
-        { status: 400 }
-      );
+    const sessionResult = await requireSession();
+    if (!sessionResult.ok) {
+      return sessionResult.response;
     }
-    
-    // Fetch user stats
-    const stats = await fetchUserStats(targetUserId);
-    
+
+    const body: GenerateCardRequest = await request.json();
+    const { userId, edition, mode = 'user' } = body;
+    const session = sessionResult.session;
+
+    let stats: UserStats | null = null;
+
+    if (mode === 'combined') {
+      const adminResult = await requireAdminSession();
+      if (!adminResult.ok) {
+        return adminResult.response;
+      }
+      stats = await fetchCombinedStats();
+    } else {
+      const hasUserId = typeof userId === 'string' && userId.trim().length > 0;
+      const requestedUserId = parseUserId(userId);
+      if (hasUserId && !requestedUserId) {
+        return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+      }
+      const targetUserId = requestedUserId ?? session.dbUserId;
+
+      if (requestedUserId && requestedUserId !== session.dbUserId) {
+        const adminResult = await requireAdminSession();
+        if (!adminResult.ok) {
+          return adminResult.response;
+        }
+      }
+
+      stats = await fetchUserStats(targetUserId);
+    }
+
     if (!stats) {
       return NextResponse.json(
         { error: 'User not found or no trading data' },

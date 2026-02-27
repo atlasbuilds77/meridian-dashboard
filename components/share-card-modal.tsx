@@ -9,13 +9,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, Copy, Share2, Loader2, Sparkles, Twitter } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Copy,
+  Share2,
+  Loader2,
+  Sparkles,
+  Twitter,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ShareCardModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId?: string;
+  mode?: 'user' | 'combined';
 }
 
 type Edition = 'black' | 'ruby' | 'emerald' | 'sapphire' | 'diamond';
@@ -59,23 +69,27 @@ const editionInfo: Record<Edition, { name: string; color: string; description: s
   },
 };
 
-export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalProps) {
+const editionOrder: Edition[] = ['black', 'ruby', 'emerald', 'sapphire', 'diamond'];
+
+export function ShareCardModal({ open, onOpenChange, userId, mode = 'user' }: ShareCardModalProps) {
   const [loading, setLoading] = useState(false);
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedEdition, setSelectedEdition] = useState<Edition | null>(null);
 
-  const generateCard = async () => {
+  const generateCard = async (editionOverride?: Edition) => {
     setLoading(true);
     setError(null);
 
     try {
+      const edition = editionOverride ?? undefined;
       const response = await fetch('/api/share/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, edition, mode }),
       });
 
       if (!response.ok) {
@@ -85,6 +99,7 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
 
       const data = await response.json();
       setCardData(data);
+      setSelectedEdition(data.edition);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate card');
     } finally {
@@ -97,10 +112,35 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
 
     const link = document.createElement('a');
     link.href = cardData.image;
-    link.download = `meridian-pnl-${cardData.edition}.png`;
+    link.download = `meridian-pnl-${mode}-${cardData.edition}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleSaveToPhotos = async () => {
+    if (!cardData) return;
+
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        const imageResponse = await fetch(cardData.image);
+        const blob = await imageResponse.blob();
+        const file = new File([blob], `meridian-pnl-${mode}-${cardData.edition}.png`, { type: 'image/png' });
+
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Meridian P&L Card',
+            text: 'Save this card to your photos',
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Native photo save failed, falling back to download', err);
+    }
+
+    handleDownload();
   };
 
   const handleCopyImage = async () => {
@@ -135,15 +175,29 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
     window.open(url, '_blank');
   };
 
+  const cycleEdition = (direction: 'prev' | 'next') => {
+    if (!cardData && !selectedEdition) return;
+    const currentEdition = selectedEdition ?? cardData?.edition ?? 'black';
+    const currentIndex = editionOrder.indexOf(currentEdition);
+    const nextIndex =
+      direction === 'next'
+        ? (currentIndex + 1) % editionOrder.length
+        : (currentIndex - 1 + editionOrder.length) % editionOrder.length;
+    const nextEdition = editionOrder[nextIndex];
+    setSelectedEdition(nextEdition);
+    generateCard(nextEdition);
+  };
+
   // Auto-generate when modal opens or userId changes
   useEffect(() => {
     if (open) {
       // Reset card data when userId changes (admin panel switching users)
       setCardData(null);
       setError(null);
+      setSelectedEdition(null);
       generateCard();
     }
-  }, [open, userId]);
+  }, [open, userId, mode]);
 
   const editionMeta = cardData ? editionInfo[cardData.edition] : null;
 
@@ -200,7 +254,7 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
               </div>
 
               {/* Actions */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Button
                   onClick={handleDownload}
                   className="w-full"
@@ -208,6 +262,15 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Download PNG
+                </Button>
+
+                <Button
+                  onClick={handleSaveToPhotos}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Save to Photos
                 </Button>
 
                 <Button
@@ -226,6 +289,17 @@ export function ShareCardModal({ open, onOpenChange, userId }: ShareCardModalPro
                 >
                   <Twitter className="mr-2 h-4 w-4" />
                   Share on X
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button onClick={() => cycleEdition('prev')} variant="outline" disabled={loading}>
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Prev Theme
+                </Button>
+                <Button onClick={() => cycleEdition('next')} variant="outline" disabled={loading}>
+                  Next Theme
+                  <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
 

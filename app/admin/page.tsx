@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
-import { PnLShareButton } from '@/components/pnl-share-button';
 import { AdminAccountValues } from '@/components/admin-account-values';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
 
@@ -39,12 +38,6 @@ function formatSignedUsd(value: number): string {
   return `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(2)}`;
 }
 
-function buildClientShareText(stats: UserStats): string {
-  const winRateText =
-    stats.trades_count > 0 ? `${stats.win_rate.toFixed(1)}% win rate` : 'no closed trades yet';
-  return `Meridian client update: ${stats.user.discord_username} is ${formatSignedUsd(stats.total_pnl)} across ${stats.trades_count} trades (${winRateText}).`;
-}
-
 export default function AdminDashboard() {
   const router = useRouter();
   const csrfToken = useCsrfToken();
@@ -53,6 +46,10 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareUserId, setShareUserId] = useState<string | undefined>(undefined);
+  const [shareMode, setShareMode] = useState<'user' | 'combined'>('user');
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [sizeDrafts, setSizeDrafts] = useState<Record<string, string>>({});
+  const [isFlatteningAll, setIsFlatteningAll] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -87,13 +84,18 @@ export default function AdminDashboard() {
     }
 
     try {
+      const numericUserId = Number.parseInt(userId, 10);
+      if (!Number.isFinite(numericUserId)) {
+        throw new Error('Invalid user ID');
+      }
+      setPendingUserId(userId);
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken.token,
         },
-        body: JSON.stringify({ user_id: parseInt(userId, 10), trading_enabled: enabled }),
+        body: JSON.stringify({ user_id: numericUserId, trading_enabled: enabled }),
       });
 
       if (!res.ok) {
@@ -103,6 +105,8 @@ export default function AdminDashboard() {
       await fetchUsers();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Update failed');
+    } finally {
+      setPendingUserId(null);
     }
   }
 
@@ -113,20 +117,125 @@ export default function AdminDashboard() {
     }
 
     try {
+      const numericUserId = Number.parseInt(userId, 10);
+      if (!Number.isFinite(numericUserId)) {
+        throw new Error('Invalid user ID');
+      }
+      setPendingUserId(userId);
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken.token,
         },
-        body: JSON.stringify({ user_id: parseInt(userId, 10), size_pct: sizePct }),
+        body: JSON.stringify({ user_id: numericUserId, size_pct: sizePct }),
       });
 
       if (!res.ok) throw new Error('Failed to update');
       await fetchUsers();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Update failed');
+    } finally {
+      setPendingUserId(null);
     }
+  }
+
+  async function commitSizePct(userId: string, currentSizePct: number) {
+    const draft = sizeDrafts[userId];
+    if (draft === undefined) return;
+
+    const parsed = Number.parseInt(draft, 10);
+    if (!Number.isFinite(parsed)) {
+      setSizeDrafts((prev) => ({ ...prev, [userId]: String(currentSizePct) }));
+      return;
+    }
+
+    const clamped = Math.max(1, Math.min(100, parsed));
+    setSizeDrafts((prev) => ({ ...prev, [userId]: String(clamped) }));
+
+    if (clamped !== currentSizePct) {
+      await updateSizePct(userId, clamped);
+    }
+  }
+
+  function openCombinedShareCard() {
+    setShareMode('combined');
+    setShareUserId(undefined);
+    setShareModalOpen(true);
+  }
+
+  function openUserShareCard(userId: string) {
+    setShareMode('user');
+    setShareUserId(userId);
+    setShareModalOpen(true);
+  }
+
+  async function flattenAllPositions() {
+    if (!csrfToken.token) {
+      alert('CSRF token not ready. Please refresh.');
+      return;
+    }
+
+    const targets = users.filter((u) => Boolean(u.account));
+    if (targets.length === 0) {
+      alert('No connected Tradier accounts found.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Flatten all positions for ${targets.length} users? This submits live close orders where positions exist.`
+    );
+    if (!confirmed) return;
+
+    setIsFlatteningAll(true);
+    let successCount = 0;
+    const failures: string[] = [];
+
+    try {
+      for (const target of targets) {
+        try {
+          const response = await fetch(`/api/admin/users/${target.user.id}/flatten`, {
+            method: 'POST',
+            headers: {
+              'x-csrf-token': csrfToken.token,
+            },
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            failures.push(`${target.user.discord_username}: ${errorBody.error || response.status}`);
+            continue;
+          }
+
+          const payload = await response.json().catch(() => ({}));
+          if (payload?.success) {
+            successCount += 1;
+          } else {
+            failures.push(`${target.user.discord_username}: ${payload?.message || 'flatten failed'}`);
+          }
+        } catch (error) {
+          failures.push(
+            `${target.user.discord_username}: ${
+              error instanceof Error ? error.message : 'network error'
+            }`
+          );
+        }
+      }
+    } finally {
+      setIsFlatteningAll(false);
+    }
+
+    await fetchUsers();
+
+    if (failures.length === 0) {
+      alert(`Flatten complete. Processed ${successCount}/${targets.length} users.`);
+      return;
+    }
+
+    alert(
+      `Flatten finished with issues. Success: ${successCount}/${targets.length}\n` +
+        failures.slice(0, 5).join('\n')
+    );
   }
 
   if (loading) {
@@ -153,9 +262,19 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text sm:text-4xl">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Multi-user trading system control</p>
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text sm:text-4xl">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Multi-user trading system control</p>
+          </div>
+          <button
+            type="button"
+            onClick={flattenAllPositions}
+            disabled={isFlatteningAll}
+            className="inline-flex items-center rounded border border-loss/40 bg-loss/15 px-4 py-2 text-sm font-semibold text-loss transition-colors hover:bg-loss/25 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isFlatteningAll ? 'Flattening...' : 'Flatten All'}
+          </button>
         </div>
 
         <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -174,10 +293,14 @@ export default function AdminDashboard() {
           <div className="nebula-panel rounded-xl p-5">
             <div className="mb-1 flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
               <span>Combined P&amp;L</span>
-              <PnLShareButton
-                title="Meridian Combined P&L"
-                text={`Meridian combined client P&L: ${formatSignedUsd(totalPnL)} across ${totalTrades} trades.`}
-              />
+              <button
+                type="button"
+                onClick={openCombinedShareCard}
+                className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20"
+              >
+                <Share2 className="h-3 w-3" />
+                Card
+              </button>
             </div>
             <div className={`text-3xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
               {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
@@ -202,10 +325,14 @@ export default function AdminDashboard() {
                       <div className="text-lg font-semibold text-foreground">{stats.user.discord_username}</div>
                       <div className="text-xs text-muted-foreground">{stats.account?.account_number || 'No tradier account'}</div>
                     </div>
-                    <PnLShareButton
-                      title={`Client P&L: ${stats.user.discord_username}`}
-                      text={buildClientShareText(stats)}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => openUserShareCard(stats.user.id)}
+                      className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Card
+                    </button>
                   </div>
 
                   <div className={`mb-4 text-3xl font-bold ${stats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
@@ -300,11 +427,12 @@ export default function AdminDashboard() {
                       {stats.account ? (
                         <button
                           onClick={() => toggleTrading(stats.user.id, !stats.account!.trading_enabled)}
+                          disabled={pendingUserId === stats.user.id || isFlatteningAll}
                           className={`rounded px-3 py-1 text-sm font-medium ${
                             stats.account.trading_enabled
                               ? 'bg-primary text-white'
                               : 'border border-primary/30 bg-primary/10 text-muted-foreground'
-                          }`}
+                          } ${pendingUserId === stats.user.id ? 'cursor-not-allowed opacity-50' : ''}`}
                         >
                           {stats.account.trading_enabled ? 'ON' : 'OFF'}
                         </button>
@@ -319,8 +447,17 @@ export default function AdminDashboard() {
                           type="number"
                           min="1"
                           max="100"
-                          value={stats.account.size_pct}
-                          onChange={(e) => updateSizePct(stats.user.id, parseInt(e.target.value))}
+                          value={sizeDrafts[stats.user.id] ?? String(stats.account.size_pct)}
+                          onChange={(e) =>
+                            setSizeDrafts((prev) => ({ ...prev, [stats.user.id]: e.target.value }))
+                          }
+                          onBlur={() => commitSizePct(stats.user.id, stats.account!.size_pct)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.currentTarget as HTMLInputElement).blur();
+                            }
+                          }}
+                          disabled={pendingUserId === stats.user.id || isFlatteningAll}
                           className="w-16 rounded border border-primary/35 bg-background px-2 py-1 text-sm"
                         />
                       ) : (
@@ -350,8 +487,7 @@ export default function AdminDashboard() {
                       {stats.trades_count > 0 ? (
                         <button
                           onClick={() => {
-                            setShareUserId(stats.user.id);
-                            setShareModalOpen(true);
+                            openUserShareCard(stats.user.id);
                           }}
                           className="flex items-center gap-2 rounded border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
                         >
@@ -380,6 +516,7 @@ export default function AdminDashboard() {
           open={shareModalOpen}
           onOpenChange={setShareModalOpen}
           userId={shareUserId}
+          mode={shareMode}
         />
       </div>
     </div>
