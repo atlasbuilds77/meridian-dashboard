@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle, DollarSign, CreditCard, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/utils-client';
 import { toastSuccess, toastError } from '@/lib/toast';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
@@ -72,9 +72,52 @@ type UserData = {
   };
 };
 
+type ChargeInfo = {
+  weekStart: string;
+  weekEnd: string;
+  totalPnl: number;
+  tradeCount: number;
+  feeAmount: number;
+  hasPaymentMethod: boolean;
+  paymentMethod: { brand: string; last4: string } | null;
+  billingEnabled: boolean;
+  existingCharge: {
+    id: number;
+    status: string;
+    paidAt: string | null;
+    paymentIntentId: string | null;
+  } | null;
+  canCharge: boolean;
+  chargeHistory: Array<{
+    id: number;
+    weekStart: string;
+    weekEnd: string;
+    totalPnl: number;
+    feeAmount: number;
+    status: string;
+    paidAt: string | null;
+    stripeChargeId: string | null;
+  }>;
+};
+
 function isBullish(direction: string): boolean {
   const normalized = direction.toUpperCase();
   return ['LONG', 'CALL', 'BUY', 'BULL'].includes(normalized);
+}
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case 'paid':
+      return <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30"><CheckCircle2 className="w-3 h-3 mr-1" />Paid</Badge>;
+    case 'failed':
+      return <Badge className="bg-red-500/20 text-red-500 border-red-500/30"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>;
+    case 'pending':
+      return <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+    case 'waived':
+      return <Badge variant="secondary">Waived</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
 }
 
 export default function UserDetailPage() {
@@ -84,16 +127,37 @@ export default function UserDetailPage() {
   const csrfToken = useCsrfToken();
 
   const [data, setData] = useState<UserData | null>(null);
+  const [chargeInfo, setChargeInfo] = useState<ChargeInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chargeLoading, setChargeLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFlattenDialog, setShowFlattenDialog] = useState(false);
+  const [showChargeDialog, setShowChargeDialog] = useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isFlattening, setIsFlattening] = useState(false);
+  const [isCharging, setIsCharging] = useState(false);
   const [localSettings, setLocalSettings] = useState({
     trading_enabled: false,
     size_pct: 50,
     max_daily_loss_pct: 5,
   });
+
+  const fetchChargeInfo = useCallback(async () => {
+    if (!userId) return;
+    
+    setChargeLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/charge-fee`);
+      if (res.ok) {
+        const info = await res.json();
+        setChargeInfo(info);
+      }
+    } catch (err) {
+      console.error('Failed to fetch charge info:', err);
+    } finally {
+      setChargeLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
     async function fetchUserData() {
@@ -160,7 +224,8 @@ export default function UserDetailPage() {
     }
 
     fetchUserData();
-  }, [userId]);
+    fetchChargeInfo();
+  }, [userId, fetchChargeInfo]);
 
   // Update local settings when data changes
   useEffect(() => {
@@ -270,6 +335,43 @@ export default function UserDetailPage() {
     }
   };
 
+  const handleChargeFee = async () => {
+    if (!userId || !chargeInfo) return;
+    
+    if (!csrfToken.token) {
+      toastError('Security token not ready. Please refresh the page.');
+      return;
+    }
+    
+    setIsCharging(true);
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/charge-fee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken.token,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to charge fee');
+      }
+
+      toastSuccess(`Successfully charged $${chargeInfo.feeAmount.toFixed(2)} to ${data?.user.discord_username}`);
+      setShowChargeDialog(false);
+      
+      // Refresh charge info
+      await fetchChargeInfo();
+    } catch (err) {
+      console.error('Charge fee error:', err);
+      toastError(err instanceof Error ? err.message : 'Failed to charge fee');
+    } finally {
+      setIsCharging(false);
+    }
+  };
+
   if (error || !data) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -368,6 +470,141 @@ export default function UserDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Weekly P&L & Billing Section */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Weekly Billing
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Performance fee management for this user
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {chargeLoading ? (
+              <div className="text-muted-foreground">Loading billing info...</div>
+            ) : chargeInfo ? (
+              <>
+                {/* Weekly P&L Display */}
+                <div className="rounded-lg bg-secondary/30 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {chargeInfo.tradeCount} trades
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Weekly P&L</div>
+                      <div className={`text-2xl font-bold ${chargeInfo.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {formatCurrency(chargeInfo.totalPnl)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Fee (10%)</div>
+                      <div className={`text-2xl font-bold ${chargeInfo.feeAmount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {chargeInfo.totalPnl > 0 ? formatCurrency(chargeInfo.feeAmount) : '$0.00'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Info */}
+                  <div className="flex items-center justify-between pt-2 border-t border-primary/10">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      {chargeInfo.hasPaymentMethod && chargeInfo.paymentMethod ? (
+                        <span className="text-sm">
+                          {chargeInfo.paymentMethod.brand} •••• {chargeInfo.paymentMethod.last4}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No payment method</span>
+                      )}
+                    </div>
+                    {chargeInfo.existingCharge && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">This week:</span>
+                        {getStatusBadge(chargeInfo.existingCharge.status)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Charge Button */}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    {!chargeInfo.hasPaymentMethod && (
+                      <span className="text-yellow-500">⚠️ User has no payment method on file</span>
+                    )}
+                    {chargeInfo.hasPaymentMethod && chargeInfo.totalPnl <= 0 && (
+                      <span>No fee due (P&L ≤ $0)</span>
+                    )}
+                    {chargeInfo.hasPaymentMethod && chargeInfo.totalPnl > 0 && chargeInfo.existingCharge?.status === 'paid' && (
+                      <span className="text-emerald-500">✓ Already charged this week</span>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => setShowChargeDialog(true)}
+                    disabled={!chargeInfo.canCharge}
+                    className="gap-2"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    Charge 10% Fee Now
+                  </Button>
+                </div>
+
+                {/* Charge History Table */}
+                {chargeInfo.chargeHistory.length > 0 && (
+                  <div className="pt-4 border-t border-primary/10">
+                    <h4 className="text-sm font-medium mb-3">Recent Charges</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead>Week</TableHead>
+                          <TableHead className="text-right">P&L</TableHead>
+                          <TableHead className="text-right">Fee</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Charge ID</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {chargeInfo.chargeHistory.map((charge) => (
+                          <TableRow key={charge.id} className="hover:bg-secondary/30">
+                            <TableCell className="font-mono text-sm">
+                              {charge.weekStart}
+                            </TableCell>
+                            <TableCell className={`text-right font-mono ${charge.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {formatCurrency(charge.totalPnl)}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatCurrency(charge.feeAmount)}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(charge.status)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {charge.paidAt ? new Date(charge.paidAt).toLocaleDateString() : '—'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                              {charge.stripeChargeId ? charge.stripeChargeId.slice(-8) : '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-muted-foreground">Unable to load billing info</div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Trading Controls */}
         <Card className="border-primary/30">
@@ -648,6 +885,58 @@ export default function UserDetailPage() {
                 className="sm:flex-1"
               >
                 {isFlattening ? 'Flattening...' : 'Confirm Flatten'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Charge Fee Confirmation Dialog */}
+        <Dialog open={showChargeDialog} onOpenChange={setShowChargeDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Charge Performance Fee
+              </DialogTitle>
+              <DialogDescription>
+                {chargeInfo && (
+                  <>
+                    Charge <span className="font-semibold text-foreground">${chargeInfo.feeAmount.toFixed(2)}</span> to{' '}
+                    <span className="font-semibold text-foreground">{user.discord_username}</span>?
+                    <br />
+                    <br />
+                    This will bill their saved payment method
+                    {chargeInfo.paymentMethod && (
+                      <span className="text-foreground">
+                        {' '}({chargeInfo.paymentMethod.brand} •••• {chargeInfo.paymentMethod.last4})
+                      </span>
+                    )}.
+                    <br />
+                    <br />
+                    <span className="text-sm">
+                      Week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
+                      <br />
+                      P&L: {formatCurrency(chargeInfo.totalPnl)} ({chargeInfo.tradeCount} trades)
+                    </span>
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={() => setShowChargeDialog(false)}
+                disabled={isCharging}
+                className="sm:flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleChargeFee}
+                disabled={isCharging}
+                className="sm:flex-1"
+              >
+                {isCharging ? 'Charging...' : `Charge $${chargeInfo?.feeAmount.toFixed(2) || '0.00'}`}
               </Button>
             </DialogFooter>
           </DialogContent>
