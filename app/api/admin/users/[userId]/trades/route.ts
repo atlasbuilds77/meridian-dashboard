@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
+import { calculateTradePnl } from '@/lib/db/pnl-calculation';
+
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(
   request: NextRequest,
@@ -32,30 +37,81 @@ export async function GET(
 
     const user = userResult.rows[0];
 
-    // Get user's trades
+    // Get user's trades WITH dynamic P&L calculation
+    // Uses COALESCE to fall back to calculated P&L when stored pnl is NULL
     const tradesResult = await pool.query(
       `SELECT 
-        id, symbol, direction, entry_price, exit_price, quantity,
-        entry_date, exit_date, pnl, pnl_percent, status,
-        setup_type, stop_loss, take_profit, entry_reasoning
+        id, symbol, direction, asset_type, entry_price, exit_price, quantity,
+        entry_date, exit_date, status,
+        setup_type, stop_loss, take_profit, entry_reasoning,
+        -- Calculate P&L: use stored value OR calculate from prices
+        COALESCE(
+          pnl,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN exit_price = 0 THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN (exit_price - entry_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN (entry_price - exit_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS pnl,
+        COALESCE(
+          pnl_percent,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN exit_price = 0 THEN NULL
+            WHEN entry_price = 0 THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN ((exit_price - entry_price) / entry_price) * 100
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN ((entry_price - exit_price) / entry_price) * 100
+            ELSE NULL
+          END
+        ) AS pnl_percent
        FROM trades
        WHERE user_id = $1
        ORDER BY entry_date DESC`,
       [userId]
     );
 
-    // Calculate stats
+    // Calculate stats WITH dynamic P&L calculation
     const statsResult = await pool.query(
-      `SELECT
+      `WITH trades_with_pnl AS (
+        SELECT 
+          COALESCE(
+            pnl,
+            CASE
+              WHEN exit_price IS NULL THEN NULL
+              WHEN exit_price = 0 THEN NULL
+              WHEN UPPER(direction) IN ('LONG', 'CALL')
+                THEN (exit_price - entry_price) * quantity * 
+                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              WHEN UPPER(direction) IN ('SHORT', 'PUT')
+                THEN (entry_price - exit_price) * quantity * 
+                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              ELSE NULL
+            END
+          ) AS calculated_pnl
+        FROM trades
+        WHERE user_id = $1 AND status = 'closed'
+      )
+      SELECT
         COUNT(*) as total_trades,
-        COUNT(*) FILTER (WHERE pnl > 0) as wins,
-        COUNT(*) FILTER (WHERE pnl <= 0) as losses,
-        COALESCE(SUM(pnl), 0) as total_pnl,
-        COALESCE(AVG(pnl) FILTER (WHERE pnl > 0), 0) as avg_win,
-        COALESCE(AVG(pnl) FILTER (WHERE pnl <= 0), 0) as avg_loss,
-        COALESCE(100.0 * COUNT(*) FILTER (WHERE pnl > 0) / NULLIF(COUNT(*), 0), 0) as win_rate
-       FROM trades
-       WHERE user_id = $1 AND status = 'closed'`,
+        COUNT(*) FILTER (WHERE calculated_pnl > 0) as wins,
+        COUNT(*) FILTER (WHERE calculated_pnl <= 0 AND calculated_pnl IS NOT NULL) as losses,
+        COALESCE(SUM(calculated_pnl), 0) as total_pnl,
+        COALESCE(AVG(calculated_pnl) FILTER (WHERE calculated_pnl > 0), 0) as avg_win,
+        COALESCE(AVG(calculated_pnl) FILTER (WHERE calculated_pnl <= 0 AND calculated_pnl IS NOT NULL), 0) as avg_loss,
+        COALESCE(
+          100.0 * COUNT(*) FILTER (WHERE calculated_pnl > 0) / 
+          NULLIF(COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL), 0),
+          0
+        ) as win_rate
+      FROM trades_with_pnl`,
       [userId]
     );
 

@@ -348,7 +348,9 @@ export default function AdminDashboard() {
                     </span>
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
                       Win Rate:{' '}
-                      <span className="text-foreground">{stats.trades_count > 0 ? `${stats.win_rate.toFixed(1)}%` : '—'}</span>
+                      <span className={stats.trades_count > 0 ? (stats.win_rate >= 50 ? 'text-profit' : 'text-loss') : 'text-muted-foreground'}>
+                        {stats.trades_count > 0 ? `${stats.win_rate.toFixed(1)}%` : 'No trades'}
+                      </span>
                     </span>
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
                       Trading:{' '}
@@ -440,7 +442,7 @@ export default function AdminDashboard() {
                           {stats.account.trading_enabled ? 'ON' : 'OFF'}
                         </button>
                       ) : (
-                        <div className="text-muted-foreground">—</div>
+                        <div className="text-xs text-muted-foreground italic">No account</div>
                       )}
                     </td>
 
@@ -464,23 +466,35 @@ export default function AdminDashboard() {
                           className="w-16 rounded border border-primary/35 bg-background px-2 py-1 text-sm"
                         />
                       ) : (
-                        <div className="text-muted-foreground">—</div>
+                        <div className="text-xs text-muted-foreground italic">No account</div>
                       )}
                     </td>
 
-                    <td className="p-4 font-mono">{stats.trades_count}</td>
-
-                    <td className="p-4">
-                      <div className={`font-mono font-medium ${stats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}
-                      </div>
+                    <td className="p-4 font-mono">
+                      {stats.trades_count > 0 ? (
+                        stats.trades_count
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No trades</span>
+                      )}
                     </td>
 
                     <td className="p-4">
                       {stats.trades_count > 0 ? (
-                        <div className="font-mono">{stats.win_rate.toFixed(1)}%</div>
+                        <div className={`font-mono font-medium ${stats.total_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(2)}
+                        </div>
                       ) : (
-                        <div className="text-muted-foreground">—</div>
+                        <span className="text-xs text-muted-foreground italic">No trades</span>
+                      )}
+                    </td>
+
+                    <td className="p-4">
+                      {stats.trades_count > 0 ? (
+                        <div className={`font-mono ${stats.win_rate >= 50 ? 'text-profit' : stats.win_rate > 0 ? 'text-loss' : ''}`}>
+                          {stats.win_rate.toFixed(1)}%
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No trades</span>
                       )}
                     </td>
 

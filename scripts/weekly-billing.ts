@@ -49,16 +49,22 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Get last trading week dates (Monday through Friday ONLY)
+ * Weekend trades are excluded from billing
+ */
 function getLastWeekDates(): { weekStart: string; weekEnd: string } {
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = Sunday
   
-  // Last Monday
+  // Last Monday (most recent Monday before today)
   const lastMonday = new Date(today);
-  lastMonday.setDate(today.getDate() - dayOfWeek - 6);
+  // If today is Sunday (0), go back 6 days; if Monday (1), go back 7; etc
+  const daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek + 6;
+  lastMonday.setDate(today.getDate() - daysToLastMonday);
   lastMonday.setHours(0, 0, 0, 0);
   
-  // Last Friday
+  // Last Friday (4 days after last Monday)
   const lastFriday = new Date(lastMonday);
   lastFriday.setDate(lastMonday.getDate() + 4);
   lastFriday.setHours(23, 59, 59, 999);
@@ -69,17 +75,39 @@ function getLastWeekDates(): { weekStart: string; weekEnd: string } {
   };
 }
 
+/**
+ * Calculate weekly P&L for a user
+ * - Only includes Monday-Friday trades (excludes weekends)
+ * - Uses dynamic P&L calculation when stored pnl is NULL
+ */
 async function calculateWeeklyPnL(userId: number, weekStart: string, weekEnd: string): Promise<WeeklyPnL> {
   const result = await pool.query(
-    `SELECT 
-      COALESCE(SUM(pnl), 0) as total_pnl,
-      COUNT(*)::INTEGER as trade_count
-    FROM trades
-    WHERE user_id = $1
-      AND entry_date >= $2
-      AND entry_date < ($3::date + INTERVAL '1 day')
-      AND status = 'closed'
-      AND pnl IS NOT NULL`,
+    `WITH trades_with_pnl AS (
+      SELECT 
+        COALESCE(
+          pnl,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN (exit_price - entry_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN (entry_price - exit_price) * quantity * 
+                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS calculated_pnl
+      FROM trades
+      WHERE user_id = $1
+        AND entry_date >= $2
+        AND entry_date < ($3::date + INTERVAL '1 day')
+        AND EXTRACT(DOW FROM entry_date) BETWEEN 1 AND 5  -- Mon=1 to Fri=5 only
+        AND status = 'closed'
+    )
+    SELECT 
+      COALESCE(SUM(calculated_pnl), 0) as total_pnl,
+      COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL)::INTEGER as trade_count
+    FROM trades_with_pnl`,
     [userId, weekStart, weekEnd]
   );
   
