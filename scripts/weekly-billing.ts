@@ -5,18 +5,27 @@
  * Purpose: Calculate weekly P&L and charge 10% automation fee
  * 
  * Usage:
- *   node scripts/weekly-billing.ts
+ *   BILLING_ENABLED=true node scripts/weekly-billing.ts
  *   OR via cron: 59 23 * * 0 (Sunday 11:59 PM)
+ * 
+ * SAFETY: Billing disabled by default. Set BILLING_ENABLED=true to run.
  */
 
 import { Pool } from 'pg';
 import { chargeCustomer } from '../lib/stripe/client';
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const BILLING_ENABLED = process.env.BILLING_ENABLED === 'true';
 
 if (!DATABASE_URL) {
   console.error('❌ DATABASE_URL not set');
   process.exit(1);
+}
+
+if (!BILLING_ENABLED) {
+  console.log('⚠️  BILLING DISABLED - Set BILLING_ENABLED=true to enable');
+  console.log('   This is intentional to prevent charging on incomplete data.');
+  process.exit(0);
 }
 
 const pool = new Pool({

@@ -27,10 +27,15 @@ function calculateTradePnl(params: {
     params.direction === 'SHORT' || params.direction === 'PUT' ? -1 : 1;
 
   const rawChange = params.exitPrice - params.entryPrice;
+  const pnl = rawChange * params.quantity * contractMultiplier * directionMultiplier;
+  
+  // Use cost basis for percentage calculation (not per-contract price)
+  const costBasis = params.entryPrice * params.quantity * contractMultiplier;
+  const pnlPercent = costBasis !== 0 ? (pnl / costBasis) * 100 : 0;
 
   return {
-    pnl: rawChange * params.quantity * contractMultiplier * directionMultiplier,
-    pnlPercent: (rawChange / params.entryPrice) * 100 * directionMultiplier,
+    pnl,
+    pnlPercent,
   };
 }
 
