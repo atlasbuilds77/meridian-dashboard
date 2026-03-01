@@ -5,6 +5,10 @@ import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
 
+// Force dynamic rendering - no caching for admin data
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const updateSchema = z
   .object({
     user_id: z.number().int().positive(),
@@ -108,7 +112,15 @@ export async function GET(req: NextRequest) {
       win_rate: Number.parseFloat(String(row.win_rate)) || 0,
     }));
 
-    return NextResponse.json({ users });
+    return NextResponse.json(
+      { users },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache',
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error('Admin users fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

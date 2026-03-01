@@ -57,7 +57,10 @@ export default function AdminDashboard() {
 
   async function fetchUsers() {
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await fetch('/api/admin/users', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
       if (res.status === 401) {
         router.push('/login?error=session_expired');
         return;
