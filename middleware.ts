@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { applySecurityHeaders } from '@/lib/security/headers';
+import { isAdminDiscordId } from '@/lib/auth/admin';
 
 // Force Node.js runtime so we can use crypto module
 export const runtime = 'nodejs';
@@ -10,17 +11,6 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
-
-function parseAdminIds(rawValue: string): string[] {
-  return rawValue
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .filter((id) => DISCORD_ID_PATTERN.test(id));
-}
-
-const envAdminIds = parseAdminIds(process.env.ADMIN_DISCORD_IDS || '');
-const ADMIN_IDS = new Set(envAdminIds);
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -62,7 +52,13 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/admin')) {
       const discordId = payload.discordId as string | undefined;
       
-      if (!discordId || !DISCORD_ID_PATTERN.test(discordId) || ADMIN_IDS.size === 0 || !ADMIN_IDS.has(discordId)) {
+      if (!discordId || !DISCORD_ID_PATTERN.test(discordId)) {
+        const homeUrl = new URL('/', request.url);
+        return withHeaders(NextResponse.redirect(homeUrl));
+      }
+
+      const isAdmin = await isAdminDiscordId(discordId);
+      if (!isAdmin) {
         const homeUrl = new URL('/', request.url);
         return withHeaders(NextResponse.redirect(homeUrl));
       }
