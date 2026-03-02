@@ -10,10 +10,6 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
-const BREAKGLASS_ADMIN_IDS = [
-  '838217421088669726',
-  '361901004631145355',
-] as const;
 
 function parseAdminIds(rawValue: string): string[] {
   return rawValue
@@ -24,7 +20,7 @@ function parseAdminIds(rawValue: string): string[] {
 }
 
 const envAdminIds = parseAdminIds(process.env.ADMIN_DISCORD_IDS || '');
-const ADMIN_IDS = new Set<string>([...BREAKGLASS_ADMIN_IDS, ...envAdminIds]);
+const ADMIN_IDS = new Set(envAdminIds);
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));

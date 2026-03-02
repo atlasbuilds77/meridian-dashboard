@@ -4,13 +4,6 @@ import pool from '@/lib/db/pool';
 // Discord snowflake IDs are 17-19 digits
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
 
-const BREAKGLASS_ADMIN_IDS = [
-  // Orion
-  '838217421088669726',
-  // Aphmas
-  '361901004631145355',
-] as const;
-
 const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
   .split(',')
   .map((id) => id.trim())
@@ -24,9 +17,7 @@ const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
     return true;
   });
 
-const configuredAdminIds = Array.from(
-  new Set<string>([...BREAKGLASS_ADMIN_IDS, ...envAdminIds])
-);
+const configuredAdminIds = envAdminIds;
 
 // Use Set for O(1) lookup
 const adminIdSet = new Set(configuredAdminIds);
