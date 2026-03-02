@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getUserIdFromSession, type SessionPayload } from '@/lib/auth/session';
-import { hasConfiguredAdminIds, isAdminDiscordId } from '@/lib/auth/admin';
+import { isAdminDiscordId } from '@/lib/auth/admin';
 
 export type UserAuthResult =
   | { ok: true; userId: number }
@@ -49,7 +49,8 @@ export async function requireAdminSession(): Promise<AdminAuthResult> {
     return sessionResult;
   }
 
-  if (!hasConfiguredAdminIds() || !isAdminDiscordId(sessionResult.session.discordId)) {
+  const isAdmin = await isAdminDiscordId(sessionResult.session.discordId);
+  if (!isAdmin) {
     return { ok: false, response: forbiddenResponse() };
   }
 

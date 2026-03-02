@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
-import { hasConfiguredAdminIds, isAdminDiscordId } from '@/lib/auth/admin';
+import { isAdminDiscordId } from '@/lib/auth/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   const session = sessionResult.session;
-  const isAdmin = hasConfiguredAdminIds() && isAdminDiscordId(session.discordId);
+  const isAdmin = await isAdminDiscordId(session.discordId);
 
   return NextResponse.json({
     authenticated: true,

@@ -1,10 +1,17 @@
 import { timingSafeEqual } from 'crypto';
-import { query } from '@/lib/db';
+import pool from '@/lib/db/pool';
 
 // Discord snowflake IDs are 17-19 digits
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
 
-const configuredAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
+const BREAKGLASS_ADMIN_IDS = [
+  // Orion
+  '838217421088669726',
+  // Aphmas
+  '361901004631145355',
+] as const;
+
+const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
   .split(',')
   .map((id) => id.trim())
   .filter(Boolean)
@@ -16,6 +23,8 @@ const configuredAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
     }
     return true;
   });
+
+const configuredAdminIds = envAdminIds.length > 0 ? envAdminIds : [...BREAKGLASS_ADMIN_IDS];
 
 // Use Set for O(1) lookup
 const adminIdSet = new Set(configuredAdminIds);
@@ -51,7 +60,7 @@ export async function isAdminDiscordId(discordId: string): Promise<boolean> {
 
   // Check database table (allows runtime admin management)
   try {
-    const result = await query(
+    const result = await pool.query(
       `SELECT discord_id FROM admin_users 
        WHERE discord_id = $1 AND is_active = true 
        LIMIT 1`,
@@ -121,7 +130,7 @@ export async function addAdminUser(
   }
 
   try {
-    await query(
+    await pool.query(
       `INSERT INTO admin_users (discord_id, username, granted_by, notes, is_active)
        VALUES ($1, $2, $3, $4, true)
        ON CONFLICT (discord_id) 
@@ -146,7 +155,7 @@ export async function revokeAdminUser(
   discordId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await query(
+    await pool.query(
       `UPDATE admin_users 
        SET is_active = false, updated_at = CURRENT_TIMESTAMP 
        WHERE discord_id = $1`,
@@ -171,7 +180,7 @@ export async function listAdminUsers(): Promise<Array<{
   notes: string | null;
 }>> {
   try {
-    const result = await query(
+    const result = await pool.query(
       `SELECT discord_id, username, granted_by, granted_at, notes
        FROM admin_users 
        WHERE is_active = true 
