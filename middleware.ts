@@ -9,10 +9,26 @@ export const runtime = 'nodejs';
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
-// Inline admin check to avoid importing module that uses Node crypto
-const ADMIN_IDS = new Set(
-  (process.env.ADMIN_DISCORD_IDS || '').split(',').map(id => id.trim()).filter(Boolean)
-);
+const DISCORD_ID_PATTERN = /^\d{17,19}$/;
+const BREAKGLASS_ADMIN_IDS = [
+  '838217421088669726',
+  '361901004631145355',
+] as const;
+
+function parseAdminIds(rawValue: string): string[] {
+  return rawValue
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .filter((id) => DISCORD_ID_PATTERN.test(id));
+}
+
+const envAdminIds = parseAdminIds(process.env.ADMIN_DISCORD_IDS || '');
+const ADMIN_IDS = new Set(envAdminIds.length > 0 ? envAdminIds : BREAKGLASS_ADMIN_IDS);
+
+if (envAdminIds.length === 0) {
+  console.warn('⚠️  ADMIN_DISCORD_IDS is empty; middleware using breakglass admin IDs');
+}
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -52,9 +68,9 @@ export async function middleware(request: NextRequest) {
     
     // Check if accessing admin routes
     if (pathname.startsWith('/admin')) {
-      const discordId = payload.discordId as string;
+      const discordId = payload.discordId as string | undefined;
       
-      if (ADMIN_IDS.size === 0 || !ADMIN_IDS.has(discordId)) {
+      if (!discordId || !DISCORD_ID_PATTERN.test(discordId) || ADMIN_IDS.size === 0 || !ADMIN_IDS.has(discordId)) {
         const homeUrl = new URL('/', request.url);
         return withHeaders(NextResponse.redirect(homeUrl));
       }
