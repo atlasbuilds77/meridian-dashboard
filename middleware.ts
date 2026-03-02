@@ -24,11 +24,7 @@ function parseAdminIds(rawValue: string): string[] {
 }
 
 const envAdminIds = parseAdminIds(process.env.ADMIN_DISCORD_IDS || '');
-const ADMIN_IDS = new Set(envAdminIds.length > 0 ? envAdminIds : BREAKGLASS_ADMIN_IDS);
-
-if (envAdminIds.length === 0) {
-  console.warn('⚠️  ADMIN_DISCORD_IDS is empty; middleware using breakglass admin IDs');
-}
+const ADMIN_IDS = new Set<string>([...BREAKGLASS_ADMIN_IDS, ...envAdminIds]);
 
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));

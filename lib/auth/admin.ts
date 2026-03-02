@@ -24,7 +24,9 @@ const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
     return true;
   });
 
-const configuredAdminIds = envAdminIds.length > 0 ? envAdminIds : [...BREAKGLASS_ADMIN_IDS];
+const configuredAdminIds = Array.from(
+  new Set<string>([...BREAKGLASS_ADMIN_IDS, ...envAdminIds])
+);
 
 // Use Set for O(1) lookup
 const adminIdSet = new Set(configuredAdminIds);
