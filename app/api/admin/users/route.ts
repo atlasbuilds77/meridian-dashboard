@@ -41,7 +41,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const { rows } = await pool.query(`
-      WITH trade_pnl AS (
+      WITH user_source AS (
+        SELECT
+          user_id,
+          BOOL_OR(tradier_position_id IS NOT NULL) AS use_tradier
+        FROM trades
+        WHERE status = 'closed'
+        GROUP BY user_id
+      ),
+      trade_pnl AS (
         SELECT
           t.user_id,
           t.id,
@@ -57,7 +65,13 @@ export async function GET(req: NextRequest) {
             END
           ) AS pnl_value
         FROM trades t
+        LEFT JOIN user_source us ON us.user_id = t.user_id
         WHERE t.status = 'closed'
+          AND (
+            (COALESCE(us.use_tradier, false) = true AND t.tradier_position_id IS NOT NULL)
+            OR
+            (COALESCE(us.use_tradier, false) = false AND t.tradier_position_id IS NULL)
+          )
       )
       SELECT
         u.id,

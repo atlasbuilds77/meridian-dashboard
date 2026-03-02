@@ -38,18 +38,32 @@ async function fetchPreferredUserTradeStats(
   userId: number
 ): Promise<AggregateStatsRow> {
   const tradierStatsResult = await client.query<AggregateStatsRow>(
-    `SELECT
-      COUNT(*)::text as total_trades,
-      COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
-      COALESCE(SUM(pnl), 0)::text as total_pnl,
-      COALESCE(MAX(pnl), 0)::text as best_trade,
-      COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
-      COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
-    FROM trades
-    WHERE user_id = $1
-      AND status = 'closed'
-      AND pnl IS NOT NULL
-      AND tradier_position_id IS NOT NULL`,
+    `WITH trades_with_pnl AS (
+      SELECT
+        COALESCE(
+          pnl,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN (exit_price - entry_price) * quantity * CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN (entry_price - exit_price) * quantity * CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS pnl_value
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NOT NULL
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE pnl_value IS NOT NULL)::text as total_trades,
+      COALESCE(SUM(CASE WHEN pnl_value > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+      COALESCE(SUM(pnl_value), 0)::text as total_pnl,
+      COALESCE(MAX(pnl_value), 0)::text as best_trade,
+      COALESCE(SUM(CASE WHEN pnl_value > 0 THEN pnl_value ELSE 0 END), 0)::text as total_wins,
+      COALESCE(SUM(CASE WHEN pnl_value < 0 THEN ABS(pnl_value) ELSE 0 END), 0)::text as total_losses
+    FROM trades_with_pnl`,
     [userId]
   );
 
@@ -59,18 +73,32 @@ async function fetchPreferredUserTradeStats(
   }
 
   const legacyStatsResult = await client.query<AggregateStatsRow>(
-    `SELECT
-      COUNT(*)::text as total_trades,
-      COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
-      COALESCE(SUM(pnl), 0)::text as total_pnl,
-      COALESCE(MAX(pnl), 0)::text as best_trade,
-      COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
-      COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
-    FROM trades
-    WHERE user_id = $1
-      AND status = 'closed'
-      AND pnl IS NOT NULL
-      AND tradier_position_id IS NULL`,
+    `WITH trades_with_pnl AS (
+      SELECT
+        COALESCE(
+          pnl,
+          CASE
+            WHEN exit_price IS NULL THEN NULL
+            WHEN UPPER(direction) IN ('LONG', 'CALL')
+              THEN (exit_price - entry_price) * quantity * CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(direction) IN ('SHORT', 'PUT')
+              THEN (entry_price - exit_price) * quantity * CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS pnl_value
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NULL
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE pnl_value IS NOT NULL)::text as total_trades,
+      COALESCE(SUM(CASE WHEN pnl_value > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+      COALESCE(SUM(pnl_value), 0)::text as total_pnl,
+      COALESCE(MAX(pnl_value), 0)::text as best_trade,
+      COALESCE(SUM(CASE WHEN pnl_value > 0 THEN pnl_value ELSE 0 END), 0)::text as total_wins,
+      COALESCE(SUM(CASE WHEN pnl_value < 0 THEN ABS(pnl_value) ELSE 0 END), 0)::text as total_losses
+    FROM trades_with_pnl`,
     [userId]
   );
 
@@ -151,28 +179,38 @@ async function fetchCombinedStats(): Promise<UserStats> {
           BOOL_OR(tradier_position_id IS NOT NULL) AS has_tradier
         FROM trades
         WHERE status = 'closed'
-          AND pnl IS NOT NULL
         GROUP BY user_id
       ),
       filtered_trades AS (
-        SELECT t.*
+        SELECT
+          t.user_id,
+          COALESCE(
+            t.pnl,
+            CASE
+              WHEN t.exit_price IS NULL THEN NULL
+              WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+                THEN (t.exit_price - t.entry_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+                THEN (t.entry_price - t.exit_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              ELSE NULL
+            END
+          ) AS pnl_value
         FROM trades t
         JOIN user_source us ON us.user_id = t.user_id
         WHERE t.status = 'closed'
-          AND t.pnl IS NOT NULL
           AND (
             (us.has_tradier = true AND t.tradier_position_id IS NOT NULL) OR
             (us.has_tradier = false AND t.tradier_position_id IS NULL)
           )
       )
       SELECT
-        COUNT(*)::text as total_trades,
+        COUNT(*) FILTER (WHERE pnl_value IS NOT NULL)::text as total_trades,
         COUNT(DISTINCT user_id)::text as total_users,
-        COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
-        COALESCE(SUM(pnl), 0)::text as total_pnl,
-        COALESCE(MAX(pnl), 0)::text as best_trade,
-        COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
-        COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
+        COALESCE(SUM(CASE WHEN pnl_value > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+        COALESCE(SUM(pnl_value), 0)::text as total_pnl,
+        COALESCE(MAX(pnl_value), 0)::text as best_trade,
+        COALESCE(SUM(CASE WHEN pnl_value > 0 THEN pnl_value ELSE 0 END), 0)::text as total_wins,
+        COALESCE(SUM(CASE WHEN pnl_value < 0 THEN ABS(pnl_value) ELSE 0 END), 0)::text as total_losses
       FROM filtered_trades
     `;
     const combinedResult = await client.query<AggregateStatsRow>(combinedQuery);

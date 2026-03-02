@@ -97,21 +97,80 @@ export async function getUserTrades(userId: number, limit = 100): Promise<Trade[
 
 export async function getUserStats(userId: number) {
   const result = await pool.query(
-    'SELECT * FROM user_portfolio_summary WHERE user_id = $1',
+    `WITH source_pref AS (
+      SELECT EXISTS(
+        SELECT 1
+        FROM trades
+        WHERE user_id = $1
+          AND status = 'closed'
+          AND tradier_position_id IS NOT NULL
+      ) AS use_tradier
+    ),
+    filtered_closed AS (
+      SELECT
+        COALESCE(
+          t.pnl,
+          CASE
+            WHEN t.exit_price IS NULL THEN NULL
+            WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+              THEN (t.exit_price - t.entry_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+              THEN (t.entry_price - t.exit_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+            ELSE NULL
+          END
+        ) AS pnl_value
+      FROM trades t
+      CROSS JOIN source_pref sp
+      WHERE t.user_id = $1
+        AND t.status = 'closed'
+        AND (
+          (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
+          OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
+        )
+    ),
+    account_stats AS (
+      SELECT
+        COUNT(*) AS total_accounts,
+        COALESCE(SUM(balance), 0) AS total_balance
+      FROM accounts
+      WHERE user_id = $1
+        AND is_active = true
+    ),
+    trade_stats AS (
+      SELECT
+        COUNT(*) AS total_trades,
+        COUNT(*) FILTER (WHERE pnl_value > 0) AS wins,
+        COUNT(*) FILTER (WHERE pnl_value < 0) AS losses,
+        COALESCE(SUM(pnl_value), 0) AS total_pnl
+      FROM filtered_closed
+    )
+    SELECT
+      a.total_accounts,
+      a.total_balance,
+      t.total_trades,
+      t.wins,
+      t.losses,
+      t.total_pnl,
+      CASE
+        WHEN t.total_trades > 0 THEN ROUND((t.wins::DECIMAL / t.total_trades::DECIMAL) * 100, 2)
+        ELSE 0
+      END AS win_rate
+    FROM account_stats a
+    CROSS JOIN trade_stats t`,
     [userId]
   );
-  
-  if (result.rows.length === 0) {
-    return {
-      total_accounts: 0,
-      total_balance: 0,
-      total_trades: 0,
-      wins: 0,
-      losses: 0,
-      total_pnl: 0,
-      win_rate: 0
-    };
+
+  if (result.rows.length > 0) {
+    return result.rows[0];
   }
-  
-  return result.rows[0];
+
+  return {
+    total_accounts: 0,
+    total_balance: 0,
+    total_trades: 0,
+    wins: 0,
+    losses: 0,
+    total_pnl: 0,
+    win_rate: 0,
+  };
 }

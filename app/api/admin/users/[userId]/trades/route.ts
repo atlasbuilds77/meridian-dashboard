@@ -7,6 +7,29 @@ import { calculateTradePnl } from '@/lib/db/pnl-calculation';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const FILTERED_TRADES_CTE = `
+  WITH source_pref AS (
+    SELECT EXISTS(
+      SELECT 1
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NOT NULL
+    ) AS use_tradier
+  ),
+  filtered_trades AS (
+    SELECT t.*
+    FROM trades t
+    CROSS JOIN source_pref sp
+    WHERE t.user_id = $1
+      AND (
+        t.status <> 'closed'
+        OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
+        OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
+      )
+  )
+`;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -43,7 +66,8 @@ export async function GET(
     // Get user's trades WITH dynamic P&L calculation
     // Uses COALESCE to fall back to calculated P&L when stored pnl is NULL
     const tradesResult = await pool.query(
-      `SELECT 
+      `${FILTERED_TRADES_CTE}
+      SELECT 
         id, symbol, direction, asset_type, entry_price, exit_price, quantity,
         entry_date, exit_date, status,
         setup_type, stop_loss, take_profit, entry_reasoning,
@@ -75,15 +99,15 @@ export async function GET(
             ELSE NULL
           END
         ) AS pnl_percent
-       FROM trades
-       WHERE user_id = $1
+       FROM filtered_trades
        ORDER BY entry_date DESC`,
       [userId]
     );
 
     // Calculate stats WITH dynamic P&L calculation
     const statsResult = await pool.query(
-      `WITH trades_with_pnl AS (
+      `${FILTERED_TRADES_CTE},
+      trades_with_pnl AS (
         SELECT 
           COALESCE(
             pnl,
@@ -99,8 +123,8 @@ export async function GET(
               ELSE NULL
             END
           ) AS calculated_pnl
-        FROM trades
-        WHERE user_id = $1 AND status = 'closed'
+        FROM filtered_trades
+        WHERE status = 'closed'
       )
       SELECT
         COUNT(*) as total_trades,

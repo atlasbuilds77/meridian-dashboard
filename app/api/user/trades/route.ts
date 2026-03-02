@@ -64,9 +64,30 @@ export async function GET(request: Request) {
     : 100;
 
   try {
-    // Include computed pnl_value for trades where pnl is NULL but exit_price exists
+    // Prefer Tradier-sourced closed trades when present for this user.
+    // This avoids double-counting rows when legacy/manual and Tradier sync data coexist.
     const tradesResult = await pool.query(
-      `SELECT *,
+      `WITH source_pref AS (
+        SELECT EXISTS(
+          SELECT 1
+          FROM trades
+          WHERE user_id = $1
+            AND status = 'closed'
+            AND tradier_position_id IS NOT NULL
+        ) AS use_tradier
+      ),
+      filtered_trades AS (
+        SELECT t.*
+        FROM trades t
+        CROSS JOIN source_pref sp
+        WHERE t.user_id = $1
+          AND (
+            t.status <> 'closed'
+            OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
+            OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
+          )
+      )
+      SELECT *,
         COALESCE(
           pnl,
           CASE
@@ -80,16 +101,25 @@ export async function GET(request: Request) {
             ELSE NULL
           END
         ) AS computed_pnl
-       FROM trades
-       WHERE user_id = $1
+       FROM filtered_trades
        ORDER BY entry_date DESC
        LIMIT $2`,
       [authResult.userId, limit]
     );
 
-    // Use fallback PnL calculation when pnl is NULL but exit_price exists
+    // Use fallback PnL calculation when pnl is NULL but exit_price exists.
+    // Closed-trade source is filtered the same way as the trades list above.
     const summaryResult = await pool.query(
-      `WITH trade_pnl AS (
+      `WITH source_pref AS (
+        SELECT EXISTS(
+          SELECT 1
+          FROM trades
+          WHERE user_id = $1
+            AND status = 'closed'
+            AND tradier_position_id IS NOT NULL
+        ) AS use_tradier
+      ),
+      trade_pnl AS (
         SELECT
           id,
           COALESCE(
@@ -106,7 +136,13 @@ export async function GET(request: Request) {
             END
           ) AS pnl_value
         FROM trades
-        WHERE user_id = $1 AND status = 'closed'
+        CROSS JOIN source_pref sp
+        WHERE user_id = $1
+          AND status = 'closed'
+          AND (
+            (sp.use_tradier AND tradier_position_id IS NOT NULL)
+            OR (NOT sp.use_tradier AND tradier_position_id IS NULL)
+          )
       )
       SELECT
         COUNT(*) as total_trades,

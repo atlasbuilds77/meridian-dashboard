@@ -51,7 +51,27 @@ type TradeWithPnl = TradeRow & {
 };
 
 const BASE_CTE = `
-  WITH normalized_trades AS (
+  WITH source_pref AS (
+    SELECT EXISTS(
+      SELECT 1
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NOT NULL
+    ) AS use_tradier
+  ),
+  filtered_trades AS (
+    SELECT t.*
+    FROM trades t
+    CROSS JOIN source_pref sp
+    WHERE t.user_id = $1
+      AND (
+        t.status <> 'closed'
+        OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
+        OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
+      )
+  ),
+  normalized_trades AS (
     SELECT
       t.*,
       COALESCE(
@@ -66,8 +86,7 @@ const BASE_CTE = `
         END
       ) AS pnl_value,
       UPPER(t.direction) AS direction_normalized
-    FROM trades t
-    WHERE t.user_id = $1
+    FROM filtered_trades t
   ),
   closed_trades AS (
     SELECT * FROM normalized_trades WHERE status = 'closed'
