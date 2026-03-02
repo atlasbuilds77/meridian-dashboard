@@ -11,7 +11,9 @@ export const revalidate = 0;
 
 const updateSchema = z
   .object({
-    user_id: z.number().int().positive(),
+    user_id: z
+      .union([z.number().int().positive(), z.string().regex(/^\d+$/)])
+      .transform((value) => Number(value)),
     trading_enabled: z.boolean().optional(),
     size_pct: z.number().int().min(1).max(100).optional(),
   })
@@ -67,8 +69,8 @@ export async function GET(req: NextRequest) {
         ac.account_number,
         ac.platform,
         ac.verification_status,
-        ac.trading_enabled,
-        ac.size_pct,
+        COALESCE(us.trading_enabled, ac.trading_enabled, false) AS trading_enabled,
+        COALESCE((us.size_pct * 100)::int, ac.size_pct, 25) AS size_pct,
         COUNT(tp.id) AS trades_count,
         COALESCE(SUM(tp.pnl_value), 0) AS total_pnl,
         COALESCE(
@@ -76,15 +78,36 @@ export async function GET(req: NextRequest) {
           0
         ) AS win_rate
       FROM users u
-      LEFT JOIN api_credentials ac ON ac.user_id = u.id AND ac.platform = 'tradier'
+      LEFT JOIN LATERAL (
+        SELECT
+          account_number,
+          platform,
+          verification_status,
+          trading_enabled,
+          size_pct
+        FROM api_credentials
+        WHERE user_id = u.id
+          AND platform = 'tradier'
+          AND is_active = true
+        ORDER BY updated_at DESC NULLS LAST, id DESC
+        LIMIT 1
+      ) ac ON true
+      LEFT JOIN user_trading_settings us ON us.user_id = u.id
       LEFT JOIN trade_pnl tp ON tp.user_id = u.id
       GROUP BY
         u.id,
+        u.discord_id,
+        u.username,
+        u.avatar,
+        u.created_at,
+        u.last_login,
         ac.account_number,
         ac.platform,
         ac.verification_status,
         ac.trading_enabled,
-        ac.size_pct
+        ac.size_pct,
+        us.trading_enabled,
+        us.size_pct
       ORDER BY u.created_at DESC
     `);
 

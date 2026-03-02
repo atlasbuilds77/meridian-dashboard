@@ -17,10 +17,13 @@ export async function GET(
   }
 
   const resolvedParams = await params;
-  const userId = parseInt(resolvedParams.userId, 10);
-  if (!userId || isNaN(userId)) {
+  const rawUserId = String(resolvedParams.userId || '').trim();
+  if (!rawUserId) {
     return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
   }
+
+  // Support both numeric and UUID-style IDs. Postgres will coerce numeric strings.
+  const userId: number | string = /^\d+$/.test(rawUserId) ? Number.parseInt(rawUserId, 10) : rawUserId;
 
   try {
     // Get user info
