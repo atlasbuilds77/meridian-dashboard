@@ -1,8 +1,8 @@
 /**
  * Manual Fee Charge API
- * 
+ *
  * POST /api/admin/users/[userId]/charge-fee
- * 
+ *
  * Allows admin to manually charge 10% fee on positive weekly P&L.
  * Includes CSRF protection, rate limiting, and audit logging.
  */
@@ -20,6 +20,30 @@ interface ChargeResult {
   error?: string;
 }
 
+interface WeeklyPnlResult {
+  totalPnl: number;
+  tradeCount: number;
+  source: 'tradier' | 'legacy';
+}
+
+const MARKET_TIMEZONE = 'America/Los_Angeles';
+
+const CALCULATED_PNL_SQL = `
+  COALESCE(
+    pnl,
+    CASE
+      WHEN exit_price IS NULL THEN NULL
+      WHEN UPPER(direction) IN ('LONG', 'CALL')
+        THEN (exit_price - entry_price) * quantity *
+             CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+      WHEN UPPER(direction) IN ('SHORT', 'PUT')
+        THEN (entry_price - exit_price) * quantity *
+             CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+      ELSE NULL
+    END
+  )
+`;
+
 /**
  * Get last trading week dates (Monday through Friday ONLY)
  * Weekend trades are excluded from billing
@@ -27,22 +51,77 @@ interface ChargeResult {
 function getLastWeekDates(): { weekStart: string; weekEnd: string } {
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = Sunday
-  
+
   // Last Monday (most recent Monday before today)
   const lastMonday = new Date(today);
   // If today is Sunday (0), go back 6 days; if Monday (1), go back 7; etc
   const daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek + 6;
   lastMonday.setDate(today.getDate() - daysToLastMonday);
   lastMonday.setHours(0, 0, 0, 0);
-  
+
   // Last Friday (4 days after last Monday)
   const lastFriday = new Date(lastMonday);
   lastFriday.setDate(lastMonday.getDate() + 4);
   lastFriday.setHours(23, 59, 59, 999);
-  
+
   return {
     weekStart: lastMonday.toISOString().split('T')[0],
-    weekEnd: lastFriday.toISOString().split('T')[0]
+    weekEnd: lastFriday.toISOString().split('T')[0],
+  };
+}
+
+async function calculateWeeklyPnl(
+  userId: number,
+  weekStart: string,
+  weekEnd: string
+): Promise<WeeklyPnlResult> {
+  // Source-of-truth pass: only Tradier gain/loss synced rows.
+  const tradierResult = await pool.query(
+    `WITH trades_with_pnl AS (
+      SELECT ${CALCULATED_PNL_SQL} AS calculated_pnl
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NOT NULL
+        AND ((exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date BETWEEN $2::date AND $3::date)
+    )
+    SELECT
+      COALESCE(SUM(calculated_pnl), 0) AS total_pnl,
+      COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL)::INTEGER AS trade_count
+    FROM trades_with_pnl`,
+    [userId, weekStart, weekEnd]
+  );
+
+  const tradierTradeCount = parseInt(String(tradierResult.rows[0].trade_count || 0), 10) || 0;
+  if (tradierTradeCount > 0) {
+    return {
+      totalPnl: parseFloat(String(tradierResult.rows[0].total_pnl || 0)) || 0,
+      tradeCount: tradierTradeCount,
+      source: 'tradier',
+    };
+  }
+
+  // Fallback pass: legacy manually inserted rows with no Tradier position id.
+  const legacyResult = await pool.query(
+    `WITH trades_with_pnl AS (
+      SELECT ${CALCULATED_PNL_SQL} AS calculated_pnl
+      FROM trades
+      WHERE user_id = $1
+        AND status = 'closed'
+        AND tradier_position_id IS NULL
+        AND ((exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date BETWEEN $2::date AND $3::date)
+    )
+    SELECT
+      COALESCE(SUM(calculated_pnl), 0) AS total_pnl,
+      COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL)::INTEGER AS trade_count
+    FROM trades_with_pnl`,
+    [userId, weekStart, weekEnd]
+  );
+
+  return {
+    totalPnl: parseFloat(String(legacyResult.rows[0].total_pnl || 0)) || 0,
+    tradeCount: parseInt(String(legacyResult.rows[0].trade_count || 0), 10) || 0,
+    source: 'legacy',
   };
 }
 
@@ -73,7 +152,7 @@ export async function POST(
   try {
     // 3. Get user info including Stripe details
     const userResult = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.username,
         u.stripe_customer_id,
@@ -105,8 +184,8 @@ export async function POST(
     // 6. Check if already charged this week (rate limiting)
     const existingChargeResult = await pool.query(
       `SELECT id, status FROM billing_periods
-       WHERE user_id = $1 
-         AND week_start = $2 
+       WHERE user_id = $1
+         AND week_start = $2
          AND week_end = $3
          AND status IN ('paid', 'pending')`,
       [userId, weekStart, weekEnd]
@@ -115,56 +194,27 @@ export async function POST(
     if (existingChargeResult.rows.length > 0) {
       const existing = existingChargeResult.rows[0];
       return NextResponse.json(
-        { 
+        {
           error: `Already ${existing.status === 'paid' ? 'charged' : 'pending charge'} for this week`,
-          billingPeriodId: existing.id
+          billingPeriodId: existing.id,
         },
         { status: 409 }
       );
     }
 
-    // 7. Calculate weekly P&L (Mon-Fri only, with dynamic P&L calculation)
-    // Uses COALESCE to calculate P&L from entry/exit prices when stored pnl is NULL
-    const pnlResult = await pool.query(
-      `WITH trades_with_pnl AS (
-        SELECT 
-          COALESCE(
-            pnl,
-            CASE
-              WHEN exit_price IS NULL THEN NULL
-              WHEN UPPER(direction) IN ('LONG', 'CALL')
-                THEN (exit_price - entry_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              WHEN UPPER(direction) IN ('SHORT', 'PUT')
-                THEN (entry_price - exit_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              ELSE NULL
-            END
-          ) AS calculated_pnl
-        FROM trades
-        WHERE user_id = $1
-          AND entry_date >= $2
-          AND entry_date < ($3::date + INTERVAL '1 day')
-          AND EXTRACT(DOW FROM entry_date) BETWEEN 1 AND 5  -- Mon=1 to Fri=5
-          AND status = 'closed'
-      )
-      SELECT 
-        COALESCE(SUM(calculated_pnl), 0) as total_pnl,
-        COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL)::INTEGER as trade_count
-      FROM trades_with_pnl`,
-      [userId, weekStart, weekEnd]
-    );
-
-    const totalPnl = parseFloat(pnlResult.rows[0].total_pnl);
-    const tradeCount = parseInt(pnlResult.rows[0].trade_count);
+    // 7. Calculate weekly P&L (Mon-Fri close dates, prefer Tradier source rows)
+    const weeklyPnl = await calculateWeeklyPnl(userId, weekStart, weekEnd);
+    const totalPnl = weeklyPnl.totalPnl;
+    const tradeCount = weeklyPnl.tradeCount;
 
     // 8. Check if P&L is positive
     if (totalPnl <= 0) {
       return NextResponse.json(
-        { 
+        {
           error: 'Cannot charge fee on zero or negative P&L',
           totalPnl,
-          tradeCount
+          tradeCount,
+          pnlSource: weeklyPnl.source,
         },
         { status: 400 }
       );
@@ -199,13 +249,18 @@ export async function POST(
         event_type,
         event_data
       ) VALUES ($1, $2, 'charge_attempted', $3)`,
-      [userId, periodId, JSON.stringify({
-        adminDiscordId,
-        totalPnl,
-        feeAmount,
-        tradeCount,
-        manual: true
-      })]
+      [
+        userId,
+        periodId,
+        JSON.stringify({
+          adminDiscordId,
+          totalPnl,
+          feeAmount,
+          tradeCount,
+          pnlSource: weeklyPnl.source,
+          manual: true,
+        }),
+      ]
     );
 
     // 12. Attempt to charge via Stripe
@@ -225,13 +280,13 @@ export async function POST(
           totalPnL: totalPnl.toString(),
           feePercentage: '10',
           manualCharge: 'true',
-          adminDiscordId
-        }
+          adminDiscordId,
+        },
       });
 
       // 13. Update billing period with success
       await pool.query(
-        `UPDATE billing_periods 
+        `UPDATE billing_periods
         SET status = 'paid',
             stripe_payment_intent_id = $1,
             paid_at = CURRENT_TIMESTAMP
@@ -256,7 +311,7 @@ export async function POST(
           feeAmount,
           paymentIntent.id,
           paymentIntent.latest_charge,
-          user.stripe_payment_method_id
+          user.stripe_payment_method_id,
         ]
       );
 
@@ -268,26 +323,29 @@ export async function POST(
           event_type,
           event_data
         ) VALUES ($1, $2, 'charge_succeeded', $3)`,
-        [userId, periodId, JSON.stringify({
-          paymentIntentId: paymentIntent.id,
-          amount: feeAmount,
-          adminDiscordId,
-          manual: true
-        })]
+        [
+          userId,
+          periodId,
+          JSON.stringify({
+            paymentIntentId: paymentIntent.id,
+            amount: feeAmount,
+            adminDiscordId,
+            manual: true,
+          }),
+        ]
       );
 
       chargeResult = {
         success: true,
         paymentIntentId: paymentIntent.id,
-        amount: feeAmount
+        amount: feeAmount,
       };
-
     } catch (chargeError: unknown) {
       const errorMessage = chargeError instanceof Error ? chargeError.message : String(chargeError);
 
       // Update billing period with failure
       await pool.query(
-        `UPDATE billing_periods 
+        `UPDATE billing_periods
         SET status = 'failed',
             attempt_count = attempt_count + 1,
             last_attempt_at = CURRENT_TIMESTAMP
@@ -316,17 +374,21 @@ export async function POST(
           event_type,
           event_data
         ) VALUES ($1, $2, 'charge_failed', $3)`,
-        [userId, periodId, JSON.stringify({
-          error: errorMessage,
-          amount: feeAmount,
-          adminDiscordId,
-          manual: true
-        })]
+        [
+          userId,
+          periodId,
+          JSON.stringify({
+            error: errorMessage,
+            amount: feeAmount,
+            adminDiscordId,
+            manual: true,
+          }),
+        ]
       );
 
       chargeResult = {
         success: false,
-        error: errorMessage
+        error: errorMessage,
       };
     }
 
@@ -341,10 +403,13 @@ export async function POST(
         weekEnd,
         totalPnl,
         feeAmount,
-        tradeCount
+        tradeCount,
+        pnlSource: weeklyPnl.source,
       });
-    } else {
-      return NextResponse.json({
+    }
+
+    return NextResponse.json(
+      {
         success: false,
         error: chargeResult.error,
         billingPeriodId: periodId,
@@ -352,10 +417,11 @@ export async function POST(
         weekEnd,
         totalPnl,
         feeAmount,
-        tradeCount
-      }, { status: 402 }); // Payment Required
-    }
-
+        tradeCount,
+        pnlSource: weeklyPnl.source,
+      },
+      { status: 402 } // Payment Required
+    );
   } catch (error: unknown) {
     console.error('Manual charge error:', error);
     return NextResponse.json(
@@ -367,13 +433,16 @@ export async function POST(
 
 /**
  * GET /api/admin/users/[userId]/charge-fee
- * 
+ *
  * Returns weekly P&L info and charge eligibility
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ): Promise<NextResponse> {
+  // Preserve request reference for parity with other handlers.
+  void request;
+
   // Admin authentication
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
@@ -389,7 +458,7 @@ export async function GET(
   try {
     // Get user info
     const userResult = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.username,
         u.stripe_customer_id,
@@ -410,47 +479,18 @@ export async function GET(
     const user = userResult.rows[0];
     const { weekStart, weekEnd } = getLastWeekDates();
 
-    // Calculate weekly P&L (Mon-Fri only, with dynamic P&L calculation)
-    const pnlResult = await pool.query(
-      `WITH trades_with_pnl AS (
-        SELECT 
-          COALESCE(
-            pnl,
-            CASE
-              WHEN exit_price IS NULL THEN NULL
-              WHEN UPPER(direction) IN ('LONG', 'CALL')
-                THEN (exit_price - entry_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              WHEN UPPER(direction) IN ('SHORT', 'PUT')
-                THEN (entry_price - exit_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              ELSE NULL
-            END
-          ) AS calculated_pnl
-        FROM trades
-        WHERE user_id = $1
-          AND entry_date >= $2
-          AND entry_date < ($3::date + INTERVAL '1 day')
-          AND EXTRACT(DOW FROM entry_date) BETWEEN 1 AND 5  -- Mon=1 to Fri=5
-          AND status = 'closed'
-      )
-      SELECT 
-        COALESCE(SUM(calculated_pnl), 0) as total_pnl,
-        COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL)::INTEGER as trade_count
-      FROM trades_with_pnl`,
-      [userId, weekStart, weekEnd]
-    );
-
-    const totalPnl = parseFloat(pnlResult.rows[0].total_pnl);
-    const tradeCount = parseInt(pnlResult.rows[0].trade_count);
+    // Calculate weekly P&L (Mon-Fri close dates, prefer Tradier source rows)
+    const weeklyPnl = await calculateWeeklyPnl(userId, weekStart, weekEnd);
+    const totalPnl = weeklyPnl.totalPnl;
+    const tradeCount = weeklyPnl.tradeCount;
     const feeAmount = totalPnl > 0 ? totalPnl * 0.10 : 0;
 
     // Check if already charged this week
     const existingChargeResult = await pool.query(
       `SELECT id, status, paid_at, stripe_payment_intent_id
        FROM billing_periods
-       WHERE user_id = $1 
-         AND week_start = $2 
+       WHERE user_id = $1
+         AND week_start = $2
          AND week_end = $3`,
       [userId, weekStart, weekEnd]
     );
@@ -459,7 +499,7 @@ export async function GET(
 
     // Get last 5 charges
     const chargeHistoryResult = await pool.query(
-      `SELECT 
+      `SELECT
         bp.id,
         bp.week_start,
         bp.week_end,
@@ -485,21 +525,26 @@ export async function GET(
       weekEnd,
       totalPnl,
       tradeCount,
+      pnlSource: weeklyPnl.source,
       feeAmount,
       hasPaymentMethod,
-      paymentMethod: hasPaymentMethod ? {
-        brand: user.card_brand,
-        last4: user.card_last4
-      } : null,
+      paymentMethod: hasPaymentMethod
+        ? {
+            brand: user.card_brand,
+            last4: user.card_last4,
+          }
+        : null,
       billingEnabled: user.billing_enabled,
-      existingCharge: existingCharge ? {
-        id: existingCharge.id,
-        status: existingCharge.status,
-        paidAt: existingCharge.paid_at,
-        paymentIntentId: existingCharge.stripe_payment_intent_id
-      } : null,
+      existingCharge: existingCharge
+        ? {
+            id: existingCharge.id,
+            status: existingCharge.status,
+            paidAt: existingCharge.paid_at,
+            paymentIntentId: existingCharge.stripe_payment_intent_id,
+          }
+        : null,
       canCharge,
-      chargeHistory: chargeHistoryResult.rows.map(row => ({
+      chargeHistory: chargeHistoryResult.rows.map((row) => ({
         id: row.id,
         weekStart: row.week_start,
         weekEnd: row.week_end,
@@ -507,10 +552,9 @@ export async function GET(
         feeAmount: parseFloat(row.fee_amount),
         status: row.status,
         paidAt: row.paid_at,
-        stripeChargeId: row.stripe_charge_id
-      }))
+        stripeChargeId: row.stripe_charge_id,
+      })),
     });
-
   } catch (error: unknown) {
     console.error('Charge info fetch error:', error);
     return NextResponse.json(

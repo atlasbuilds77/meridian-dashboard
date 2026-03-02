@@ -1,24 +1,21 @@
 #!/usr/bin/env npx tsx
 /**
  * TRADIER GAIN/LOSS SYNC (SOURCE OF TRUTH)
- * 
+ *
  * This script syncs ACTUAL P&L from Tradier's /gainloss endpoint.
  * This is the authoritative source for all P&L data.
- * 
- * The old sync-tradier-trades.ts used /history which only has individual
- * transactions without P&L. This script uses /gainloss which has the
- * actual closed position P&L calculated by Tradier.
- * 
+ *
  * Usage:
  *   npx tsx scripts/sync-tradier-gainloss.ts
  *   npx tsx scripts/sync-tradier-gainloss.ts --dry-run
  *   npx tsx scripts/sync-tradier-gainloss.ts --user-id=123
- *   npx tsx scripts/sync-tradier-gainloss.ts --fix-missing  # Fix trades with null P&L
- * 
+ *   npx tsx scripts/sync-tradier-gainloss.ts --fix-missing
+ *
  * Cron: 0 6 * * * (6 AM daily - after Tradier's nightly batch)
  */
 
 import { Pool } from 'pg';
+import { decryptApiKey } from '../lib/crypto/encryption';
 import {
   fetchAllTradierGainLoss,
   positionToTrade,
@@ -41,8 +38,16 @@ const pool = new Pool({
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const FIX_MISSING = process.argv.includes('--fix-missing');
-const USER_ID_ARG = process.argv.find(arg => arg.startsWith('--user-id='));
+const USER_ID_ARG = process.argv.find((arg) => arg.startsWith('--user-id='));
 const TARGET_USER_ID = USER_ID_ARG ? parseInt(USER_ID_ARG.split('=')[1], 10) : null;
+
+interface UserCredentialRow {
+  id: number;
+  username: string;
+  account_number: string;
+  encrypted_api_key: string;
+  encryption_iv: string;
+}
 
 interface UserCredentials {
   id: number;
@@ -61,42 +66,122 @@ interface SyncStats {
   totalPnl: number;
 }
 
-/**
- * Get all users with Tradier credentials
- */
-async function getUsersWithTradier(): Promise<UserCredentials[]> {
-  const query = TARGET_USER_ID
-    ? `SELECT u.id, u.username, ac.account_number, ac.access_token
-       FROM users u
-       JOIN api_credentials ac ON ac.user_id = u.id
-       WHERE ac.platform = 'tradier'
-         AND ac.access_token IS NOT NULL
-         AND ac.account_number IS NOT NULL
-         AND u.id = $1`
-    : `SELECT u.id, u.username, ac.account_number, ac.access_token
-       FROM users u
-       JOIN api_credentials ac ON ac.user_id = u.id
-       WHERE ac.platform = 'tradier'
-         AND ac.access_token IS NOT NULL
-         AND ac.account_number IS NOT NULL`;
+interface BrokenTradeRow {
+  id: number;
+  user_id: number;
+  symbol: string;
+  entry_price: number | string;
+  exit_price: number | string;
+  quantity: number | string;
+  direction: string;
+  asset_type: string;
+  entry_date: string | Date;
+  exit_date: string | Date | null;
+  username: string;
+}
 
-  const result = await pool.query(query, TARGET_USER_ID ? [TARGET_USER_ID] : []);
-  return result.rows;
+function buildPositionId(position: TradierClosedPosition, accountNumber: string): string {
+  const baseId = createPositionId(position, accountNumber);
+  // Include monetary fields so partial closes with identical dates/qty remain unique.
+  return `${baseId}_${position.cost.toFixed(2)}_${position.proceeds.toFixed(2)}_${position.gain_loss.toFixed(2)}`;
+}
+
+function decryptAccessToken(row: Pick<UserCredentialRow, 'encrypted_api_key' | 'encryption_iv'>): string | null {
+  const [encryptedKey, authTag] = row.encrypted_api_key.split(':');
+  if (!encryptedKey || !authTag) {
+    return null;
+  }
+
+  try {
+    return decryptApiKey(encryptedKey, row.encryption_iv, authTag);
+  } catch (error) {
+    console.error('   ❌ Failed to decrypt Tradier API key:', error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 /**
- * Check if a position already exists in the database
+ * Get all users with Tradier credentials and decrypt tokens.
+ */
+async function getUsersWithTradier(): Promise<UserCredentials[]> {
+  const query = TARGET_USER_ID
+    ? `SELECT u.id, u.username, ac.account_number, ac.encrypted_api_key, ac.encryption_iv
+       FROM users u
+       JOIN api_credentials ac ON ac.user_id = u.id
+       WHERE ac.platform = 'tradier'
+         AND ac.is_active = true
+         AND ac.encrypted_api_key IS NOT NULL
+         AND ac.account_number IS NOT NULL
+         AND u.id = $1`
+    : `SELECT u.id, u.username, ac.account_number, ac.encrypted_api_key, ac.encryption_iv
+       FROM users u
+       JOIN api_credentials ac ON ac.user_id = u.id
+       WHERE ac.platform = 'tradier'
+         AND ac.is_active = true
+         AND ac.encrypted_api_key IS NOT NULL
+         AND ac.account_number IS NOT NULL`;
+
+  const result = await pool.query<UserCredentialRow>(query, TARGET_USER_ID ? [TARGET_USER_ID] : []);
+  const users: UserCredentials[] = [];
+
+  for (const row of result.rows) {
+    const accessToken = decryptAccessToken(row);
+    if (!accessToken) {
+      console.warn(`   ⚠️  Skipping ${row.username}: cannot decrypt Tradier token`);
+      continue;
+    }
+
+    users.push({
+      id: row.id,
+      username: row.username,
+      account_number: row.account_number,
+      access_token: accessToken,
+    });
+  }
+
+  return users;
+}
+
+/**
+ * Check if a position already exists in the database.
  */
 async function positionExists(positionId: string): Promise<{ exists: boolean; tradeId?: number; hasNullPnl?: boolean }> {
-  const result = await pool.query(
+  const exactMatch = await pool.query(
     `SELECT id, pnl FROM trades WHERE tradier_position_id = $1`,
     [positionId]
   );
-  
+
+  if (exactMatch.rows.length > 0) {
+    return {
+      exists: true,
+      tradeId: exactMatch.rows[0].id,
+      hasNullPnl: exactMatch.rows[0].pnl === null,
+    };
+  }
+
+  return { exists: false };
+}
+
+async function tradeFingerprintExists(
+  trade: ReturnType<typeof positionToTrade>
+): Promise<{ exists: boolean; tradeId?: number; hasNullPnl?: boolean }> {
+  const result = await pool.query(
+    `SELECT id, pnl
+     FROM trades
+     WHERE user_id = $1
+       AND symbol = $2
+       AND entry_date = $3
+       AND exit_date = $4
+       AND quantity = $5
+       AND ABS(COALESCE(pnl, 0) - $6) < 0.0001
+     LIMIT 1`,
+    [trade.user_id, trade.symbol, trade.entry_date, trade.exit_date, trade.quantity, trade.pnl]
+  );
+
   if (result.rows.length === 0) {
     return { exists: false };
   }
-  
+
   return {
     exists: true,
     tradeId: result.rows[0].id,
@@ -105,7 +190,7 @@ async function positionExists(positionId: string): Promise<{ exists: boolean; tr
 }
 
 /**
- * Insert a new trade from Tradier position
+ * Insert a new trade from Tradier position.
  */
 async function insertTrade(trade: ReturnType<typeof positionToTrade>): Promise<number> {
   const result = await pool.query(
@@ -134,12 +219,12 @@ async function insertTrade(trade: ReturnType<typeof positionToTrade>): Promise<n
       trade.notes,
     ]
   );
-  
+
   return result.rows[0].id;
 }
 
 /**
- * Update an existing trade's P&L from Tradier
+ * Update an existing trade's P&L from Tradier.
  */
 async function updateTradePnl(
   tradeId: number,
@@ -157,7 +242,7 @@ async function updateTradePnl(
 }
 
 /**
- * Sync a single user's trades from Tradier
+ * Sync a single user's trades from Tradier.
  */
 async function syncUserTrades(user: UserCredentials): Promise<SyncStats> {
   const stats: SyncStats = {
@@ -173,35 +258,27 @@ async function syncUserTrades(user: UserCredentials): Promise<SyncStats> {
   console.log(`\n🔄 Syncing: ${user.username} (Account: ${user.account_number})`);
 
   try {
-    // Fetch all closed positions from Tradier
-    const positions = await fetchAllTradierGainLoss(
-      user.account_number,
-      user.access_token
-    );
-
+    const positions = await fetchAllTradierGainLoss(user.account_number, user.access_token);
     console.log(`   📊 Found ${positions.length} closed positions in Tradier`);
 
     for (const position of positions) {
-      const positionId = createPositionId(position, user.account_number);
-      
       try {
-        // Check if already exists
-        const existing = await positionExists(positionId);
+        const trade = positionToTrade(position, user.id, user.account_number);
+        trade.tradier_position_id = buildPositionId(position, user.account_number);
+
+        const existingByPositionId = await positionExists(trade.tradier_position_id);
+        const existingByFingerprint = await tradeFingerprintExists(trade);
+        const existing = existingByPositionId.exists ? existingByPositionId : existingByFingerprint;
 
         if (existing.exists && !existing.hasNullPnl) {
-          // Already synced with P&L
           stats.skipped++;
           continue;
         }
 
-        // Convert to trade format
-        const trade = positionToTrade(position, user.id, user.account_number);
-
-        // Validate P&L makes sense
         const validationError = validateTradePnl(trade);
         if (validationError) {
+          // Keep syncing; Tradier remains source of truth.
           console.warn(`   ⚠️  ${position.symbol}: ${validationError}`);
-          // Still sync - Tradier is source of truth, but log the discrepancy
         }
 
         if (DRY_RUN) {
@@ -212,43 +289,31 @@ async function syncUserTrades(user: UserCredentials): Promise<SyncStats> {
             console.log(`   [DRY RUN] Would INSERT: ${trade.symbol} P&L=${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`);
             stats.synced++;
           }
+        } else if (existing.exists && existing.hasNullPnl) {
+          await updateTradePnl(existing.tradeId!, trade.pnl, trade.pnl_percent, trade.exit_price, trade.notes);
+          console.log(`   ✅ Updated: ${trade.symbol} P&L=${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`);
+          stats.updated++;
         } else {
-          if (existing.exists && existing.hasNullPnl) {
-            // Update existing trade with P&L from Tradier
-            await updateTradePnl(
-              existing.tradeId!,
-              trade.pnl,
-              trade.pnl_percent,
-              trade.exit_price,
-              trade.notes
-            );
-            console.log(`   ✅ Updated: ${trade.symbol} P&L=${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`);
-            stats.updated++;
-          } else {
-            // Insert new trade
-            const tradeId = await insertTrade(trade);
-            console.log(`   ✅ Synced: ${trade.symbol} (ID: ${tradeId}) P&L=${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`);
-            stats.synced++;
-          }
+          const tradeId = await insertTrade(trade);
+          console.log(`   ✅ Synced: ${trade.symbol} (ID: ${tradeId}) P&L=${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}`);
+          stats.synced++;
         }
 
         stats.totalPnl += trade.pnl;
-
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error(`   ❌ Error processing ${position.symbol}: ${errorMsg}`);
         stats.errors++;
       }
     }
-
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`   ❌ API Error: ${errorMsg}`);
-    
+
     if (errorMsg.includes('401')) {
-      console.error(`      Token expired - user needs to re-authenticate`);
+      console.error('      Token expired - user needs to re-authenticate');
     }
-    
+
     stats.errors++;
   }
 
@@ -256,35 +321,35 @@ async function syncUserTrades(user: UserCredentials): Promise<SyncStats> {
 }
 
 /**
- * Fix trades that were imported without P&L by matching against Tradier
+ * Fix trades that were imported without P&L by matching against Tradier.
  */
 async function fixMissingPnlTrades(): Promise<void> {
   console.log('\n🔧 FIX MODE: Finding trades with missing P&L...\n');
 
-  // Find all trades with null P&L that have exit_price (should have P&L calculated)
-  const brokenTrades = await pool.query(`
+  const brokenTradesResult = await pool.query<BrokenTradeRow>(`
     SELECT t.id, t.user_id, t.symbol, t.entry_price, t.exit_price, t.quantity,
            t.direction, t.asset_type, t.entry_date, t.exit_date,
-           u.username, ac.account_number, ac.access_token
+           u.username
     FROM trades t
     JOIN users u ON u.id = t.user_id
-    JOIN api_credentials ac ON ac.user_id = t.user_id AND ac.platform = 'tradier'
     WHERE t.pnl IS NULL
       AND t.exit_price IS NOT NULL
       AND t.status = 'closed'
     ORDER BY t.user_id, t.entry_date DESC
   `);
 
-  console.log(`   Found ${brokenTrades.rows.length} trades with missing P&L\n`);
+  console.log(`   Found ${brokenTradesResult.rows.length} trades with missing P&L\n`);
 
-  if (brokenTrades.rows.length === 0) {
+  if (brokenTradesResult.rows.length === 0) {
     console.log('   ✅ No broken trades found!');
     return;
   }
 
-  // Group by user to batch API calls
-  const userTrades = new Map<number, typeof brokenTrades.rows>();
-  for (const trade of brokenTrades.rows) {
+  const usersWithTradier = await getUsersWithTradier();
+  const credsByUserId = new Map(usersWithTradier.map((u) => [u.id, u]));
+
+  const userTrades = new Map<number, BrokenTradeRow[]>();
+  for (const trade of brokenTradesResult.rows) {
     if (!userTrades.has(trade.user_id)) {
       userTrades.set(trade.user_id, []);
     }
@@ -292,26 +357,25 @@ async function fixMissingPnlTrades(): Promise<void> {
   }
 
   for (const [userId, trades] of Array.from(userTrades.entries())) {
-    const user = trades[0];
-    console.log(`\n🔍 Fixing ${trades.length} trades for ${user.username}...`);
+    const sampleTrade = trades[0];
+    const creds = credsByUserId.get(userId);
+    if (!creds) {
+      console.warn(`\n⚠️  Skipping ${sampleTrade.username}: no Tradier credentials available`);
+      continue;
+    }
+
+    console.log(`\n🔍 Fixing ${trades.length} trades for ${sampleTrade.username}...`);
 
     try {
-      // Fetch all gain/loss from Tradier
-      const positions = await fetchAllTradierGainLoss(
-        user.account_number,
-        user.access_token
-      );
-
+      const positions = await fetchAllTradierGainLoss(creds.account_number, creds.access_token);
       console.log(`   📊 Fetched ${positions.length} positions from Tradier`);
 
-      // Create lookup map by symbol + dates
       const positionMap = new Map<string, TradierClosedPosition>();
       for (const pos of positions) {
-        // Multiple keys for matching flexibility
         const keys = [
           `${pos.symbol}_${pos.open_date}_${pos.close_date}`,
           `${pos.symbol}_${pos.open_date.split('T')[0]}_${pos.close_date.split('T')[0]}`,
-          pos.symbol, // Fallback to just symbol for unique recent trades
+          pos.symbol,
         ];
         for (const key of keys) {
           if (!positionMap.has(key)) {
@@ -324,18 +388,13 @@ async function fixMissingPnlTrades(): Promise<void> {
       let notFound = 0;
 
       for (const trade of trades) {
-        // Try to match with Tradier position
         const entryDate = new Date(trade.entry_date).toISOString().split('T')[0];
         const exitDate = trade.exit_date ? new Date(trade.exit_date).toISOString().split('T')[0] : null;
 
         let matchedPosition: TradierClosedPosition | undefined;
-
-        // Try exact match first
         if (exitDate) {
           matchedPosition = positionMap.get(`${trade.symbol}_${entryDate}_${exitDate}`);
         }
-
-        // Fall back to symbol-only match for recent trades
         if (!matchedPosition) {
           matchedPosition = positionMap.get(trade.symbol);
         }
@@ -358,36 +417,40 @@ async function fixMissingPnlTrades(): Promise<void> {
             console.log(`   ✅ Fixed ${trade.symbol}: P&L=${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`);
           }
           fixed++;
-        } else {
-          console.log(`   ⚠️  No Tradier match for ${trade.symbol} (${entryDate})`);
-          
-          // Calculate P&L ourselves as fallback
-          const multiplier = trade.asset_type === 'option' ? 100 : 1;
-          const isLong = ['LONG', 'CALL'].includes(trade.direction);
-          const priceDiff = trade.exit_price - trade.entry_price;
-          const calculatedPnl = isLong
-            ? priceDiff * trade.quantity * multiplier
-            : -priceDiff * trade.quantity * multiplier;
-          const calculatedPnlPercent = (priceDiff / trade.entry_price) * 100 * (isLong ? 1 : -1);
-
-          if (DRY_RUN) {
-            console.log(`   [DRY RUN] Would calculate ${trade.symbol}: P&L=${calculatedPnl >= 0 ? '+' : ''}$${calculatedPnl.toFixed(2)}`);
-          } else {
-            await updateTradePnl(
-              trade.id,
-              calculatedPnl,
-              calculatedPnlPercent,
-              trade.exit_price,
-              `P&L calculated (no Tradier match) | Entry: $${trade.entry_price}, Exit: $${trade.exit_price}`
-            );
-            console.log(`   ⚡ Calculated ${trade.symbol}: P&L=${calculatedPnl >= 0 ? '+' : ''}$${calculatedPnl.toFixed(2)}`);
-          }
-          notFound++;
+          continue;
         }
+
+        console.log(`   ⚠️  No Tradier match for ${trade.symbol} (${entryDate})`);
+
+        const entryPrice = Number(trade.entry_price);
+        const exitPrice = Number(trade.exit_price);
+        const quantity = Number(trade.quantity);
+        const multiplier = trade.asset_type === 'option' ? 100 : 1;
+        const isLong = ['LONG', 'CALL'].includes(String(trade.direction).toUpperCase());
+        const priceDiff = exitPrice - entryPrice;
+        const calculatedPnl = isLong
+          ? priceDiff * quantity * multiplier
+          : -priceDiff * quantity * multiplier;
+        const calculatedPnlPercent = entryPrice > 0
+          ? (priceDiff / entryPrice) * 100 * (isLong ? 1 : -1)
+          : 0;
+
+        if (DRY_RUN) {
+          console.log(`   [DRY RUN] Would calculate ${trade.symbol}: P&L=${calculatedPnl >= 0 ? '+' : ''}$${calculatedPnl.toFixed(2)}`);
+        } else {
+          await updateTradePnl(
+            trade.id,
+            calculatedPnl,
+            calculatedPnlPercent,
+            exitPrice,
+            `P&L calculated (no Tradier match) | Entry: $${entryPrice}, Exit: $${exitPrice}`
+          );
+          console.log(`   ⚡ Calculated ${trade.symbol}: P&L=${calculatedPnl >= 0 ? '+' : ''}$${calculatedPnl.toFixed(2)}`);
+        }
+        notFound++;
       }
 
       console.log(`   📊 Fixed: ${fixed}, Calculated: ${notFound}`);
-
     } catch (error) {
       console.error(`   ❌ Error: ${error instanceof Error ? error.message : error}`);
     }
@@ -395,7 +458,7 @@ async function fixMissingPnlTrades(): Promise<void> {
 }
 
 /**
- * Record sync status in database for monitoring
+ * Record sync status in database for monitoring.
  */
 async function recordSyncStatus(
   success: boolean,
@@ -415,14 +478,13 @@ async function recordSyncStatus(
         synced_at = NOW()`,
       [success, stats.totalUsers, stats.totalSynced, stats.totalErrors, stats.totalPnl]
     );
-  } catch (error) {
-    // Table might not exist yet - that's OK
+  } catch {
     console.warn('   ⚠️  Could not record sync status (table may not exist)');
   }
 }
 
 /**
- * Main sync function
+ * Main sync function.
  */
 async function main() {
   console.log('═'.repeat(60));
@@ -430,7 +492,7 @@ async function main() {
   console.log('  Source of truth: Tradier /gainloss endpoint');
   console.log('═'.repeat(60));
   console.log(`  Time: ${new Date().toISOString()}`);
-  
+
   if (DRY_RUN) {
     console.log('  Mode: DRY RUN (no changes)');
   }
@@ -440,20 +502,17 @@ async function main() {
   if (TARGET_USER_ID) {
     console.log(`  Target: User ID ${TARGET_USER_ID}`);
   }
-  
+
   console.log('═'.repeat(60));
 
   try {
-    // Fix missing P&L mode
     if (FIX_MISSING) {
       await fixMissingPnlTrades();
       console.log('\n✅ Fix missing P&L complete!');
       return;
     }
 
-    // Normal sync mode
     const users = await getUsersWithTradier();
-
     if (users.length === 0) {
       console.log('\n⚠️  No users with Tradier credentials found');
       return;
@@ -462,13 +521,11 @@ async function main() {
     console.log(`\n👥 Found ${users.length} users with Tradier accounts`);
 
     const allStats: SyncStats[] = [];
-
     for (const user of users) {
       const stats = await syncUserTrades(user);
       allStats.push(stats);
     }
 
-    // Summary
     console.log('\n' + '═'.repeat(60));
     console.log('  SYNC SUMMARY');
     console.log('═'.repeat(60));
@@ -487,7 +544,9 @@ async function main() {
       grandTotalPnl += stats.totalPnl;
 
       const pnlStr = stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(2)}` : `-$${Math.abs(stats.totalPnl).toFixed(2)}`;
-      console.log(`  ${stats.username}: Synced ${stats.synced}, Updated ${stats.updated}, Skipped ${stats.skipped}, Errors ${stats.errors} | P&L: ${pnlStr}`);
+      console.log(
+        `  ${stats.username}: Synced ${stats.synced}, Updated ${stats.updated}, Skipped ${stats.skipped}, Errors ${stats.errors} | P&L: ${pnlStr}`
+      );
     }
 
     console.log('─'.repeat(60));
@@ -495,7 +554,6 @@ async function main() {
     console.log(`  COMBINED P&L: ${grandTotalPnl >= 0 ? '+' : ''}$${grandTotalPnl.toFixed(2)}`);
     console.log('═'.repeat(60));
 
-    // Record status for monitoring
     await recordSyncStatus(totalErrors === 0, {
       totalUsers: users.length,
       totalSynced: totalSynced + totalUpdated,
@@ -509,7 +567,6 @@ async function main() {
     } else {
       console.log('\n✅ Sync complete!');
     }
-
   } catch (error) {
     console.error('\n❌ FATAL ERROR:', error);
     await recordSyncStatus(false, { totalUsers: 0, totalSynced: 0, totalErrors: 1, totalPnl: 0 });
@@ -519,7 +576,6 @@ async function main() {
   }
 }
 
-// Run
 main().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);

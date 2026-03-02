@@ -116,14 +116,19 @@ export async function generateShareCard(options: ShareCardOptions): Promise<stri
     args: chromium.args,
     executablePath: await chromium.executablePath(),
     headless: true,
-    defaultViewport: { width: 600, height: 800 },
+    defaultViewport: { width: 640, height: 860 },
   });
   
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
-    
-    const screenshot = await page.screenshot({
+
+    const cardElement = await page.$('.share-card');
+    if (!cardElement) {
+      throw new Error('Share card root element not found');
+    }
+
+    const screenshot = await cardElement.screenshot({
       type: 'png',
       encoding: 'base64',
     });

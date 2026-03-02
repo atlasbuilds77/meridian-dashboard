@@ -4,6 +4,18 @@ import pool from '@/lib/db/pool';
 // Discord snowflake IDs are 17-19 digits
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
 
+// Emergency fallback admins so portal access survives transient DB issues.
+const BREAKGLASS_ADMIN_IDS = [
+  // Orion
+  '838217421088669726',
+  // Aphmas
+  '361901004633145355',
+] as const;
+
+function normalizeDiscordId(discordId: string): string {
+  return discordId.trim();
+}
+
 const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
   .split(',')
   .map((id) => id.trim())
@@ -17,7 +29,9 @@ const envAdminIds = (process.env.ADMIN_DISCORD_IDS || '')
     return true;
   });
 
-const configuredAdminIds = envAdminIds;
+const configuredAdminIds = Array.from(
+  new Set<string>([...BREAKGLASS_ADMIN_IDS, ...envAdminIds])
+);
 
 // Use Set for O(1) lookup
 const adminIdSet = new Set(configuredAdminIds);
@@ -31,18 +45,20 @@ export function getAdminDiscordIds(): string[] {
  * Checks BOTH env var (ADMIN_DISCORD_IDS) AND database (admin_users table)
  */
 export async function isAdminDiscordId(discordId: string): Promise<boolean> {
+  const normalizedDiscordId = normalizeDiscordId(discordId);
+
   // Validate input format first (fail fast for invalid input)
-  if (!DISCORD_ID_PATTERN.test(discordId)) {
+  if (!DISCORD_ID_PATTERN.test(normalizedDiscordId)) {
     return false;
   }
   
   // Check env var first (faster, no DB hit)
-  if (adminIdSet.has(discordId)) {
+  if (adminIdSet.has(normalizedDiscordId)) {
     // Constant-time comparison to prevent timing attacks
     for (const adminId of configuredAdminIds) {
-      if (adminId.length === discordId.length) {
+      if (adminId.length === normalizedDiscordId.length) {
         const a = Buffer.from(adminId, 'utf8');
-        const b = Buffer.from(discordId, 'utf8');
+        const b = Buffer.from(normalizedDiscordId, 'utf8');
         
         if (timingSafeEqual(a, b)) {
           return true;
@@ -57,15 +73,15 @@ export async function isAdminDiscordId(discordId: string): Promise<boolean> {
       `SELECT discord_id FROM admin_users 
        WHERE discord_id = $1 AND is_active = true 
        LIMIT 1`,
-      [discordId]
+      [normalizedDiscordId]
     );
     
     if (result.rows.length > 0) {
       // Still use constant-time comparison for DB result
       const dbId = result.rows[0].discord_id;
-      if (dbId.length === discordId.length) {
+      if (dbId.length === normalizedDiscordId.length) {
         const a = Buffer.from(dbId, 'utf8');
-        const b = Buffer.from(discordId, 'utf8');
+        const b = Buffer.from(normalizedDiscordId, 'utf8');
         
         return timingSafeEqual(a, b);
       }
@@ -83,18 +99,20 @@ export async function isAdminDiscordId(discordId: string): Promise<boolean> {
  * For full check (including DB), use isAdminDiscordId()
  */
 export function isAdminDiscordIdSync(discordId: string): boolean {
-  if (!DISCORD_ID_PATTERN.test(discordId)) {
+  const normalizedDiscordId = normalizeDiscordId(discordId);
+
+  if (!DISCORD_ID_PATTERN.test(normalizedDiscordId)) {
     return false;
   }
   
-  if (!adminIdSet.has(discordId)) {
+  if (!adminIdSet.has(normalizedDiscordId)) {
     return false;
   }
   
   for (const adminId of configuredAdminIds) {
-    if (adminId.length === discordId.length) {
+    if (adminId.length === normalizedDiscordId.length) {
       const a = Buffer.from(adminId, 'utf8');
-      const b = Buffer.from(discordId, 'utf8');
+      const b = Buffer.from(normalizedDiscordId, 'utf8');
       
       if (timingSafeEqual(a, b)) {
         return true;

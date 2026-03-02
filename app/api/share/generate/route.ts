@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import type { PoolClient } from 'pg';
 import pool from '@/lib/db/pool';
 import { requireAdminSession, requireSession } from '@/lib/api/require-auth';
 import { 
@@ -20,6 +21,60 @@ interface GenerateCardRequest {
   userId?: string;
   edition?: Edition;
   mode?: 'user' | 'combined';
+}
+
+interface AggregateStatsRow {
+  total_trades: string;
+  wins: string;
+  total_pnl: string;
+  best_trade: string;
+  total_wins: string;
+  total_losses: string;
+  total_users?: string;
+}
+
+async function fetchPreferredUserTradeStats(
+  client: PoolClient,
+  userId: number
+): Promise<AggregateStatsRow> {
+  const tradierStatsResult = await client.query<AggregateStatsRow>(
+    `SELECT
+      COUNT(*)::text as total_trades,
+      COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+      COALESCE(SUM(pnl), 0)::text as total_pnl,
+      COALESCE(MAX(pnl), 0)::text as best_trade,
+      COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
+      COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
+    FROM trades
+    WHERE user_id = $1
+      AND status = 'closed'
+      AND pnl IS NOT NULL
+      AND tradier_position_id IS NOT NULL`,
+    [userId]
+  );
+
+  const tradierStats = tradierStatsResult.rows[0];
+  if ((parseInt(tradierStats.total_trades, 10) || 0) > 0) {
+    return tradierStats;
+  }
+
+  const legacyStatsResult = await client.query<AggregateStatsRow>(
+    `SELECT
+      COUNT(*)::text as total_trades,
+      COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+      COALESCE(SUM(pnl), 0)::text as total_pnl,
+      COALESCE(MAX(pnl), 0)::text as best_trade,
+      COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
+      COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
+    FROM trades
+    WHERE user_id = $1
+      AND status = 'closed'
+      AND pnl IS NOT NULL
+      AND tradier_position_id IS NULL`,
+    [userId]
+  );
+
+  return legacyStatsResult.rows[0];
 }
 
 /**
@@ -51,22 +106,8 @@ async function fetchUserStats(userId: number): Promise<UserStats | null> {
       ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.avatar}.png`
       : null;
     
-    // Get trading stats
-    const statsQuery = `
-      SELECT 
-        COUNT(*) as total_trades,
-        SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
-        SUM(pnl) as total_pnl,
-        MAX(pnl) as best_trade,
-        SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) as total_wins,
-        SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) as total_losses
-      FROM trades
-      WHERE user_id = $1
-        AND status = 'closed'
-        AND pnl IS NOT NULL
-    `;
-    const statsResult = await client.query(statsQuery, [userId]);
-    const stats = statsResult.rows[0];
+    // Get trading stats, preferring Tradier gain/loss rows when available.
+    const stats = await fetchPreferredUserTradeStats(client, userId);
     
     // Calculate metrics
     const totalTrades = parseInt(stats.total_trades) || 0;
@@ -104,19 +145,37 @@ async function fetchCombinedStats(): Promise<UserStats> {
 
   try {
     const combinedQuery = `
+      WITH user_source AS (
+        SELECT
+          user_id,
+          BOOL_OR(tradier_position_id IS NOT NULL) AS has_tradier
+        FROM trades
+        WHERE status = 'closed'
+          AND pnl IS NOT NULL
+        GROUP BY user_id
+      ),
+      filtered_trades AS (
+        SELECT t.*
+        FROM trades t
+        JOIN user_source us ON us.user_id = t.user_id
+        WHERE t.status = 'closed'
+          AND t.pnl IS NOT NULL
+          AND (
+            (us.has_tradier = true AND t.tradier_position_id IS NOT NULL) OR
+            (us.has_tradier = false AND t.tradier_position_id IS NULL)
+          )
+      )
       SELECT
-        COUNT(*) as total_trades,
-        COUNT(DISTINCT user_id) as total_users,
-        SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as wins,
-        SUM(pnl) as total_pnl,
-        MAX(pnl) as best_trade,
-        SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END) as total_wins,
-        SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) as total_losses
-      FROM trades
-      WHERE status = 'closed'
-        AND pnl IS NOT NULL
+        COUNT(*)::text as total_trades,
+        COUNT(DISTINCT user_id)::text as total_users,
+        COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0)::text as wins,
+        COALESCE(SUM(pnl), 0)::text as total_pnl,
+        COALESCE(MAX(pnl), 0)::text as best_trade,
+        COALESCE(SUM(CASE WHEN pnl > 0 THEN pnl ELSE 0 END), 0)::text as total_wins,
+        COALESCE(SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END), 0)::text as total_losses
+      FROM filtered_trades
     `;
-    const combinedResult = await client.query(combinedQuery);
+    const combinedResult = await client.query<AggregateStatsRow>(combinedQuery);
     const stats = combinedResult.rows[0] || {};
 
     const totalTrades = Number.parseInt(String(stats.total_trades || 0), 10) || 0;
