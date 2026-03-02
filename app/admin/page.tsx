@@ -7,6 +7,7 @@ import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
 import { AdminAccountValues } from '@/components/admin-account-values';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
+import { useSystemStatus } from '@/hooks/use-live-data';
 
 interface User {
   id: string;
@@ -41,6 +42,7 @@ function formatSignedUsd(value: number): string {
 export default function AdminDashboard() {
   const router = useRouter();
   const csrfToken = useCsrfToken();
+  const { data: systemStatus } = useSystemStatus();
   const [users, setUsers] = useState<UserStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,6 +263,17 @@ export default function AdminDashboard() {
   const activeTraders = users.filter((u) => u.account?.trading_enabled).length;
   const totalPnL = users.reduce((sum, u) => sum + u.total_pnl, 0);
   const totalTrades = users.reduce((sum, u) => sum + u.trades_count, 0);
+  const meridianStatus = systemStatus?.systems.meridian.status ?? 'offline';
+  const meridianStatusLabel =
+    meridianStatus === 'online' ? 'Online' : meridianStatus === 'degraded' ? 'Degraded' : 'Offline';
+  const meridianStatusClasses =
+    meridianStatus === 'online'
+      ? 'border-profit/40 bg-profit/10 text-profit'
+      : meridianStatus === 'degraded'
+      ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+      : 'border-loss/40 bg-loss/10 text-loss';
+  const meridianStatusDot =
+    meridianStatus === 'online' ? 'bg-profit' : meridianStatus === 'degraded' ? 'bg-amber-300' : 'bg-loss';
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
@@ -270,14 +283,20 @@ export default function AdminDashboard() {
             <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text sm:text-4xl">Admin Dashboard</h1>
             <p className="text-muted-foreground">Multi-user trading system control</p>
           </div>
-          <button
-            type="button"
-            onClick={flattenAllPositions}
-            disabled={isFlatteningAll}
-            className="inline-flex items-center rounded border border-loss/40 bg-loss/15 px-4 py-2 text-sm font-semibold text-loss transition-colors hover:bg-loss/25 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isFlatteningAll ? 'Flattening...' : 'Flatten All'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-xs font-semibold ${meridianStatusClasses}`}>
+              <span className={`h-2 w-2 rounded-full ${meridianStatusDot} ${meridianStatus === 'online' ? 'animate-pulse' : ''}`} />
+              Meridian {meridianStatusLabel}
+            </div>
+            <button
+              type="button"
+              onClick={flattenAllPositions}
+              disabled={isFlatteningAll}
+              className="inline-flex items-center rounded border border-loss/40 bg-loss/15 px-4 py-2 text-sm font-semibold text-loss transition-colors hover:bg-loss/25 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isFlatteningAll ? 'Flattening...' : 'Flatten All'}
+            </button>
+          </div>
         </div>
 
         <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">

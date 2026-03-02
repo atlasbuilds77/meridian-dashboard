@@ -178,7 +178,11 @@ function StatsGrid() {
   }
 
   const summary = trades.summary;
-  const meridianOnline = status?.systems.meridian.status === 'online';
+  const meridianStatus = status?.systems.meridian.status ?? 'offline';
+  const meridianStatusLabel =
+    meridianStatus === 'online' ? 'Online' : meridianStatus === 'degraded' ? 'Degraded' : 'Offline';
+  const meridianStatusColor: 'profit' | 'loss' | 'muted' =
+    meridianStatus === 'online' ? 'profit' : meridianStatus === 'degraded' ? 'muted' : 'loss';
 
   const stats: Array<{
     label: string;
@@ -209,9 +213,9 @@ function StatsGrid() {
     },
     {
       label: 'System Status',
-      value: meridianOnline ? 'Online' : 'Offline',
+      value: meridianStatusLabel,
       icon: RefreshCw,
-      color: meridianOnline ? 'profit' : 'loss',
+      color: meridianStatusColor,
     },
   ];
 
