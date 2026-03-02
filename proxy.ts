@@ -4,9 +4,6 @@ import { jwtVerify } from 'jose';
 import { applySecurityHeaders } from '@/lib/security/headers';
 import { isAdminDiscordId } from '@/lib/auth/admin';
 
-// Force Node.js runtime so we can use crypto module
-export const runtime = 'nodejs';
-
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
@@ -20,7 +17,7 @@ function withHeaders(response: NextResponse): NextResponse {
   return applySecurityHeaders(response);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/api')) {
@@ -47,11 +44,10 @@ export async function middleware(request: NextRequest) {
   try {
     const secret = new TextEncoder().encode(SESSION_SECRET);
     const { payload } = await jwtVerify(session.value, secret);
-    
-    // Check if accessing admin routes
+
     if (pathname.startsWith('/admin')) {
       const discordId = payload.discordId as string | undefined;
-      
+
       if (!discordId || !DISCORD_ID_PATTERN.test(discordId)) {
         const homeUrl = new URL('/', request.url);
         return withHeaders(NextResponse.redirect(homeUrl));
@@ -63,7 +59,7 @@ export async function middleware(request: NextRequest) {
         return withHeaders(NextResponse.redirect(homeUrl));
       }
     }
-    
+
     return withHeaders(NextResponse.next());
   } catch {
     const loginUrl = new URL('/login?error=session_expired', request.url);
