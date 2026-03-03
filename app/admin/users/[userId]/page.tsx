@@ -30,9 +30,6 @@ import { formatCurrency, formatPercent } from '@/lib/utils-client';
 import { toastSuccess, toastError } from '@/lib/toast';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
 
-// Commission rate: $2.06/contract × 2 legs = $4.12/round trip
-const COMMISSION_PER_ROUND_TRIP = 4.12;
-
 type Trade = {
   id: number;
   symbol: string;
@@ -43,6 +40,9 @@ type Trade = {
   quantity: number;
   entry_date: string;
   exit_date: string | null;
+  gross_pnl: number | null;
+  commission: number;
+  net_pnl: number;
   pnl: number;
   pnl_percent: number;
   status: string;
@@ -68,6 +68,8 @@ type UserData = {
     wins: number;
     losses: number;
     total_pnl: number;
+    today_pnl: number;
+    today_trades: number;
     win_rate: number;
     avg_win: number;
     avg_loss: number;
@@ -119,8 +121,14 @@ function parseNumber(value: number | string | null | undefined): number {
 }
 
 function calculateGrossPnL(trade: Trade): number {
-  if (trade.pnl !== null && trade.pnl !== undefined && trade.pnl !== 0) {
-    return parseNumber(trade.pnl);
+  if (trade.gross_pnl !== null && trade.gross_pnl !== undefined) {
+    return parseNumber(trade.gross_pnl);
+  }
+
+  const commission = parseNumber(trade.commission);
+  const netFromDb = trade.net_pnl ?? trade.pnl;
+  if (netFromDb !== null && netFromDb !== undefined) {
+    return parseNumber(netFromDb) + commission;
   }
 
   if (trade.exit_price === null || trade.exit_price === undefined) {
@@ -137,14 +145,14 @@ function calculateGrossPnL(trade: Trade): number {
 }
 
 function calculateCommission(trade: Trade): number {
-  // Commission applies per contract for options
-  if (trade.asset_type === 'option') {
-    return COMMISSION_PER_ROUND_TRIP * trade.quantity;
-  }
-  return 0;
+  return Math.max(0, parseNumber(trade.commission));
 }
 
 function calculateNetPnL(trade: Trade): number {
+  const netFromDb = trade.net_pnl ?? trade.pnl;
+  if (netFromDb !== null && netFromDb !== undefined) {
+    return parseNumber(netFromDb);
+  }
   return calculateGrossPnL(trade) - calculateCommission(trade);
 }
 
@@ -191,7 +199,12 @@ export default function UserDetailPage() {
     
     setChargeLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/charge-fee`);
+      const res = await fetch(`/api/admin/users/${userId}/charge-fee`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       if (res.ok) {
         const info = await res.json();
         setChargeInfo(info);
@@ -212,8 +225,15 @@ export default function UserDetailPage() {
       }
 
       try {
+        setError(null);
+
         // Fetch trades data
-        const tradesRes = await fetch(`/api/admin/users/${userId}/trades`);
+        const tradesRes = await fetch(`/api/admin/users/${userId}/trades`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
         if (tradesRes.status === 401) {
           router.push('/login?error=session_expired');
           return;
@@ -231,12 +251,18 @@ export default function UserDetailPage() {
         const tradesData = await tradesRes.json();
         
         // Fetch user settings from admin users endpoint
-        const settingsRes = await fetch('/api/admin/users');
+        const settingsRes = await fetch('/api/admin/users', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
         if (!settingsRes.ok) {
           console.warn('Failed to fetch user settings, using defaults');
         } else {
           const settingsData = await settingsRes.json();
-          const userSettings = settingsData.users?.find((u: any) => u.user.id === parseInt(userId));
+          const numericUserId = Number.parseInt(userId, 10);
+          const userSettings = settingsData.users?.find((u: any) => u.user.id === numericUserId);
           
           if (userSettings?.account) {
             setLocalSettings({
@@ -365,7 +391,12 @@ export default function UserDetailPage() {
       setShowFlattenDialog(false);
       
       // Refresh trades data
-      const tradesRes = await fetch(`/api/admin/users/${userId}/trades`);
+      const tradesRes = await fetch(`/api/admin/users/${userId}/trades`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       if (tradesRes.ok) {
         const tradesData = await tradesRes.json();
         setData((prev) => prev ? { ...prev, ...tradesData } : tradesData);
@@ -468,7 +499,7 @@ export default function UserDetailPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
           <Card className="border-primary/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Total Trades</CardTitle>
@@ -522,6 +553,18 @@ export default function UserDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Today&apos;s P&L</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-bold ${(stats.today_pnl || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {formatCurrency(stats.today_pnl || 0)}
+              </div>
+              <div className="pt-1 text-xs text-muted-foreground">{stats.today_trades || 0} trades today</div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Weekly P&L & Billing Section */}
@@ -544,7 +587,7 @@ export default function UserDetailPage() {
                 <div className="rounded-lg bg-secondary/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
-                      Week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
+                      Current week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       {chargeInfo.tradeCount} trades
@@ -553,7 +596,7 @@ export default function UserDetailPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm text-muted-foreground">Weekly P&L</div>
+                      <div className="text-sm text-muted-foreground">Weekly Net P&L</div>
                       <div className={`text-2xl font-bold ${chargeInfo.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {formatCurrency(chargeInfo.totalPnl)}
                       </div>
@@ -819,14 +862,15 @@ export default function UserDetailPage() {
                     <TableHead className="text-right">Entry</TableHead>
                     <TableHead className="text-right">Exit</TableHead>
                     <TableHead className="text-right">Gross P&L</TableHead>
-                    <TableHead className="text-right">Comm.</TableHead>
+                    <TableHead className="text-right">Fees</TableHead>
                     <TableHead className="text-right">Net P&L</TableHead>
+                    <TableHead className="text-right">Return %</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {trades.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
                         No trades yet for this user.
                       </TableCell>
                     </TableRow>
@@ -909,6 +953,9 @@ export default function UserDetailPage() {
                             }`}
                           >
                             {formatCurrency(netPnL)}
+                          </TableCell>
+                          <TableCell className={`text-right font-mono ${isWin ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {formatPercent(trade.pnl_percent || 0)}
                           </TableCell>
                         </TableRow>
                       );

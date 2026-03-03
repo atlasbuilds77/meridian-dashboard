@@ -4,10 +4,13 @@ import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { buildNetPnlSql } from '@/lib/db/pnl-sql';
 
 // Force dynamic rendering - no caching for admin data
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const NET_PNL_SQL = buildNetPnlSql('t');
 
 const updateSchema = z
   .object({
@@ -52,8 +55,12 @@ export async function GET(req: NextRequest) {
           t.id,
           t.created_at,
           COALESCE(
-            t.net_pnl,
-            t.pnl - COALESCE(t.commission, 0)
+            CASE
+              WHEN (to_jsonb(t) ->> 'net_pnl') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (to_jsonb(t) ->> 'net_pnl')::numeric
+              ELSE NULL
+            END,
+            ${NET_PNL_SQL}
           ) AS pnl_value
         FROM trades t
         WHERE t.status = 'closed'

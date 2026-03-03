@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
-import { calculateTradePnl } from '@/lib/db/pnl-calculation';
+import { buildCommissionSql, buildGrossPnlSql, buildNetPnlSql } from '@/lib/db/pnl-sql';
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const MARKET_TIMEZONE = 'America/Los_Angeles';
+const NET_PNL_SQL = buildNetPnlSql('t');
+const GROSS_PNL_SQL = buildGrossPnlSql('t');
+const COMMISSION_SQL = buildCommissionSql('t');
 
 const FILTERED_TRADES_CTE = `
   WITH source_pref AS (
@@ -34,6 +39,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  void request;
+
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
@@ -63,80 +70,72 @@ export async function GET(
 
     const user = userResult.rows[0];
 
-    // Get user's trades WITH dynamic P&L calculation
-    // Uses COALESCE to fall back to calculated P&L when stored pnl is NULL
+    // Get user's trades with consistent gross/commission/net values.
     const tradesResult = await pool.query(
       `${FILTERED_TRADES_CTE}
       SELECT 
-        id, symbol, direction, asset_type, entry_price, exit_price, quantity,
+        t.id,
+        t.symbol,
+        t.direction,
+        t.asset_type,
+        t.entry_price,
+        t.exit_price,
+        t.quantity,
         entry_date, exit_date, status,
         setup_type, stop_loss, take_profit, entry_reasoning,
         strike, expiry, notes,
-        -- Calculate P&L: use stored value OR calculate from prices
+        ${GROSS_PNL_SQL} AS gross_pnl,
+        ${COMMISSION_SQL} AS commission_amount,
+        ${NET_PNL_SQL} AS pnl,
         COALESCE(
-          pnl,
+          t.pnl_percent,
           CASE
-            WHEN exit_price IS NULL THEN NULL
-            WHEN exit_price = 0 THEN NULL
-            WHEN UPPER(direction) IN ('LONG', 'CALL')
-              THEN (exit_price - entry_price) * quantity * 
-                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-            WHEN UPPER(direction) IN ('SHORT', 'PUT')
-              THEN (entry_price - exit_price) * quantity * 
-                   CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-            ELSE NULL
-          END
-        ) AS pnl,
-        COALESCE(
-          pnl_percent,
-          CASE
-            WHEN exit_price IS NULL THEN NULL
-            WHEN exit_price = 0 THEN NULL
-            WHEN entry_price = 0 THEN NULL
-            WHEN UPPER(direction) IN ('LONG', 'CALL')
-              THEN ((exit_price - entry_price) / entry_price) * 100
-            WHEN UPPER(direction) IN ('SHORT', 'PUT')
-              THEN ((entry_price - exit_price) / entry_price) * 100
+            WHEN t.exit_price IS NULL THEN NULL
+            WHEN t.exit_price = 0 THEN NULL
+            WHEN t.entry_price = 0 THEN NULL
+            WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+              THEN ((t.exit_price - t.entry_price) / t.entry_price) * 100
+            WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+              THEN ((t.entry_price - t.exit_price) / t.entry_price) * 100
             ELSE NULL
           END
         ) AS pnl_percent
-       FROM filtered_trades
+       FROM filtered_trades t
        ORDER BY entry_date DESC`,
       [userId]
     );
 
-    // Calculate stats WITH dynamic P&L calculation
+    // Calculate stats with net P&L.
     const statsResult = await pool.query(
       `${FILTERED_TRADES_CTE},
       trades_with_pnl AS (
         SELECT 
-          COALESCE(
-            pnl,
-            CASE
-              WHEN exit_price IS NULL THEN NULL
-              WHEN exit_price = 0 THEN NULL
-              WHEN UPPER(direction) IN ('LONG', 'CALL')
-                THEN (exit_price - entry_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              WHEN UPPER(direction) IN ('SHORT', 'PUT')
-                THEN (entry_price - exit_price) * quantity * 
-                     CASE WHEN asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              ELSE NULL
-            END
-          ) AS calculated_pnl
-        FROM filtered_trades
-        WHERE status = 'closed'
+          ${buildNetPnlSql('t')} AS net_pnl,
+          t.exit_date
+        FROM filtered_trades t
+        WHERE t.status = 'closed'
       )
       SELECT
         COUNT(*) as total_trades,
-        COUNT(*) FILTER (WHERE calculated_pnl > 0) as wins,
-        COUNT(*) FILTER (WHERE calculated_pnl <= 0 AND calculated_pnl IS NOT NULL) as losses,
-        COALESCE(SUM(calculated_pnl), 0) as total_pnl,
-        COALESCE(AVG(calculated_pnl) FILTER (WHERE calculated_pnl > 0), 0) as avg_win,
-        COALESCE(AVG(calculated_pnl) FILTER (WHERE calculated_pnl <= 0 AND calculated_pnl IS NOT NULL), 0) as avg_loss,
+        COUNT(*) FILTER (WHERE net_pnl > 0) as wins,
+        COUNT(*) FILTER (WHERE net_pnl <= 0 AND net_pnl IS NOT NULL) as losses,
+        COALESCE(SUM(net_pnl), 0) as total_pnl,
+        COALESCE(AVG(net_pnl) FILTER (WHERE net_pnl > 0), 0) as avg_win,
+        COALESCE(AVG(net_pnl) FILTER (WHERE net_pnl <= 0 AND net_pnl IS NOT NULL), 0) as avg_loss,
         COALESCE(
-          100.0 * COUNT(*) FILTER (WHERE calculated_pnl > 0) / 
-          NULLIF(COUNT(*) FILTER (WHERE calculated_pnl IS NOT NULL), 0),
+          SUM(net_pnl) FILTER (
+            WHERE (exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date =
+                  (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          ),
+          0
+        ) as today_pnl,
+        COUNT(*) FILTER (
+          WHERE (exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date =
+                (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        ) as today_trades,
+        COALESCE(
+          100.0 * COUNT(*) FILTER (WHERE net_pnl > 0) / 
+          NULLIF(COUNT(*) FILTER (WHERE net_pnl IS NOT NULL), 0),
           0
         ) as win_rate
       FROM trades_with_pnl`,
@@ -150,6 +149,8 @@ export async function GET(
       total_pnl: 0,
       avg_win: 0,
       avg_loss: 0,
+      today_pnl: 0,
+      today_trades: 0,
       win_rate: 0,
     };
 
@@ -164,7 +165,13 @@ export async function GET(
         ...trade,
         entry_price: parseFloat(String(trade.entry_price)),
         exit_price: trade.exit_price ? parseFloat(String(trade.exit_price)) : null,
+        gross_pnl:
+          trade.gross_pnl === null || trade.gross_pnl === undefined
+            ? null
+            : parseFloat(String(trade.gross_pnl)),
+        commission: parseFloat(String(trade.commission_amount || 0)),
         pnl: parseFloat(String(trade.pnl || 0)),
+        net_pnl: parseFloat(String(trade.pnl || 0)),
         pnl_percent: parseFloat(String(trade.pnl_percent || 0)),
         stop_loss: trade.stop_loss ? parseFloat(String(trade.stop_loss)) : null,
         take_profit: trade.take_profit ? parseFloat(String(trade.take_profit)) : null,
@@ -176,10 +183,17 @@ export async function GET(
         total_trades: parseInt(String(stats.total_trades), 10),
         wins: parseInt(String(stats.wins), 10),
         losses: parseInt(String(stats.losses), 10),
-        total_pnl: parseFloat(String(stats.total_pnl)),
-        win_rate: parseFloat(String(stats.win_rate)),
-        avg_win: parseFloat(String(stats.avg_win)),
-        avg_loss: parseFloat(String(stats.avg_loss)),
+        total_pnl: parseFloat(String(stats.total_pnl || 0)),
+        win_rate: parseFloat(String(stats.win_rate || 0)),
+        avg_win: parseFloat(String(stats.avg_win || 0)),
+        avg_loss: parseFloat(String(stats.avg_loss || 0)),
+        today_pnl: parseFloat(String(stats.today_pnl || 0)),
+        today_trades: parseInt(String(stats.today_trades || 0), 10),
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
       },
     });
   } catch (error: unknown) {
