@@ -71,6 +71,7 @@ export async function GET(
         id, symbol, direction, asset_type, entry_price, exit_price, quantity,
         entry_date, exit_date, status,
         setup_type, stop_loss, take_profit, entry_reasoning,
+        strike, expiry, notes,
         -- Calculate P&L: use stored value OR calculate from prices
         COALESCE(
           pnl,
@@ -167,6 +168,9 @@ export async function GET(
         pnl_percent: parseFloat(String(trade.pnl_percent || 0)),
         stop_loss: trade.stop_loss ? parseFloat(String(trade.stop_loss)) : null,
         take_profit: trade.take_profit ? parseFloat(String(trade.take_profit)) : null,
+        strike: trade.strike ? parseFloat(String(trade.strike)) : null,
+        expiry: trade.expiry || null,
+        notes: trade.notes || null,
       })),
       stats: {
         total_trades: parseInt(String(stats.total_trades), 10),
