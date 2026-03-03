@@ -40,40 +40,23 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Admin query: show ALL closed trades for each user (no tradier deduplication filtering)
+    // The tradier_position_id filtering was causing issues for users like Aman who have
+    // mixed data sources (historical trades with tradier_position_id, new trades without).
+    // When use_tradier=true, only trades WITH tradier_position_id were counted,
+    // excluding newer trades that don't have it set.
     const { rows } = await pool.query(`
-      WITH user_source AS (
-        SELECT
-          user_id,
-          BOOL_OR(tradier_position_id IS NOT NULL) AS use_tradier
-        FROM trades
-        WHERE status = 'closed'
-        GROUP BY user_id
-      ),
-      trade_pnl AS (
+      WITH trade_pnl AS (
         SELECT
           t.user_id,
           t.id,
           t.created_at,
           COALESCE(
             t.net_pnl,
-            t.pnl - COALESCE(t.commission, 0),
-            CASE
-              WHEN t.exit_price IS NULL THEN NULL
-              WHEN UPPER(t.direction) IN ('LONG', 'CALL')
-                THEN (t.exit_price - t.entry_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
-                THEN (t.entry_price - t.exit_price) * t.quantity * CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
-              ELSE NULL
-            END
+            t.pnl - COALESCE(t.commission, 0)
           ) AS pnl_value
         FROM trades t
-        LEFT JOIN user_source us ON us.user_id = t.user_id
         WHERE t.status = 'closed'
-          AND (
-            (COALESCE(us.use_tradier, false) = true AND t.tradier_position_id IS NOT NULL)
-            OR
-            (COALESCE(us.use_tradier, false) = false AND t.tradier_position_id IS NULL)
-          )
       )
       SELECT
         u.id,
