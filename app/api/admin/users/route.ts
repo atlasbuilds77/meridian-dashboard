@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
           t.id,
           t.created_at,
           COALESCE(
-            t.pnl,
+            t.net_pnl,
+            t.pnl - COALESCE(t.commission, 0),
             CASE
               WHEN t.exit_price IS NULL THEN NULL
               WHEN UPPER(t.direction) IN ('LONG', 'CALL')
