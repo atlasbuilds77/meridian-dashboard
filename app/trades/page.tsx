@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,10 +11,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StatsCard } from '@/components/stats-card';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useTradeData } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent } from '@/lib/utils-client';
+
+// Commission rate: $2.06/contract × 2 legs = $4.12/round trip
+const COMMISSION_PER_ROUND_TRIP = 4.12;
 
 type Trade = {
   id?: number;
@@ -23,7 +33,10 @@ type Trade = {
   quantity: number;
   entry_price: number;
   exit_price?: number | null;
+  strike?: number | null;
+  expiry?: string | null;
   entry_date: string;
+  exit_date?: string | null;
   created_at?: string;
   status: string;
   pnl?: number | null;
@@ -31,6 +44,7 @@ type Trade = {
   take_profit?: number | null;
   entry_reasoning?: string | null;
   setup_type?: string | null;
+  notes?: string | null;
 };
 
 function parseNumber(value: number | string | null | undefined): number {
@@ -45,7 +59,7 @@ function isBullish(direction: string): boolean {
   return normalized === 'LONG' || normalized === 'CALL' || normalized === 'BULL';
 }
 
-function calculatePnL(trade: Trade): number {
+function calculateGrossPnL(trade: Trade): number {
   if (trade.pnl !== null && trade.pnl !== undefined) {
     return parseNumber(trade.pnl);
   }
@@ -63,8 +77,21 @@ function calculatePnL(trade: Trade): number {
     : (entry - exit) * trade.quantity * multiplier;
 }
 
+function calculateCommission(trade: Trade): number {
+  // Commission applies per contract for options
+  if (trade.asset_type === 'option') {
+    return COMMISSION_PER_ROUND_TRIP * trade.quantity;
+  }
+  return 0;
+}
+
+function calculateNetPnL(trade: Trade): number {
+  return calculateGrossPnL(trade) - calculateCommission(trade);
+}
+
 export default function TradesPage() {
   const { data, loading } = useTradeData();
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   if (loading || !data) {
     return (
@@ -95,16 +122,16 @@ export default function TradesPage() {
 
   const bullishWinRate =
     bullishTrades.length > 0
-      ? (bullishTrades.filter((trade) => calculatePnL(trade) > 0).length / bullishTrades.length) * 100
+      ? (bullishTrades.filter((trade) => calculateNetPnL(trade) > 0).length / bullishTrades.length) * 100
       : 0;
 
   const bearishWinRate =
     bearishTrades.length > 0
-      ? (bearishTrades.filter((trade) => calculatePnL(trade) > 0).length / bearishTrades.length) * 100
+      ? (bearishTrades.filter((trade) => calculateNetPnL(trade) > 0).length / bearishTrades.length) * 100
       : 0;
 
-  const bestTrade = trades.length > 0 ? Math.max(...trades.map((trade) => calculatePnL(trade))) : 0;
-  const worstTrade = trades.length > 0 ? Math.min(...trades.map((trade) => calculatePnL(trade))) : 0;
+  const bestTrade = trades.length > 0 ? Math.max(...trades.map((trade) => calculateNetPnL(trade))) : 0;
+  const worstTrade = trades.length > 0 ? Math.min(...trades.map((trade) => calculateNetPnL(trade))) : 0;
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
@@ -112,7 +139,7 @@ export default function TradesPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Trade History</h1>
-            <p className="text-muted-foreground">All Meridian system trades with detailed P&L breakdown</p>
+            <p className="text-muted-foreground">All Meridian system trades with detailed P&L breakdown (including commissions)</p>
           </div>
         </div>
 
@@ -136,16 +163,16 @@ export default function TradesPage() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Date</TableHead>
-                    <TableHead>Setup</TableHead>
                     <TableHead>Symbol</TableHead>
+                    <TableHead>Strike</TableHead>
+                    <TableHead>Expiry</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead className="text-right">Entry</TableHead>
-                    <TableHead className="text-right">Stop</TableHead>
-                    <TableHead className="text-right">Target</TableHead>
                     <TableHead className="text-right">Exit</TableHead>
                     <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">P&L</TableHead>
-                    <TableHead className="text-right">Return %</TableHead>
+                    <TableHead className="text-right">Gross P&L</TableHead>
+                    <TableHead className="text-right">Comm.</TableHead>
+                    <TableHead className="text-right">Net P&L</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -157,19 +184,18 @@ export default function TradesPage() {
                     </TableRow>
                   ) : (
                     sortedTrades.map((trade, index) => {
-                      const pnl = calculatePnL(trade);
-                      const isWin = pnl > 0;
+                      const grossPnl = calculateGrossPnL(trade);
+                      const commission = calculateCommission(trade);
+                      const netPnl = calculateNetPnL(trade);
+                      const isWin = netPnl > 0;
                       const bullish = isBullish(trade.direction);
-                      const contractMultiplier =
-                        trade.asset_type === 'option' || trade.asset_type === 'future' ? 100 : 1;
-                      const costBasis = parseNumber(trade.entry_price) * trade.quantity * contractMultiplier;
-                      const returnPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
 
                       return (
                         <TableRow
                           key={trade.id || `${trade.entry_date}-${trade.symbol}-${index}`}
-                          className="group hover:bg-secondary/30"
-                          title={trade.entry_reasoning || undefined}
+                          className="group hover:bg-secondary/30 cursor-pointer"
+                          title={trade.entry_reasoning || 'Click to view details'}
+                          onClick={() => setSelectedTrade(trade)}
                         >
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
@@ -183,12 +209,15 @@ export default function TradesPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {trade.setup_type || 'N/A'}
-                            </Badge>
+                            <span className="font-semibold">{trade.symbol}</span>
                           </TableCell>
                           <TableCell>
-                            <span className="font-semibold">{trade.symbol}</span>
+                            {trade.strike ? `$${parseNumber(trade.strike).toFixed(0)}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {trade.expiry 
+                              ? new Date(trade.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                              : '—'}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
@@ -212,16 +241,6 @@ export default function TradesPage() {
                           <TableCell className="text-right font-mono">
                             ${parseNumber(trade.entry_price).toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-red-500">
-                            {trade.stop_loss !== undefined && trade.stop_loss !== null
-                              ? `$${parseNumber(trade.stop_loss).toFixed(2)}`
-                              : '—'}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-emerald-500">
-                            {trade.take_profit !== undefined && trade.take_profit !== null
-                              ? `$${parseNumber(trade.take_profit).toFixed(2)}`
-                              : '—'}
-                          </TableCell>
                           <TableCell className="text-right font-mono">
                             {trade.exit_price !== undefined && trade.exit_price !== null
                               ? `$${parseNumber(trade.exit_price).toFixed(2)}`
@@ -240,13 +259,20 @@ export default function TradesPage() {
                           </TableCell>
                           <TableCell
                             className={`text-right font-mono font-semibold ${
+                              grossPnl >= 0 ? 'text-emerald-500' : 'text-red-500'
+                            }`}
+                          >
+                            {formatCurrency(grossPnl)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-red-500">
+                            {commission > 0 ? `-${formatCurrency(commission)}` : '—'}
+                          </TableCell>
+                          <TableCell
+                            className={`text-right font-mono font-bold ${
                               isWin ? 'text-emerald-500' : 'text-red-500'
                             }`}
                           >
-                            {formatCurrency(pnl)}
-                          </TableCell>
-                          <TableCell className={`text-right font-mono ${isWin ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {formatPercent(returnPct)}
+                            {formatCurrency(netPnl)}
                           </TableCell>
                         </TableRow>
                       );
@@ -258,6 +284,163 @@ export default function TradesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Trade Detail Modal */}
+      <Dialog open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedTrade && (
+                <>
+                  <span className="font-bold">{selectedTrade.symbol}</span>
+                  <Badge
+                    variant="outline"
+                    className={isBullish(selectedTrade.direction) 
+                      ? 'border-emerald-500/50 text-emerald-500' 
+                      : 'border-red-500/50 text-red-500'}
+                  >
+                    {selectedTrade.direction}
+                  </Badge>
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedTrade && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Entry Date</div>
+                  <div className="font-medium">
+                    {new Date(selectedTrade.entry_date).toLocaleString()}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Exit Date</div>
+                  <div className="font-medium">
+                    {selectedTrade.exit_date 
+                      ? new Date(selectedTrade.exit_date).toLocaleString()
+                      : 'Open'}
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Strike Price</div>
+                  <div className="font-medium">
+                    {selectedTrade.strike ? `$${parseNumber(selectedTrade.strike).toFixed(2)}` : 'N/A'}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Expiry</div>
+                  <div className="font-medium">
+                    {selectedTrade.expiry 
+                      ? new Date(selectedTrade.expiry).toLocaleDateString()
+                      : 'N/A'}
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Entry Price</div>
+                  <div className="font-medium">
+                    ${parseNumber(selectedTrade.entry_price).toFixed(2)}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Exit Price</div>
+                  <div className="font-medium">
+                    {selectedTrade.exit_price 
+                      ? `$${parseNumber(selectedTrade.exit_price).toFixed(2)}`
+                      : 'Open'}
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Quantity</div>
+                  <div className="font-medium">
+                    {selectedTrade.quantity} contract{selectedTrade.quantity !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground">Asset Type</div>
+                  <div className="font-medium capitalize">
+                    {selectedTrade.asset_type}
+                  </div>
+                </div>
+
+                {selectedTrade.stop_loss && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Stop Loss</div>
+                    <div className="font-medium text-red-500">
+                      ${parseNumber(selectedTrade.stop_loss).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+                {selectedTrade.take_profit && (
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Take Profit</div>
+                    <div className="font-medium text-emerald-500">
+                      ${parseNumber(selectedTrade.take_profit).toFixed(2)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* P&L Summary */}
+              <div className="border-t border-border/40 pt-4">
+                <div className="text-sm font-semibold mb-2">P&L Breakdown</div>
+                <div className="space-y-2">
+                  {(() => {
+                    const grossPnL = calculateGrossPnL(selectedTrade);
+                    const commission = calculateCommission(selectedTrade);
+                    const netPnL = calculateNetPnL(selectedTrade);
+                    
+                    return (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Gross P&L</span>
+                          <span className={`font-mono font-semibold ${grossPnL >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {formatCurrency(grossPnL)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">
+                            Commissions {commission > 0 ? `(${selectedTrade.quantity} × $4.12)` : ''}
+                          </span>
+                          <span className="font-mono text-red-500">
+                            {commission > 0 ? `-${formatCurrency(commission)}` : '$0.00'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-border/40">
+                          <span className="font-semibold">Net P&L</span>
+                          <span className={`font-mono font-bold text-lg ${netPnL >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {formatCurrency(netPnL)}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+              
+              {/* Entry Reasoning */}
+              {selectedTrade.entry_reasoning && (
+                <div className="border-t border-border/40 pt-4">
+                  <div className="text-sm font-semibold mb-2">Entry Reasoning</div>
+                  <p className="text-sm text-muted-foreground">{selectedTrade.entry_reasoning}</p>
+                </div>
+              )}
+              
+              {/* Notes */}
+              {selectedTrade.notes && (
+                <div className="border-t border-border/40 pt-4">
+                  <div className="text-sm font-semibold mb-2">Notes</div>
+                  <p className="text-sm text-muted-foreground">{selectedTrade.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
