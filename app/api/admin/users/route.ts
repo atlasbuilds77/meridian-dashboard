@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         SELECT
           t.user_id,
           t.id,
+          t.created_at,
           COALESCE(
             t.pnl,
             CASE
@@ -85,10 +86,10 @@ export async function GET(req: NextRequest) {
         ac.verification_status,
         COALESCE(us.trading_enabled, ac.trading_enabled, false) AS trading_enabled,
         COALESCE((us.size_pct * 100)::int, ac.size_pct, 25) AS size_pct,
-        COUNT(tp.id) AS trades_count,
-        COALESCE(SUM(tp.pnl_value), 0) AS total_pnl,
+        COUNT(tp.id) FILTER (WHERE tp.created_at::date = CURRENT_DATE) AS trades_count,
+        COALESCE(SUM(tp.pnl_value) FILTER (WHERE tp.created_at::date = CURRENT_DATE), 0) AS total_pnl,
         COALESCE(
-          100.0 * COUNT(*) FILTER (WHERE tp.pnl_value > 0) / NULLIF(COUNT(tp.id), 0),
+          100.0 * COUNT(*) FILTER (WHERE tp.created_at::date = CURRENT_DATE AND tp.pnl_value > 0) / NULLIF(COUNT(tp.id) FILTER (WHERE tp.created_at::date = CURRENT_DATE), 0),
           0
         ) AS win_rate
       FROM users u
