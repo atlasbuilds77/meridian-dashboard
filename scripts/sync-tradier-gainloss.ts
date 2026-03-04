@@ -25,6 +25,8 @@ import {
 } from '../lib/api-clients/tradier-gainloss';
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const SYNC_ALERT_WEBHOOK_URL =
+  process.env.MERIDIAN_SYNC_ALERT_WEBHOOK_URL || process.env.MERIDIAN_SYNC_ALERT_WEBHOOK || '';
 
 if (!DATABASE_URL) {
   console.error('❌ DATABASE_URL not set');
@@ -56,14 +58,23 @@ interface UserCredentials {
   access_token: string;
 }
 
+interface ReauthIssue {
+  userId: number;
+  username: string;
+  accountNumber: string;
+  reason: string;
+  stage: 'decrypt' | 'api';
+}
+
 interface SyncStats {
   userId: number;
   username: string;
   synced: number;
   updated: number;
   skipped: number;
-  errors: number;
+  errors: number; // hard processing/API errors (non-auth)
   totalPnl: number;
+  reauthIssue?: ReauthIssue;
 }
 
 interface BrokenTradeRow {
@@ -103,7 +114,10 @@ function decryptAccessToken(row: Pick<UserCredentialRow, 'encrypted_api_key' | '
 /**
  * Get all users with Tradier credentials and decrypt tokens.
  */
-async function getUsersWithTradier(): Promise<UserCredentials[]> {
+async function getUsersWithTradier(): Promise<{
+  users: UserCredentials[];
+  decryptFailures: ReauthIssue[];
+}> {
   const query = TARGET_USER_ID
     ? `SELECT u.id, u.username, ac.account_number, ac.encrypted_api_key, ac.encryption_iv
        FROM users u
@@ -123,11 +137,19 @@ async function getUsersWithTradier(): Promise<UserCredentials[]> {
 
   const result = await pool.query<UserCredentialRow>(query, TARGET_USER_ID ? [TARGET_USER_ID] : []);
   const users: UserCredentials[] = [];
+  const decryptFailures: ReauthIssue[] = [];
 
   for (const row of result.rows) {
     const accessToken = decryptAccessToken(row);
     if (!accessToken) {
       console.warn(`   ⚠️  Skipping ${row.username}: cannot decrypt Tradier token`);
+      decryptFailures.push({
+        userId: row.id,
+        username: row.username,
+        accountNumber: row.account_number,
+        reason: 'Cannot decrypt API key (encryption key mismatch or rotated token)',
+        stage: 'decrypt',
+      });
       continue;
     }
 
@@ -139,7 +161,72 @@ async function getUsersWithTradier(): Promise<UserCredentials[]> {
     });
   }
 
-  return users;
+  return { users, decryptFailures };
+}
+
+function isTradierAuthError(message: string): boolean {
+  const msg = String(message || '').toLowerCase();
+  return (
+    msg.includes('401') ||
+    msg.includes('access token not approved') ||
+    msg.includes('token expired') ||
+    msg.includes('invalid token') ||
+    msg.includes('unauthorized')
+  );
+}
+
+function buildReauthAlertMessage(issues: ReauthIssue[]): string {
+  const lines = issues.map(
+    (issue, idx) =>
+      `${idx + 1}. ${issue.username} (${issue.accountNumber}) [${issue.stage}] - ${issue.reason}`
+  );
+
+  return [
+    '⚠️ Tradier Re-auth Required',
+    `Users affected: ${issues.length}`,
+    ...lines,
+  ].join('\n');
+}
+
+async function sendReauthAlert(issues: ReauthIssue[]): Promise<void> {
+  if (issues.length === 0) {
+    return;
+  }
+
+  const message = buildReauthAlertMessage(issues);
+  console.log('\n' + message);
+
+  if (!SYNC_ALERT_WEBHOOK_URL) {
+    console.log(
+      'ℹ️  No sync alert webhook configured. Set MERIDIAN_SYNC_ALERT_WEBHOOK_URL to push re-auth alerts.'
+    );
+    return;
+  }
+
+  try {
+    const isDiscordWebhook = SYNC_ALERT_WEBHOOK_URL.includes('discord.com/api/webhooks');
+    const payload = isDiscordWebhook ? { content: message } : { text: message };
+
+    const response = await fetch(SYNC_ALERT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.warn(`⚠️  Failed to send re-auth alert webhook (${response.status}): ${body}`);
+      return;
+    }
+
+    console.log('✅ Re-auth alert sent');
+  } catch (error) {
+    console.warn(
+      `⚠️  Failed to send re-auth alert webhook: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 /**
@@ -310,8 +397,16 @@ async function syncUserTrades(user: UserCredentials): Promise<SyncStats> {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`   ❌ API Error: ${errorMsg}`);
 
-    if (errorMsg.includes('401')) {
+    if (isTradierAuthError(errorMsg)) {
       console.error('      Token expired - user needs to re-authenticate');
+      stats.reauthIssue = {
+        userId: user.id,
+        username: user.username,
+        accountNumber: user.account_number,
+        reason: errorMsg,
+        stage: 'api',
+      };
+      return stats;
     }
 
     stats.errors++;
@@ -345,7 +440,7 @@ async function fixMissingPnlTrades(): Promise<void> {
     return;
   }
 
-  const usersWithTradier = await getUsersWithTradier();
+  const { users: usersWithTradier } = await getUsersWithTradier();
   const credsByUserId = new Map(usersWithTradier.map((u) => [u.id, u]));
 
   const userTrades = new Map<number, BrokenTradeRow[]>();
@@ -512,9 +607,18 @@ async function main() {
       return;
     }
 
-    const users = await getUsersWithTradier();
+    const { users, decryptFailures } = await getUsersWithTradier();
+    const reauthIssues: ReauthIssue[] = [...decryptFailures];
+
     if (users.length === 0) {
-      console.log('\n⚠️  No users with Tradier credentials found');
+      console.log('\n⚠️  No users with decryptable Tradier credentials found');
+      await sendReauthAlert(reauthIssues);
+      await recordSyncStatus(true, {
+        totalUsers: decryptFailures.length,
+        totalSynced: 0,
+        totalErrors: 0,
+        totalPnl: 0,
+      });
       return;
     }
 
@@ -533,15 +637,18 @@ async function main() {
     let totalSynced = 0;
     let totalUpdated = 0;
     let totalSkipped = 0;
-    let totalErrors = 0;
+    let totalHardErrors = 0;
     let grandTotalPnl = 0;
 
     for (const stats of allStats) {
       totalSynced += stats.synced;
       totalUpdated += stats.updated;
       totalSkipped += stats.skipped;
-      totalErrors += stats.errors;
+      totalHardErrors += stats.errors;
       grandTotalPnl += stats.totalPnl;
+      if (stats.reauthIssue) {
+        reauthIssues.push(stats.reauthIssue);
+      }
 
       const pnlStr = stats.totalPnl >= 0 ? `+$${stats.totalPnl.toFixed(2)}` : `-$${Math.abs(stats.totalPnl).toFixed(2)}`;
       console.log(
@@ -550,14 +657,21 @@ async function main() {
     }
 
     console.log('─'.repeat(60));
-    console.log(`  TOTAL: Synced ${totalSynced}, Updated ${totalUpdated}, Skipped ${totalSkipped}, Errors ${totalErrors}`);
+    console.log(
+      `  TOTAL: Synced ${totalSynced}, Updated ${totalUpdated}, Skipped ${totalSkipped}, Hard Errors ${totalHardErrors}`
+    );
+    if (reauthIssues.length > 0) {
+      console.log(`  REAUTH REQUIRED: ${reauthIssues.length} account(s)`);
+    }
     console.log(`  COMBINED P&L: ${grandTotalPnl >= 0 ? '+' : ''}$${grandTotalPnl.toFixed(2)}`);
     console.log('═'.repeat(60));
 
-    await recordSyncStatus(totalErrors === 0, {
-      totalUsers: users.length,
+    await sendReauthAlert(reauthIssues);
+
+    await recordSyncStatus(totalHardErrors === 0, {
+      totalUsers: users.length + decryptFailures.length,
       totalSynced: totalSynced + totalUpdated,
-      totalErrors,
+      totalErrors: totalHardErrors + reauthIssues.length,
       totalPnl: grandTotalPnl,
     });
 

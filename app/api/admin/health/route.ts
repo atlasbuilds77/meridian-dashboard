@@ -87,6 +87,9 @@ export async function GET(): Promise<NextResponse> {
         if (!sync.success) {
           health.checks.tradierSync.status = 'error';
           issues.push('Last Tradier sync failed');
+        } else if ((Number(sync.errors) || 0) > 0) {
+          health.checks.tradierSync.status = 'warning';
+          issues.push(`Tradier sync completed with ${Number(sync.errors)} account issue(s)`);
         } else if (hoursSinceSync > 48) {
           health.checks.tradierSync.status = 'warning';
           issues.push(`Tradier sync is ${Math.round(hoursSinceSync)}h old`);
