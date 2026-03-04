@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -80,7 +81,7 @@ type UserData = {
   settings?: {
     trading_enabled: boolean;
     size_pct: number;
-    max_daily_loss_pct?: number;
+    max_daily_loss: number | null;
   };
 };
 
@@ -219,7 +220,7 @@ export default function UserDetailPage() {
   const [localSettings, setLocalSettings] = useState({
     trading_enabled: false,
     size_pct: 50,
-    max_daily_loss_pct: 5,
+    max_daily_loss: null as number | null,
   });
 
   const fetchChargeInfo = useCallback(async () => {
@@ -272,8 +273,8 @@ export default function UserDetailPage() {
 
         const tradesData = await tradesRes.json();
         
-        // Fetch user settings from admin users endpoint
-        const settingsRes = await fetch(`/api/admin/users?_t=${Date.now()}`, {
+        // Fetch user settings (includes max_daily_loss)
+        const settingsRes = await fetch(`/api/admin/users/${userId}/settings?_t=${Date.now()}`, {
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         });
@@ -281,21 +282,25 @@ export default function UserDetailPage() {
           console.warn('Failed to fetch user settings, using defaults');
         } else {
           const settingsData = await settingsRes.json();
-          const userSettings = settingsData.users?.find((u: any) => u.user.id === parseInt(userId));
-          
-          if (userSettings?.account) {
+          if (settingsData?.settings) {
+            const sizePct = Math.round((Number(settingsData.settings.size_pct) || 0.5) * 100);
+            const maxDailyLoss =
+              settingsData.settings.max_daily_loss === null || settingsData.settings.max_daily_loss === undefined
+                ? null
+                : Number(settingsData.settings.max_daily_loss);
+
             setLocalSettings({
-              trading_enabled: userSettings.account.trading_enabled || false,
-              size_pct: userSettings.account.size_pct || 50,
-              max_daily_loss_pct: 5, // Default value, not in current schema
+              trading_enabled: Boolean(settingsData.settings.trading_enabled),
+              size_pct: sizePct,
+              max_daily_loss: Number.isFinite(maxDailyLoss) ? maxDailyLoss : null,
             });
             
             setData({
               ...tradesData,
               settings: {
-                trading_enabled: userSettings.account.trading_enabled || false,
-                size_pct: userSettings.account.size_pct || 50,
-                max_daily_loss_pct: 5,
+                trading_enabled: Boolean(settingsData.settings.trading_enabled),
+                size_pct: sizePct,
+                max_daily_loss: Number.isFinite(maxDailyLoss) ? maxDailyLoss : null,
               },
             });
             return;
@@ -324,7 +329,7 @@ export default function UserDetailPage() {
       setLocalSettings({
         trading_enabled: data.settings.trading_enabled,
         size_pct: data.settings.size_pct,
-        max_daily_loss_pct: data.settings.max_daily_loss_pct || 5,
+        max_daily_loss: data.settings.max_daily_loss ?? null,
       });
     }
   }, [data?.settings]);
@@ -347,16 +352,16 @@ export default function UserDetailPage() {
     
     setIsUpdatingSettings(true);
     try {
-      const response = await fetch('/api/admin/users', {
-        method: 'PATCH',
+      const response = await fetch(`/api/admin/users/${userId}/settings`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken.token,
         },
         body: JSON.stringify({
-          user_id: parseInt(userId),
           trading_enabled: localSettings.trading_enabled,
-          size_pct: localSettings.size_pct,
+          size_pct: localSettings.size_pct / 100,
+          max_daily_loss: localSettings.max_daily_loss,
         }),
       });
 
@@ -365,14 +370,23 @@ export default function UserDetailPage() {
         throw new Error(errorData.error || 'Failed to update settings');
       }
 
+      const payload = await response.json().catch(() => ({}));
+      const saved = payload?.settings;
+      const savedSizePct = saved?.size_pct ? Math.round(Number(saved.size_pct) * 100) : localSettings.size_pct;
+      const savedMaxDailyLoss =
+        saved?.max_daily_loss === null || saved?.max_daily_loss === undefined
+          ? localSettings.max_daily_loss
+          : Number(saved.max_daily_loss);
+
       // Update local data
       if (data) {
         setData({
           ...data,
           settings: {
             ...data.settings!,
-            trading_enabled: localSettings.trading_enabled,
-            size_pct: localSettings.size_pct,
+            trading_enabled: saved?.trading_enabled ?? localSettings.trading_enabled,
+            size_pct: savedSizePct,
+            max_daily_loss: Number.isFinite(savedMaxDailyLoss) ? savedMaxDailyLoss : null,
           },
         });
       }
@@ -804,28 +818,62 @@ export default function UserDetailPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="daily-loss" className="text-base font-medium">
-                  Max Daily Loss
+                  Max Daily Loss (USD)
                 </Label>
-                <span className="text-lg font-bold text-primary">{localSettings.max_daily_loss_pct}%</span>
+                <span className="text-lg font-bold text-primary">
+                  {localSettings.max_daily_loss !== null
+                    ? formatCurrency(localSettings.max_daily_loss)
+                    : 'Not set'}
+                </span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Maximum daily loss percentage before auto-stop (coming soon)
+                If this user hits this daily loss, Meridian blocks new entries for the day.
               </p>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    id="daily-loss"
+                    type="number"
+                    min="1"
+                    step="50"
+                    value={localSettings.max_daily_loss ?? ''}
+                    onChange={(e) =>
+                      setLocalSettings({
+                        ...localSettings,
+                        max_daily_loss: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    placeholder="No limit"
+                    className="pl-7"
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-4 gap-2">
-                {[2, 5, 10, 20].map((pct) => (
+                {[250, 500, 1000, 2000].map((usd) => (
                   <Button
-                    key={pct}
+                    key={usd}
                     type="button"
-                    variant={localSettings.max_daily_loss_pct === pct ? 'default' : 'outline'}
+                    variant={localSettings.max_daily_loss === usd ? 'default' : 'outline'}
                     size="sm"
                     onClick={() =>
-                      setLocalSettings({ ...localSettings, max_daily_loss_pct: pct })
+                      setLocalSettings({ ...localSettings, max_daily_loss: usd })
                     }
                     className="w-full"
                   >
-                    {pct}%
+                    ${usd}
                   </Button>
                 ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLocalSettings({ ...localSettings, max_daily_loss: null })}
+                >
+                  Clear Limit
+                </Button>
               </div>
             </div>
 
@@ -839,6 +887,10 @@ export default function UserDetailPage() {
                       {data.settings.trading_enabled ? 'ENABLED' : 'DISABLED'}
                     </Badge>
                     , Max position: <Badge variant="outline">{data.settings.size_pct}%</Badge>
+                    , Daily loss:{' '}
+                    <Badge variant="outline">
+                      {data.settings.max_daily_loss !== null ? formatCurrency(data.settings.max_daily_loss) : 'Not set'}
+                    </Badge>
                   </>
                 ) : (
                   'No settings loaded'
@@ -852,7 +904,7 @@ export default function UserDetailPage() {
                       setLocalSettings({
                         trading_enabled: data.settings.trading_enabled,
                         size_pct: data.settings.size_pct,
-                        max_daily_loss_pct: data.settings.max_daily_loss_pct || 5,
+                        max_daily_loss: data.settings.max_daily_loss ?? null,
                       });
                     }
                   }}
