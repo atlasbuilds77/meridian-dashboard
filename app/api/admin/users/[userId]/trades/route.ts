@@ -74,16 +74,7 @@ function getDateCondition(period: string): string {
 
 function buildTradesCte(dateCondition = ''): string {
   return `
-    WITH source_pref AS (
-      SELECT EXISTS(
-        SELECT 1
-        FROM trades
-        WHERE user_id = $1
-          AND status = 'closed'
-          AND tradier_position_id IS NOT NULL
-      ) AS use_tradier
-    ),
-    user_trades AS (
+    WITH user_trades_raw AS (
       SELECT
         t.*,
         COALESCE(
@@ -92,13 +83,55 @@ function buildTradesCte(dateCondition = ''): string {
           (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
         ) AS trade_date
       FROM trades t
-      CROSS JOIN source_pref sp
       WHERE t.user_id = $1
-        AND (
-          t.status <> 'closed'
-          OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
-          OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
-        )
+    ),
+    source_stats AS (
+      SELECT
+        COUNT(*) FILTER (
+          WHERE t.status = 'closed'
+            AND t.tradier_position_id IS NOT NULL
+            ${dateCondition}
+        ) AS tradier_count,
+        COUNT(*) FILTER (
+          WHERE t.status = 'closed'
+            AND t.tradier_position_id IS NULL
+            ${dateCondition}
+        ) AS legacy_count,
+        MAX(t.trade_date) FILTER (
+          WHERE t.status = 'closed'
+            AND t.tradier_position_id IS NOT NULL
+            ${dateCondition}
+        ) AS tradier_latest,
+        MAX(t.trade_date) FILTER (
+          WHERE t.status = 'closed'
+            AND t.tradier_position_id IS NULL
+            ${dateCondition}
+        ) AS legacy_latest
+      FROM user_trades_raw t
+    ),
+    source_pref AS (
+      SELECT
+        CASE
+          WHEN tradier_count = 0 AND legacy_count = 0 THEN NULL
+          WHEN tradier_count = 0 THEN 'legacy'
+          WHEN legacy_count = 0 THEN 'tradier'
+          WHEN legacy_latest > tradier_latest THEN 'legacy'
+          WHEN tradier_latest > legacy_latest THEN 'tradier'
+          ELSE 'tradier'
+        END AS preferred_source
+      FROM source_stats
+    ),
+    user_trades AS (
+      SELECT
+        t.*,
+        sp.preferred_source
+      FROM user_trades_raw t
+      CROSS JOIN source_pref sp
+      WHERE
+        t.status <> 'closed'
+        OR (sp.preferred_source = 'tradier' AND t.tradier_position_id IS NOT NULL)
+        OR (sp.preferred_source = 'legacy' AND t.tradier_position_id IS NULL)
+        OR (sp.preferred_source IS NULL AND t.tradier_position_id IS NULL)
     ),
     filtered_trades AS (
       SELECT *

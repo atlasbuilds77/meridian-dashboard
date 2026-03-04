@@ -113,47 +113,71 @@ async function calculateWeeklyPnl(
   weekStart: string,
   weekEnd: string
 ): Promise<WeeklyPnlResult> {
-  const runSourceQuery = async (useTradierRows: boolean) => {
-    const result = await pool.query(
-      `WITH trades_with_pnl AS (
-        SELECT ${NET_PNL_SQL} AS net_pnl
-        FROM trades t
-        WHERE t.user_id = $1
-          AND t.status = 'closed'
-          ${useTradierRows ? 'AND t.tradier_position_id IS NOT NULL' : 'AND t.tradier_position_id IS NULL'}
-          AND COALESCE(
-            (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
-            (t.entry_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
-            (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
-          ) BETWEEN $2::date AND $3::date
-      )
+  const result = await pool.query(
+    `WITH scoped_trades AS (
       SELECT
-        COALESCE(SUM(net_pnl), 0) AS total_pnl,
-        COUNT(*) FILTER (WHERE net_pnl IS NOT NULL)::INTEGER AS trade_count
-      FROM trades_with_pnl`,
-      [userId, weekStart, weekEnd]
-    );
+        ${NET_PNL_SQL} AS net_pnl,
+        COALESCE(
+          (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+          (t.entry_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+          (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        ) AS trade_date,
+        CASE
+          WHEN t.tradier_position_id IS NOT NULL THEN 'tradier'
+          ELSE 'legacy'
+        END AS pnl_source
+      FROM trades t
+      WHERE t.user_id = $1
+        AND t.status = 'closed'
+        AND COALESCE(
+          (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+          (t.entry_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+          (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        ) BETWEEN $2::date AND $3::date
+    ),
+    source_stats AS (
+      SELECT
+        COUNT(*) FILTER (WHERE pnl_source = 'tradier') AS tradier_count,
+        COUNT(*) FILTER (WHERE pnl_source = 'legacy') AS legacy_count,
+        MAX(trade_date) FILTER (WHERE pnl_source = 'tradier') AS tradier_latest,
+        MAX(trade_date) FILTER (WHERE pnl_source = 'legacy') AS legacy_latest
+      FROM scoped_trades
+    ),
+    source_pref AS (
+      SELECT
+        CASE
+          WHEN tradier_count = 0 AND legacy_count = 0 THEN NULL
+          WHEN tradier_count = 0 THEN 'legacy'
+          WHEN legacy_count = 0 THEN 'tradier'
+          WHEN legacy_latest > tradier_latest THEN 'legacy'
+          WHEN tradier_latest > legacy_latest THEN 'tradier'
+          ELSE 'tradier'
+        END AS preferred_source
+      FROM source_stats
+    ),
+    selected_trades AS (
+      SELECT st.net_pnl
+      FROM scoped_trades st
+      CROSS JOIN source_pref sp
+      WHERE
+        (sp.preferred_source = 'tradier' AND st.pnl_source = 'tradier')
+        OR (sp.preferred_source = 'legacy' AND st.pnl_source = 'legacy')
+    )
+    SELECT
+      COALESCE(SUM(net_pnl), 0) AS total_pnl,
+      COUNT(*) FILTER (WHERE net_pnl IS NOT NULL)::INTEGER AS trade_count,
+      COALESCE((SELECT preferred_source FROM source_pref), 'legacy') AS source
+    FROM selected_trades`,
+    [userId, weekStart, weekEnd]
+  );
 
-    return {
-      totalPnl: parseFloat(String(result.rows[0]?.total_pnl ?? 0)) || 0,
-      tradeCount: parseInt(String(result.rows[0]?.trade_count ?? 0), 10) || 0,
-    };
-  };
+  const row = result.rows[0] || {};
+  const source = row.source === 'tradier' ? 'tradier' : 'legacy';
 
-  const tradier = await runSourceQuery(true);
-  if (tradier.tradeCount > 0) {
-    return {
-      totalPnl: tradier.totalPnl,
-      tradeCount: tradier.tradeCount,
-      source: 'tradier',
-    };
-  }
-
-  const legacy = await runSourceQuery(false);
   return {
-    totalPnl: legacy.totalPnl,
-    tradeCount: legacy.tradeCount,
-    source: 'legacy',
+    totalPnl: parseFloat(String(row.total_pnl ?? 0)) || 0,
+    tradeCount: parseInt(String(row.trade_count ?? 0), 10) || 0,
+    source,
   };
 }
 
