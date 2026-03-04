@@ -52,14 +52,15 @@ export default function AdminDashboard() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<string, string>>({});
   const [isFlatteningAll, setIsFlatteningAll] = useState(false);
+  const [pnlPeriod, setPnlPeriod] = useState<'today' | 'all'>('today');
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [pnlPeriod]);
 
   async function fetchUsers() {
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await fetch(`/api/admin/users?period=${pnlPeriod}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' },
       });
@@ -299,6 +300,35 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Period Toggle */}
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">P&L Period:</span>
+          <div className="flex rounded-lg border border-primary/30 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setPnlPeriod('all')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                pnlPeriod === 'all'
+                  ? 'bg-primary text-white'
+                  : 'bg-transparent text-muted-foreground hover:bg-primary/10'
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              type="button"
+              onClick={() => setPnlPeriod('today')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                pnlPeriod === 'today'
+                  ? 'bg-primary text-white'
+                  : 'bg-transparent text-muted-foreground hover:bg-primary/10'
+              }`}
+            >
+              Today
+            </button>
+          </div>
+        </div>
+
         <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div className="nebula-panel rounded-xl p-5">
             <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Total Users</div>
@@ -309,12 +339,12 @@ export default function AdminDashboard() {
             <div className="text-3xl font-bold text-primary">{activeTraders}</div>
           </div>
           <div className="nebula-panel rounded-xl p-5">
-            <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Today&apos;s Trades</div>
+            <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Total Trades</div>
             <div className="text-3xl font-bold text-foreground">{totalTrades}</div>
           </div>
           <div className="nebula-panel rounded-xl p-5">
             <div className="mb-1 flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <span>Today&apos;s Combined Net P&amp;L</span>
+              <span>Combined P&amp;L</span>
               <button
                 type="button"
                 onClick={openCombinedShareCard}
@@ -363,7 +393,7 @@ export default function AdminDashboard() {
 
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
-                      Today: <span className="text-foreground">{stats.trades_count} trades</span>
+                      Trades: <span className="text-foreground">{stats.trades_count}</span>
                     </span>
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
                       Win Rate:{' '}
@@ -397,8 +427,8 @@ export default function AdminDashboard() {
                   <th className="p-4">Tradier</th>
                   <th className="p-4">Trading</th>
                   <th className="p-4">Size %</th>
-                  <th className="p-4">Today Trades</th>
-                  <th className="p-4">Today Net P&amp;L</th>
+                  <th className="p-4">Trades</th>
+                  <th className="p-4">P&amp;L</th>
                   <th className="p-4">Win Rate</th>
                   <th className="p-4">Last Login</th>
                   <th className="p-4">Share</th>

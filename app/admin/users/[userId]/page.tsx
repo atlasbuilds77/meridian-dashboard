@@ -25,10 +25,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle, DollarSign, CreditCard, CheckCircle2, XCircle, Clock, Receipt } from 'lucide-react';
-import { formatCurrency, formatPercent } from '@/lib/utils-client';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, AlertTriangle, DollarSign, CreditCard, CheckCircle2, XCircle, Clock, Receipt, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils-client';
 import { toastSuccess, toastError } from '@/lib/toast';
 import { useCsrfToken } from '@/hooks/use-csrf-token';
+
+// Commission rate: $2.06/contract × 2 legs = $4.12/round trip
+const COMMISSION_PER_ROUND_TRIP = 4.12;
 
 type Trade = {
   id: number;
@@ -40,11 +43,11 @@ type Trade = {
   quantity: number;
   entry_date: string;
   exit_date: string | null;
-  gross_pnl: number | null;
-  commission: number;
-  net_pnl: number;
-  pnl: number;
-  pnl_percent: number;
+  pnl: number | null;
+  gross_pnl?: number | null;
+  commission?: number | null;
+  net_pnl?: number | null;
+  pnl_percent: number | null;
   status: string;
   setup_type: string | null;
   stop_loss: number | null;
@@ -68,11 +71,11 @@ type UserData = {
     wins: number;
     losses: number;
     total_pnl: number;
-    today_pnl: number;
-    today_trades: number;
     win_rate: number;
     avg_win: number;
     avg_loss: number;
+    today_pnl?: number;
+    today_trades?: number;
   };
   settings?: {
     trading_enabled: boolean;
@@ -120,15 +123,38 @@ function parseNumber(value: number | string | null | undefined): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+function hasExplicitTradeBreakdown(trade: Trade): boolean {
+  return trade.gross_pnl !== undefined || trade.commission !== undefined || trade.net_pnl !== undefined;
+}
+
+function calculateCommission(trade: Trade): number {
+  if (trade.commission !== null && trade.commission !== undefined) {
+    return parseNumber(trade.commission);
+  }
+
+  // Commission applies per contract for options when explicit commission is unavailable.
+  if (trade.asset_type === 'option') {
+    return COMMISSION_PER_ROUND_TRIP * trade.quantity;
+  }
+  return 0;
+}
+
 function calculateGrossPnL(trade: Trade): number {
   if (trade.gross_pnl !== null && trade.gross_pnl !== undefined) {
     return parseNumber(trade.gross_pnl);
   }
 
-  const commission = parseNumber(trade.commission);
-  const netFromDb = trade.net_pnl ?? trade.pnl;
-  if (netFromDb !== null && netFromDb !== undefined) {
-    return parseNumber(netFromDb) + commission;
+  if (hasExplicitTradeBreakdown(trade)) {
+    if (trade.net_pnl !== null && trade.net_pnl !== undefined) {
+      return parseNumber(trade.net_pnl) + calculateCommission(trade);
+    }
+    if (trade.pnl !== null && trade.pnl !== undefined) {
+      return parseNumber(trade.pnl) + calculateCommission(trade);
+    }
+  }
+
+  if (trade.pnl !== null && trade.pnl !== undefined && trade.pnl !== 0) {
+    return parseNumber(trade.pnl);
   }
 
   if (trade.exit_price === null || trade.exit_price === undefined) {
@@ -144,15 +170,15 @@ function calculateGrossPnL(trade: Trade): number {
     : (entry - exit) * trade.quantity * multiplier;
 }
 
-function calculateCommission(trade: Trade): number {
-  return Math.max(0, parseNumber(trade.commission));
-}
-
 function calculateNetPnL(trade: Trade): number {
-  const netFromDb = trade.net_pnl ?? trade.pnl;
-  if (netFromDb !== null && netFromDb !== undefined) {
-    return parseNumber(netFromDb);
+  if (trade.net_pnl !== null && trade.net_pnl !== undefined) {
+    return parseNumber(trade.net_pnl);
   }
+
+  if (hasExplicitTradeBreakdown(trade) && trade.pnl !== null && trade.pnl !== undefined) {
+    return parseNumber(trade.pnl);
+  }
+
   return calculateGrossPnL(trade) - calculateCommission(trade);
 }
 
@@ -188,6 +214,8 @@ export default function UserDetailPage() {
   const [isFlattening, setIsFlattening] = useState(false);
   const [isCharging, setIsCharging] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [pnlPeriod, setPnlPeriod] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [localSettings, setLocalSettings] = useState({
     trading_enabled: false,
     size_pct: 50,
@@ -199,12 +227,7 @@ export default function UserDetailPage() {
     
     setChargeLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/charge-fee`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
+      const res = await fetch(`/api/admin/users/${userId}/charge-fee`);
       if (res.ok) {
         const info = await res.json();
         setChargeInfo(info);
@@ -216,25 +239,24 @@ export default function UserDetailPage() {
     }
   }, [userId]);
 
-  useEffect(() => {
-    async function fetchUserData() {
-      if (!userId) {
-        setError('Invalid user ID');
-        setLoading(false);
-        return;
-      }
+  const fetchUserData = useCallback(async (showLoadingState = true) => {
+    if (!userId) {
+      setError('Invalid user ID');
+      setLoading(false);
+      return;
+    }
 
-      try {
-        setError(null);
+    if (showLoadingState) {
+      setIsRefreshing(true);
+    }
 
-        // Fetch trades data
-        const tradesRes = await fetch(`/api/admin/users/${userId}/trades`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        });
-        if (tradesRes.status === 401) {
+    try {
+      // Fetch trades data with period filter and cache-busting
+      const tradesRes = await fetch(`/api/admin/users/${userId}/trades?period=${pnlPeriod}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+      });
+      if (tradesRes.status === 401) {
           router.push('/login?error=session_expired');
           return;
         }
@@ -251,18 +273,15 @@ export default function UserDetailPage() {
         const tradesData = await tradesRes.json();
         
         // Fetch user settings from admin users endpoint
-        const settingsRes = await fetch('/api/admin/users', {
+        const settingsRes = await fetch(`/api/admin/users?_t=${Date.now()}`, {
           cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
+          headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         });
         if (!settingsRes.ok) {
           console.warn('Failed to fetch user settings, using defaults');
         } else {
           const settingsData = await settingsRes.json();
-          const numericUserId = Number.parseInt(userId, 10);
-          const userSettings = settingsData.users?.find((u: any) => u.user.id === numericUserId);
+          const userSettings = settingsData.users?.find((u: any) => u.user.id === parseInt(userId));
           
           if (userSettings?.account) {
             setLocalSettings({
@@ -290,12 +309,14 @@ export default function UserDetailPage() {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
-    }
+    }, [userId, pnlPeriod, router]);
 
+  useEffect(() => {
     fetchUserData();
     fetchChargeInfo();
-  }, [userId, fetchChargeInfo]);
+  }, [userId, pnlPeriod, fetchUserData, fetchChargeInfo]);
 
   // Update local settings when data changes
   useEffect(() => {
@@ -390,12 +411,10 @@ export default function UserDetailPage() {
       toastSuccess('All positions flattened successfully');
       setShowFlattenDialog(false);
       
-      // Refresh trades data
-      const tradesRes = await fetch(`/api/admin/users/${userId}/trades`, {
+      // Refresh trades data with active period filter
+      const tradesRes = await fetch(`/api/admin/users/${userId}/trades?period=${pnlPeriod}&_t=${Date.now()}`, {
         cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
       });
       if (tradesRes.ok) {
         const tradesData = await tradesRes.json();
@@ -467,39 +486,71 @@ export default function UserDetailPage() {
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Link href="/admin">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Admin
-            </Button>
-          </Link>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link href="/admin">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Admin
+              </Button>
+            </Link>
 
-          <div className="flex items-center gap-3">
-            {user.discord_avatar ? (
-              <img
-                src={
-                  user.discord_avatar.startsWith('http')
-                    ? user.discord_avatar
-                    : `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png`
-                }
-                alt=""
-                className="h-12 w-12 rounded-full border-2 border-primary/30"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10 text-primary text-lg font-bold">
-                {user.discord_username[0].toUpperCase()}
+            <div className="flex items-center gap-3">
+              {user.discord_avatar ? (
+                <img
+                  src={
+                    user.discord_avatar.startsWith('http')
+                      ? user.discord_avatar
+                      : `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png`
+                  }
+                  alt=""
+                  className="h-12 w-12 rounded-full border-2 border-primary/30"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10 text-primary text-lg font-bold">
+                  {user.discord_username[0].toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl font-bold nebula-gradient-text">{user.discord_username}</h1>
+                <p className="text-sm text-muted-foreground">Trading History</p>
               </div>
-            )}
-            <div>
-              <h1 className="text-2xl font-bold nebula-gradient-text">{user.discord_username}</h1>
-              <p className="text-sm text-muted-foreground">Trading History</p>
             </div>
+          </div>
+
+          {/* Period Filter + Refresh */}
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg border border-primary/30 overflow-hidden">
+              {(['all', 'month', 'week', 'today'] as const).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setPnlPeriod(period)}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    pnlPeriod === period
+                      ? 'bg-primary text-white'
+                      : 'bg-transparent text-muted-foreground hover:bg-primary/10'
+                  }`}
+                >
+                  {period === 'all' ? 'All Time' : period === 'month' ? '30D' : period === 'week' ? '7D' : 'Today'}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchUserData(true)}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <Card className="border-primary/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Total Trades</CardTitle>
@@ -553,18 +604,6 @@ export default function UserDetailPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card className="border-primary/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Today&apos;s P&L</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-3xl font-bold ${(stats.today_pnl || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCurrency(stats.today_pnl || 0)}
-              </div>
-              <div className="pt-1 text-xs text-muted-foreground">{stats.today_trades || 0} trades today</div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Weekly P&L & Billing Section */}
@@ -587,7 +626,7 @@ export default function UserDetailPage() {
                 <div className="rounded-lg bg-secondary/30 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
-                      Current week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
+                      Week: {chargeInfo.weekStart} to {chargeInfo.weekEnd}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       {chargeInfo.tradeCount} trades
@@ -596,7 +635,7 @@ export default function UserDetailPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm text-muted-foreground">Weekly Net P&L</div>
+                      <div className="text-sm text-muted-foreground">Weekly P&L</div>
                       <div className={`text-2xl font-bold ${chargeInfo.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {formatCurrency(chargeInfo.totalPnl)}
                       </div>
@@ -862,15 +901,14 @@ export default function UserDetailPage() {
                     <TableHead className="text-right">Entry</TableHead>
                     <TableHead className="text-right">Exit</TableHead>
                     <TableHead className="text-right">Gross P&L</TableHead>
-                    <TableHead className="text-right">Fees</TableHead>
+                    <TableHead className="text-right">Comm.</TableHead>
                     <TableHead className="text-right">Net P&L</TableHead>
-                    <TableHead className="text-right">Return %</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {trades.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
                         No trades yet for this user.
                       </TableCell>
                     </TableRow>
@@ -953,9 +991,6 @@ export default function UserDetailPage() {
                             }`}
                           >
                             {formatCurrency(netPnL)}
-                          </TableCell>
-                          <TableCell className={`text-right font-mono ${isWin ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {formatPercent(trade.pnl_percent || 0)}
                           </TableCell>
                         </TableRow>
                       );

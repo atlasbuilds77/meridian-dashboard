@@ -4,30 +4,17 @@ import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
-import { buildNetPnlSql } from '@/lib/db/pnl-sql';
 
 // Force dynamic rendering - no caching for admin data
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-const NET_PNL_SQL = buildNetPnlSql('t');
 const MARKET_TIMEZONE = 'America/Los_Angeles';
 
-interface AdminUserQueryRow {
-  id: number | string;
-  discord_id: string;
-  username: string;
-  avatar: string | null;
-  created_at: string;
-  last_login: string;
-  account_number: string | null;
-  platform: string | null;
-  verification_status: string | null;
-  trading_enabled: boolean | null;
-  size_pct: number | string | null;
-  trades_count: number | string;
-  total_pnl: number | string;
-  win_rate: number | string;
+function getPeriodFilterClause(period: 'today' | 'all'): string {
+  if (period === 'today') {
+    return `tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date`;
+  }
+  return 'TRUE';
 }
 
 const updateSchema = z
@@ -61,27 +48,41 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const { searchParams } = new URL(req.url);
+    const period: 'today' | 'all' = searchParams.get('period') === 'today' ? 'today' : 'all';
+    const periodFilterClause = getPeriodFilterClause(period);
+    
     // Admin query: show ALL closed trades for each user (no tradier deduplication filtering)
     // The tradier_position_id filtering was causing issues for users like Aman who have
     // mixed data sources (historical trades with tradier_position_id, new trades without).
     // When use_tradier=true, only trades WITH tradier_position_id were counted,
     // excluding newer trades that don't have it set.
-    const { rows } = await pool.query<AdminUserQueryRow>(`
+    const { rows } = await pool.query(`
       WITH trade_pnl AS (
         SELECT
           t.user_id,
           t.id,
           COALESCE(
             (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+            (t.entry_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
             (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
           ) AS trade_date,
           COALESCE(
+            t.net_pnl,
             CASE
-              WHEN (to_jsonb(t) ->> 'net_pnl') ~ '^-?\\d+(\\.\\d+)?$'
-                THEN (to_jsonb(t) ->> 'net_pnl')::numeric
+              WHEN t.pnl IS NOT NULL THEN t.pnl - COALESCE(t.commission, 0)
               ELSE NULL
             END,
-            ${NET_PNL_SQL}
+            CASE
+              WHEN t.exit_price IS NULL THEN NULL
+              WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+                THEN (t.exit_price - t.entry_price) * t.quantity *
+                     CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+                THEN (t.entry_price - t.exit_price) * t.quantity *
+                     CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+              ELSE NULL
+            END - COALESCE(t.commission, 0)
           ) AS pnl_value
         FROM trades t
         WHERE t.status = 'closed'
@@ -98,24 +99,15 @@ export async function GET(req: NextRequest) {
         ac.verification_status,
         COALESCE(us.trading_enabled, ac.trading_enabled, false) AS trading_enabled,
         COALESCE((us.size_pct * 100)::int, ac.size_pct, 25) AS size_pct,
-        COUNT(tp.id) FILTER (
-          WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
-        ) AS trades_count,
-        COALESCE(
-          SUM(tp.pnl_value) FILTER (
-            WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
-          ),
-          0
-        ) AS total_pnl,
+        COUNT(tp.id) FILTER (WHERE ${periodFilterClause}) AS trades_count,
+        COALESCE(SUM(tp.pnl_value) FILTER (WHERE ${periodFilterClause}), 0) AS total_pnl,
         COALESCE(
           100.0 * COUNT(*) FILTER (
-            WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+            WHERE ${periodFilterClause}
               AND tp.pnl_value > 0
           ) /
           NULLIF(
-            COUNT(tp.id) FILTER (
-              WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
-            ),
+            COUNT(tp.id) FILTER (WHERE ${periodFilterClause}),
             0
           ),
           0
@@ -154,7 +146,7 @@ export async function GET(req: NextRequest) {
       ORDER BY u.created_at DESC
     `);
 
-    const users = rows.map((row) => ({
+    const users = rows.map((row: any) => ({
       user: {
         id: row.id,
         discord_id: row.discord_id,

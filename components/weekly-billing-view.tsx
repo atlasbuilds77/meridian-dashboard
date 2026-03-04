@@ -23,6 +23,7 @@ import { formatCurrency } from '@/lib/utils-client';
 
 // Commission rate: $2.06/contract × 2 legs = $4.12/round trip
 const COMMISSION_PER_ROUND_TRIP = 4.12;
+const MARKET_TIMEZONE = 'America/Los_Angeles';
 
 interface Trade {
   id: number;
@@ -37,6 +38,9 @@ interface Trade {
   entry_date: string;
   exit_date: string | null;
   pnl: number | null;
+  gross_pnl?: number | null;
+  commission?: number | null;
+  net_pnl?: number | null;
   status: string;
   notes: string | null;
 }
@@ -58,43 +62,94 @@ function parseNumber(value: number | string | null | undefined): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-function calculateTradePnL(trade: Trade): number {
-  if (trade.pnl !== null && trade.pnl !== undefined) {
-    return parseNumber(trade.pnl);
-  }
-  if (!trade.exit_price) return 0;
-  
-  const multiplier = trade.asset_type === 'option' || trade.asset_type === 'future' ? 100 : 1;
-  const directionMultiplier = ['SHORT', 'PUT'].includes(trade.direction.toUpperCase()) ? -1 : 1;
-  
-  return (parseNumber(trade.exit_price) - parseNumber(trade.entry_price)) * 
-         trade.quantity * multiplier * directionMultiplier;
+function hasExplicitTradeBreakdown(trade: Trade): boolean {
+  return trade.gross_pnl !== undefined || trade.commission !== undefined || trade.net_pnl !== undefined;
 }
 
 function calculateCommission(trade: Trade): number {
-  // Commission applies per contract for options
+  if (trade.commission !== null && trade.commission !== undefined) {
+    return parseNumber(trade.commission);
+  }
+
   if (trade.asset_type === 'option') {
     return COMMISSION_PER_ROUND_TRIP * trade.quantity;
   }
-  // For stocks, assume a simpler commission model (or zero)
+
   return 0;
+}
+
+function calculateTradePnL(trade: Trade): number {
+  if (trade.gross_pnl !== null && trade.gross_pnl !== undefined) {
+    return parseNumber(trade.gross_pnl);
+  }
+
+  if (hasExplicitTradeBreakdown(trade)) {
+    if (trade.net_pnl !== null && trade.net_pnl !== undefined) {
+      return parseNumber(trade.net_pnl) + calculateCommission(trade);
+    }
+    if (trade.pnl !== null && trade.pnl !== undefined) {
+      return parseNumber(trade.pnl) + calculateCommission(trade);
+    }
+  }
+
+  if (trade.pnl !== null && trade.pnl !== undefined) {
+    return parseNumber(trade.pnl);
+  }
+
+  if (!trade.exit_price) return 0;
+
+  const multiplier = trade.asset_type === 'option' || trade.asset_type === 'future' ? 100 : 1;
+  const directionMultiplier = ['SHORT', 'PUT'].includes(trade.direction.toUpperCase()) ? -1 : 1;
+
+  return (parseNumber(trade.exit_price) - parseNumber(trade.entry_price)) *
+         trade.quantity * multiplier * directionMultiplier;
+}
+
+function calculateNetPnL(trade: Trade): number {
+  if (trade.net_pnl !== null && trade.net_pnl !== undefined) {
+    return parseNumber(trade.net_pnl);
+  }
+
+  if (hasExplicitTradeBreakdown(trade) && trade.pnl !== null && trade.pnl !== undefined) {
+    return parseNumber(trade.pnl);
+  }
+
+  return calculateTradePnL(trade) - calculateCommission(trade);
+}
+
+function formatDateForApi(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: MARKET_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    throw new Error('Failed to format date for API');
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function getWeekBounds(date: Date): { start: Date; end: Date } {
   const d = new Date(date);
   const day = d.getDay();
-  
-  // Monday = start of week
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  
-  // Sunday = end of week
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  
-  return { start: monday, end: sunday };
+
+  // Sunday = start of billing week, Saturday = end.
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - day);
+  sunday.setHours(0, 0, 0, 0);
+
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  saturday.setHours(23, 59, 59, 999);
+
+  return { start: sunday, end: saturday };
 }
 
 function formatWeekRange(start: Date, end: Date): string {
@@ -123,10 +178,12 @@ export function WeeklyBillingView() {
     setError(null);
     
     try {
-      const startStr = weekStart.toISOString().split('T')[0];
-      const endStr = weekEnd.toISOString().split('T')[0];
-      
-      const res = await fetch(`/api/user/trades/weekly?start=${startStr}&end=${endStr}`);
+      const startStr = formatDateForApi(weekStart);
+      const endStr = formatDateForApi(weekEnd);
+
+      const res = await fetch(`/api/user/trades/weekly?start=${startStr}&end=${endStr}&_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
       
       if (!res.ok) {
         throw new Error('Failed to fetch weekly trades');
@@ -328,7 +385,7 @@ export function WeeklyBillingView() {
                   {weeklyData.trades.map((trade) => {
                     const grossPnL = calculateTradePnL(trade);
                     const commission = calculateCommission(trade);
-                    const netPnL = grossPnL - commission;
+                    const netPnL = calculateNetPnL(trade);
                     const bullish = isBullish(trade.direction);
                     const isWin = netPnL > 0;
 
@@ -488,7 +545,7 @@ export function WeeklyBillingView() {
                   {(() => {
                     const grossPnL = calculateTradePnL(selectedTrade);
                     const commission = calculateCommission(selectedTrade);
-                    const netPnL = grossPnL - commission;
+                    const netPnL = calculateNetPnL(selectedTrade);
                     
                     return (
                       <>
@@ -500,7 +557,7 @@ export function WeeklyBillingView() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">
-                            Commissions ({selectedTrade.quantity} × $4.12)
+                            Commissions
                           </span>
                           <span className="font-mono text-loss">
                             -{formatCurrency(commission)}

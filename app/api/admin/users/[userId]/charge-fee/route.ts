@@ -12,7 +12,6 @@ import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
 import { chargeCustomer } from '@/lib/stripe/client';
-import { buildNetPnlSql } from '@/lib/db/pnl-sql';
 
 interface ChargeResult {
   success: boolean;
@@ -24,78 +23,88 @@ interface ChargeResult {
 interface WeeklyPnlResult {
   totalPnl: number;
   tradeCount: number;
-  source: 'database';
+  source: 'tradier' | 'legacy';
 }
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 const MARKET_TIMEZONE = 'America/Los_Angeles';
-const NET_PNL_SQL = buildNetPnlSql('t');
 
-const MARKET_WEEKDAY_INDEX: Record<string, number> = {
-  Sun: 0,
-  Mon: 1,
-  Tue: 2,
-  Wed: 3,
-  Thu: 4,
-  Fri: 5,
-  Sat: 6,
-};
+const COMMISSION_SQL = `
+  COALESCE(
+    t.commission,
+    CASE
+      WHEN (to_jsonb(t) ->> 'commission') ~ '^-?\\d+(\\.\\d+)?$'
+        THEN (to_jsonb(t) ->> 'commission')::numeric
+      WHEN (to_jsonb(t) ->> 'commissions') ~ '^-?\\d+(\\.\\d+)?$'
+        THEN (to_jsonb(t) ->> 'commissions')::numeric
+      ELSE NULL
+    END,
+    0
+  )`;
+
+const GROSS_PNL_SQL = `
+  COALESCE(
+    CASE
+      WHEN (to_jsonb(t) ->> 'gross_pnl') ~ '^-?\\d+(\\.\\d+)?$'
+        THEN (to_jsonb(t) ->> 'gross_pnl')::numeric
+      ELSE NULL
+    END,
+    t.pnl,
+    CASE
+      WHEN t.net_pnl IS NOT NULL THEN t.net_pnl + (${COMMISSION_SQL})
+      ELSE NULL
+    END,
+    CASE
+      WHEN t.exit_price IS NULL THEN NULL
+      WHEN UPPER(t.direction) IN ('LONG', 'CALL')
+        THEN (t.exit_price - t.entry_price) * t.quantity *
+             CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+      WHEN UPPER(t.direction) IN ('SHORT', 'PUT')
+        THEN (t.entry_price - t.exit_price) * t.quantity *
+             CASE WHEN t.asset_type IN ('option', 'future') THEN 100 ELSE 1 END
+      ELSE NULL
+    END
+  )`;
+
+const NET_PNL_SQL = `
+  COALESCE(
+    t.net_pnl,
+    CASE
+      WHEN t.pnl IS NOT NULL THEN t.pnl - (${COMMISSION_SQL})
+      ELSE NULL
+    END,
+    CASE
+      WHEN (${GROSS_PNL_SQL}) IS NULL THEN NULL
+      ELSE (${GROSS_PNL_SQL}) - (${COMMISSION_SQL})
+    END
+  )`;
 
 /**
- * Build a timezone-safe calendar date (YYYY-MM-DD) for a specific zone.
+ * Current billing week in market timezone (Sunday-Saturday).
  */
-function getZonedDateParts(date: Date, timeZone: string): { year: number; month: number; day: number } {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(date);
-  const year = Number(parts.find((part) => part.type === 'year')?.value ?? '0');
-  const month = Number(parts.find((part) => part.type === 'month')?.value ?? '0');
-  const day = Number(parts.find((part) => part.type === 'day')?.value ?? '0');
-  return { year, month, day };
-}
+async function getCurrentWeekDates(): Promise<{ weekStart: string; weekEnd: string }> {
+  const result = await pool.query(`
+    SELECT
+      (
+        (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        - EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int
+      )::date AS week_start,
+      (
+        (
+          (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          - EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int
+        )::date + INTERVAL '6 day'
+      )::date AS week_end
+  `);
 
-function getWeekdayInTimezone(date: Date, timeZone: string): number {
-  const weekdayShort = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    weekday: 'short',
-  }).format(date);
-  return MARKET_WEEKDAY_INDEX[weekdayShort] ?? 0;
-}
-
-function formatUtcDateOnly(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-const BILLING_WEEK_START_DAY = 2; // Tuesday (0=Sun ... 6=Sat)
-
-/**
- * Get current billing week dates in market timezone.
- * Meridian billing week runs Tuesday through Monday.
- */
-function getCurrentWeekDates(now = new Date()): { weekStart: string; weekEnd: string } {
-  const zonedParts = getZonedDateParts(now, MARKET_TIMEZONE);
-  const weekday = getWeekdayInTimezone(now, MARKET_TIMEZONE);
-
-  const marketDate = new Date(Date.UTC(zonedParts.year, zonedParts.month - 1, zonedParts.day));
-  const daysFromWeekStart = (weekday - BILLING_WEEK_START_DAY + 7) % 7;
-  const weekStartDate = new Date(marketDate);
-  weekStartDate.setUTCDate(weekStartDate.getUTCDate() - daysFromWeekStart);
-
-  const weekEndDate = new Date(weekStartDate);
-  weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 6);
+  const row = result.rows[0] || {};
+  const formatDate = (value: unknown): string => {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value);
+  };
 
   return {
-    weekStart: formatUtcDateOnly(weekStartDate),
-    weekEnd: formatUtcDateOnly(weekEndDate),
+    weekStart: formatDate(row.week_start),
+    weekEnd: formatDate(row.week_end),
   };
 }
 
@@ -104,25 +113,47 @@ async function calculateWeeklyPnl(
   weekStart: string,
   weekEnd: string
 ): Promise<WeeklyPnlResult> {
-  const result = await pool.query(
-    `WITH trades_with_pnl AS (
-      SELECT ${NET_PNL_SQL} AS net_pnl
-      FROM trades t
-      WHERE t.user_id = $1
-        AND t.status = 'closed'
-        AND ((exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date BETWEEN $2::date AND $3::date)
-    )
-    SELECT
-      COALESCE(SUM(net_pnl), 0) AS total_pnl,
-      COUNT(*) FILTER (WHERE net_pnl IS NOT NULL)::INTEGER AS trade_count
-    FROM trades_with_pnl`,
-    [userId, weekStart, weekEnd]
-  );
+  const runSourceQuery = async (useTradierRows: boolean) => {
+    const result = await pool.query(
+      `WITH trades_with_pnl AS (
+        SELECT ${NET_PNL_SQL} AS net_pnl
+        FROM trades t
+        WHERE t.user_id = $1
+          AND t.status = 'closed'
+          ${useTradierRows ? 'AND t.tradier_position_id IS NOT NULL' : 'AND t.tradier_position_id IS NULL'}
+          AND COALESCE(
+            (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+            (t.entry_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+            (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          ) BETWEEN $2::date AND $3::date
+      )
+      SELECT
+        COALESCE(SUM(net_pnl), 0) AS total_pnl,
+        COUNT(*) FILTER (WHERE net_pnl IS NOT NULL)::INTEGER AS trade_count
+      FROM trades_with_pnl`,
+      [userId, weekStart, weekEnd]
+    );
 
+    return {
+      totalPnl: parseFloat(String(result.rows[0]?.total_pnl ?? 0)) || 0,
+      tradeCount: parseInt(String(result.rows[0]?.trade_count ?? 0), 10) || 0,
+    };
+  };
+
+  const tradier = await runSourceQuery(true);
+  if (tradier.tradeCount > 0) {
+    return {
+      totalPnl: tradier.totalPnl,
+      tradeCount: tradier.tradeCount,
+      source: 'tradier',
+    };
+  }
+
+  const legacy = await runSourceQuery(false);
   return {
-    totalPnl: parseFloat(String(result.rows[0].total_pnl || 0)) || 0,
-    tradeCount: parseInt(String(result.rows[0].trade_count || 0), 10) || 0,
-    source: 'database',
+    totalPnl: legacy.totalPnl,
+    tradeCount: legacy.tradeCount,
+    source: 'legacy',
   };
 }
 
@@ -179,8 +210,8 @@ export async function POST(
       );
     }
 
-    // 5. Get current week dates
-    const { weekStart, weekEnd } = getCurrentWeekDates();
+    // 5. Get week dates
+    const { weekStart, weekEnd } = await getCurrentWeekDates();
 
     // 6. Check if already charged this week (rate limiting)
     const existingChargeResult = await pool.query(
@@ -203,7 +234,7 @@ export async function POST(
       );
     }
 
-    // 7. Calculate weekly P&L for the current week (market timezone)
+    // 7. Calculate weekly NET P&L for current billing week (prefer Tradier source rows)
     const weeklyPnl = await calculateWeeklyPnl(userId, weekStart, weekEnd);
     const totalPnl = weeklyPnl.totalPnl;
     const tradeCount = weeklyPnl.tradeCount;
@@ -478,9 +509,9 @@ export async function GET(
     }
 
     const user = userResult.rows[0];
-    const { weekStart, weekEnd } = getCurrentWeekDates();
+    const { weekStart, weekEnd } = await getCurrentWeekDates();
 
-    // Calculate weekly P&L for the current week (market timezone)
+    // Calculate weekly NET P&L for current billing week (prefer Tradier source rows)
     const weeklyPnl = await calculateWeeklyPnl(userId, weekStart, weekEnd);
     const totalPnl = weeklyPnl.totalPnl;
     const tradeCount = weeklyPnl.tradeCount;
@@ -521,49 +552,41 @@ export async function GET(
     const hasPaymentMethod = !!(user.stripe_customer_id && user.stripe_payment_method_id);
     const canCharge = hasPaymentMethod && totalPnl > 0 && (!existingCharge || existingCharge.status === 'failed');
 
-    return NextResponse.json(
-      {
-        weekStart,
-        weekEnd,
-        totalPnl,
-        tradeCount,
-        pnlSource: weeklyPnl.source,
-        feeAmount,
-        hasPaymentMethod,
-        paymentMethod: hasPaymentMethod
-          ? {
-              brand: user.card_brand,
-              last4: user.card_last4,
-            }
-          : null,
-        billingEnabled: user.billing_enabled,
-        existingCharge: existingCharge
-          ? {
-              id: existingCharge.id,
-              status: existingCharge.status,
-              paidAt: existingCharge.paid_at,
-              paymentIntentId: existingCharge.stripe_payment_intent_id,
-            }
-          : null,
-        canCharge,
-        chargeHistory: chargeHistoryResult.rows.map((row) => ({
-          id: row.id,
-          weekStart: row.week_start,
-          weekEnd: row.week_end,
-          totalPnl: parseFloat(row.total_pnl),
-          feeAmount: parseFloat(row.fee_amount),
-          status: row.status,
-          paidAt: row.paid_at,
-          stripeChargeId: row.stripe_charge_id,
-        })),
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          Pragma: 'no-cache',
-        },
-      }
-    );
+    return NextResponse.json({
+      weekStart,
+      weekEnd,
+      totalPnl,
+      tradeCount,
+      pnlSource: weeklyPnl.source,
+      feeAmount,
+      hasPaymentMethod,
+      paymentMethod: hasPaymentMethod
+        ? {
+            brand: user.card_brand,
+            last4: user.card_last4,
+          }
+        : null,
+      billingEnabled: user.billing_enabled,
+      existingCharge: existingCharge
+        ? {
+            id: existingCharge.id,
+            status: existingCharge.status,
+            paidAt: existingCharge.paid_at,
+            paymentIntentId: existingCharge.stripe_payment_intent_id,
+          }
+        : null,
+      canCharge,
+      chargeHistory: chargeHistoryResult.rows.map((row) => ({
+        id: row.id,
+        weekStart: row.week_start,
+        weekEnd: row.week_end,
+        totalPnl: parseFloat(row.total_pnl),
+        feeAmount: parseFloat(row.fee_amount),
+        status: row.status,
+        paidAt: row.paid_at,
+        stripeChargeId: row.stripe_charge_id,
+      })),
+    });
   } catch (error: unknown) {
     console.error('Charge info fetch error:', error);
     return NextResponse.json(
