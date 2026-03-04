@@ -79,20 +79,20 @@ const NET_PNL_SQL = `
   )`;
 
 /**
- * Current billing week in market timezone (Sunday-Saturday).
+ * Current billing week in market timezone (Monday-Friday).
  */
 async function getCurrentWeekDates(): Promise<{ weekStart: string; weekEnd: string }> {
   const result = await pool.query(`
     SELECT
       (
         (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
-        - EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int
+        - (EXTRACT(ISODOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int - 1)
       )::date AS week_start,
       (
         (
           (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
-          - EXTRACT(DOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int
-        )::date + INTERVAL '6 day'
+          - (EXTRACT(ISODOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int - 1)
+        )::date + INTERVAL '4 day'
       )::date AS week_end
   `);
 

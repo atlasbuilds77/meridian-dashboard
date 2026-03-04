@@ -546,7 +546,7 @@ export default function UserDetailPage() {
                       : 'bg-transparent text-muted-foreground hover:bg-primary/10'
                   }`}
                 >
-                  {period === 'all' ? 'All Time' : period === 'month' ? '30D' : period === 'week' ? '7D' : 'Today'}
+                  {period === 'all' ? 'All Time' : period === 'month' ? '30D' : period === 'week' ? 'Week' : 'Today'}
                 </button>
               ))}
             </div>

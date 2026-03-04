@@ -63,7 +63,15 @@ function getDateCondition(period: string): string {
     case 'today':
       return `AND t.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date`;
     case 'week':
-      return `AND t.trade_date >= ((CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date - INTERVAL '7 days')`;
+      return `AND t.trade_date BETWEEN (
+        (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        - (EXTRACT(ISODOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int - 1)
+      )::date AND (
+        (
+          (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          - (EXTRACT(ISODOW FROM (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date)::int - 1)
+        )::date + INTERVAL '4 day'
+      )::date`;
     case 'month':
       return `AND t.trade_date >= ((CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date - INTERVAL '30 days')`;
     case 'all':

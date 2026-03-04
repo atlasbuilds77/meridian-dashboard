@@ -138,18 +138,18 @@ function formatDateForApi(date: Date): string {
 
 function getWeekBounds(date: Date): { start: Date; end: Date } {
   const d = new Date(date);
-  const day = d.getDay();
+  const isoDay = ((d.getDay() + 6) % 7) + 1; // Monday=1 ... Sunday=7
 
-  // Sunday = start of billing week, Saturday = end.
-  const sunday = new Date(d);
-  sunday.setDate(d.getDate() - day);
-  sunday.setHours(0, 0, 0, 0);
+  // Monday = start of billing week, Friday = end.
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (isoDay - 1));
+  monday.setHours(0, 0, 0, 0);
 
-  const saturday = new Date(sunday);
-  saturday.setDate(sunday.getDate() + 6);
-  saturday.setHours(23, 59, 59, 999);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  friday.setHours(23, 59, 59, 999);
 
-  return { start: sunday, end: saturday };
+  return { start: monday, end: friday };
 }
 
 function formatWeekRange(start: Date, end: Date): string {
