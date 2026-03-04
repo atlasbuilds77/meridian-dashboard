@@ -35,6 +35,30 @@ interface UserStats {
   win_rate: number;
 }
 
+interface FlattenAllAccountResult {
+  user: string;
+  userId: number;
+  account: string;
+  positionsFound: number;
+  closed: number;
+  skipped: number;
+  errors: string[];
+}
+
+interface FlattenAllResponse {
+  success: boolean;
+  dryRun: boolean;
+  summary: {
+    accounts: number;
+    positionsFound: number;
+    closed: number;
+    skipped: number;
+    errors: number;
+  };
+  accounts: FlattenAllAccountResult[];
+  error?: string;
+}
+
 function formatSignedUsd(value: number): string {
   return `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(2)}`;
 }
@@ -194,54 +218,49 @@ export default function AdminDashboard() {
     if (!confirmed) return;
 
     setIsFlatteningAll(true);
-    let successCount = 0;
-    const failures: string[] = [];
-
     try {
-      for (const target of targets) {
-        try {
-          const response = await fetch(`/api/admin/users/${target.user.id}/flatten`, {
-            method: 'POST',
-            headers: {
-              'x-csrf-token': csrfToken.token,
-            },
-          });
+      const response = await fetch('/api/admin/flatten-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken.token,
+        },
+        body: JSON.stringify({ confirm: true }),
+      });
 
-          if (!response.ok) {
-            const errorBody = await response.json().catch(() => ({}));
-            failures.push(`${target.user.discord_username}: ${errorBody.error || response.status}`);
-            continue;
-          }
-
-          const payload = await response.json().catch(() => ({}));
-          if (payload?.success) {
-            successCount += 1;
-          } else {
-            failures.push(`${target.user.discord_username}: ${payload?.message || 'flatten failed'}`);
-          }
-        } catch (error) {
-          failures.push(
-            `${target.user.discord_username}: ${
-              error instanceof Error ? error.message : 'network error'
-            }`
-          );
-        }
+      const payload = (await response.json().catch(() => ({}))) as Partial<FlattenAllResponse>;
+      if (!response.ok || !payload.success) {
+        const message = payload.error || `Bulk flatten failed (${response.status})`;
+        throw new Error(message);
       }
+
+      const summary = payload.summary;
+      const accountResults = payload.accounts || [];
+      const failures = accountResults
+        .filter((row) => (row.errors || []).length > 0)
+        .map((row) => `${row.user}: ${(row.errors || []).slice(0, 2).join(' | ')}`);
+
+      await fetchUsers();
+
+      if (failures.length === 0) {
+        alert(
+          `Flatten complete. Accounts: ${summary?.accounts ?? 0}, positions found: ${
+            summary?.positionsFound ?? 0
+          }, orders sent: ${summary?.closed ?? 0}.`
+        );
+        return;
+      }
+
+      alert(
+        `Flatten completed with issues. Accounts: ${summary?.accounts ?? 0}, orders sent: ${
+          summary?.closed ?? 0
+        }, errors: ${summary?.errors ?? failures.length}\n` + failures.slice(0, 5).join('\n')
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Flatten failed');
     } finally {
       setIsFlatteningAll(false);
     }
-
-    await fetchUsers();
-
-    if (failures.length === 0) {
-      alert(`Flatten complete. Processed ${successCount}/${targets.length} users.`);
-      return;
-    }
-
-    alert(
-      `Flatten finished with issues. Success: ${successCount}/${targets.length}\n` +
-        failures.slice(0, 5).join('\n')
-    );
   }
 
   if (loading) {

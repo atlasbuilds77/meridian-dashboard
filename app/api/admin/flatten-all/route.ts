@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
 import { requireAdminSession } from '@/lib/api/require-auth';
 import { getApiCredential } from '@/lib/db/api-credentials';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 const OPTION_SYMBOL_RE = /^([A-Z]{1,6})\d{6}[CP]\d{8}$/;
 const TRADIER_BASE_URL = 'https://api.tradier.com/v1';
@@ -101,6 +103,22 @@ export async function POST(request: NextRequest) {
   const adminResult = await requireAdminSession();
   if (!adminResult.ok) {
     return adminResult.response;
+  }
+
+  const csrfResult = await validateCsrfFromRequest(request);
+  if (!csrfResult.valid) {
+    return csrfResult.response;
+  }
+
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'admin_flatten_all',
+    limit: 3,
+    windowMs: 60_000,
+    userId: adminResult.session.dbUserId,
+  });
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'admin_flatten_all');
   }
 
   let body: FlattenRequest = {};
