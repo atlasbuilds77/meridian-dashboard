@@ -52,13 +52,19 @@ export async function GET(req: NextRequest) {
     const period: 'today' | 'all' = searchParams.get('period') === 'today' ? 'today' : 'all';
     const periodFilterClause = getPeriodFilterClause(period);
     
-    // Admin query: show ALL closed trades for each user (no tradier deduplication filtering)
-    // The tradier_position_id filtering was causing issues for users like Aman who have
-    // mixed data sources (historical trades with tradier_position_id, new trades without).
-    // When use_tradier=true, only trades WITH tradier_position_id were counted,
-    // excluding newer trades that don't have it set.
+    // Admin query: show only Meridian-linked trades.
+    // "Meridian-linked" means the trade is tied to an active Tradier credential row via
+    // account_id -> api_credentials.id (numeric FK as string in trades.account_id).
+    // This intentionally excludes legacy/manual/import rows where account_id is null or
+    // account_number text, so all-time reflects current Meridian system performance.
     const { rows } = await pool.query(`
-      WITH trade_pnl AS (
+      WITH meridian_accounts AS (
+        SELECT ac.id, ac.user_id
+        FROM api_credentials ac
+        WHERE ac.platform = 'tradier'
+          AND ac.is_active = true
+      ),
+      trade_pnl AS (
         SELECT
           t.user_id,
           t.id,
@@ -85,6 +91,10 @@ export async function GET(req: NextRequest) {
             END - COALESCE(t.commission, 0)
           ) AS pnl_value
         FROM trades t
+        JOIN meridian_accounts ma
+          ON ma.user_id = t.user_id
+         AND t.account_id ~ '^[0-9]+$'
+         AND t.account_id::integer = ma.id
         WHERE t.status = 'closed'
       )
       SELECT
