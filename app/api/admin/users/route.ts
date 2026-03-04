@@ -11,6 +11,24 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NET_PNL_SQL = buildNetPnlSql('t');
+const MARKET_TIMEZONE = 'America/Los_Angeles';
+
+interface AdminUserQueryRow {
+  id: number | string;
+  discord_id: string;
+  username: string;
+  avatar: string | null;
+  created_at: string;
+  last_login: string;
+  account_number: string | null;
+  platform: string | null;
+  verification_status: string | null;
+  trading_enabled: boolean | null;
+  size_pct: number | string | null;
+  trades_count: number | string;
+  total_pnl: number | string;
+  win_rate: number | string;
+}
 
 const updateSchema = z
   .object({
@@ -48,12 +66,15 @@ export async function GET(req: NextRequest) {
     // mixed data sources (historical trades with tradier_position_id, new trades without).
     // When use_tradier=true, only trades WITH tradier_position_id were counted,
     // excluding newer trades that don't have it set.
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query<AdminUserQueryRow>(`
       WITH trade_pnl AS (
         SELECT
           t.user_id,
           t.id,
-          t.created_at,
+          COALESCE(
+            (t.exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date,
+            (t.created_at AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          ) AS trade_date,
           COALESCE(
             CASE
               WHEN (to_jsonb(t) ->> 'net_pnl') ~ '^-?\\d+(\\.\\d+)?$'
@@ -77,10 +98,26 @@ export async function GET(req: NextRequest) {
         ac.verification_status,
         COALESCE(us.trading_enabled, ac.trading_enabled, false) AS trading_enabled,
         COALESCE((us.size_pct * 100)::int, ac.size_pct, 25) AS size_pct,
-        COUNT(tp.id) FILTER (WHERE tp.created_at::date = CURRENT_DATE) AS trades_count,
-        COALESCE(SUM(tp.pnl_value) FILTER (WHERE tp.created_at::date = CURRENT_DATE), 0) AS total_pnl,
+        COUNT(tp.id) FILTER (
+          WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+        ) AS trades_count,
         COALESCE(
-          100.0 * COUNT(*) FILTER (WHERE tp.created_at::date = CURRENT_DATE AND tp.pnl_value > 0) / NULLIF(COUNT(tp.id) FILTER (WHERE tp.created_at::date = CURRENT_DATE), 0),
+          SUM(tp.pnl_value) FILTER (
+            WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+          ),
+          0
+        ) AS total_pnl,
+        COALESCE(
+          100.0 * COUNT(*) FILTER (
+            WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+              AND tp.pnl_value > 0
+          ) /
+          NULLIF(
+            COUNT(tp.id) FILTER (
+              WHERE tp.trade_date = (CURRENT_TIMESTAMP AT TIME ZONE '${MARKET_TIMEZONE}')::date
+            ),
+            0
+          ),
           0
         ) AS win_rate
       FROM users u
@@ -117,7 +154,7 @@ export async function GET(req: NextRequest) {
       ORDER BY u.created_at DESC
     `);
 
-    const users = rows.map((row: any) => ({
+    const users = rows.map((row) => ({
       user: {
         id: row.id,
         discord_id: row.discord_id,

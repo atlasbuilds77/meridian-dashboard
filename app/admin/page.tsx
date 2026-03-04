@@ -309,12 +309,12 @@ export default function AdminDashboard() {
             <div className="text-3xl font-bold text-primary">{activeTraders}</div>
           </div>
           <div className="nebula-panel rounded-xl p-5">
-            <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Total Trades</div>
+            <div className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Today&apos;s Trades</div>
             <div className="text-3xl font-bold text-foreground">{totalTrades}</div>
           </div>
           <div className="nebula-panel rounded-xl p-5">
             <div className="mb-1 flex items-center justify-between gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <span>Combined P&amp;L</span>
+              <span>Today&apos;s Combined Net P&amp;L</span>
               <button
                 type="button"
                 onClick={openCombinedShareCard}
@@ -363,7 +363,7 @@ export default function AdminDashboard() {
 
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
-                      Trades: <span className="text-foreground">{stats.trades_count}</span>
+                      Today: <span className="text-foreground">{stats.trades_count} trades</span>
                     </span>
                     <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-muted-foreground">
                       Win Rate:{' '}
@@ -397,8 +397,8 @@ export default function AdminDashboard() {
                   <th className="p-4">Tradier</th>
                   <th className="p-4">Trading</th>
                   <th className="p-4">Size %</th>
-                  <th className="p-4">Trades</th>
-                  <th className="p-4">P&amp;L</th>
+                  <th className="p-4">Today Trades</th>
+                  <th className="p-4">Today Net P&amp;L</th>
                   <th className="p-4">Win Rate</th>
                   <th className="p-4">Last Login</th>
                   <th className="p-4">Share</th>

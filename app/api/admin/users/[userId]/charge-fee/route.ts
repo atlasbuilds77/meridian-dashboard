@@ -24,7 +24,7 @@ interface ChargeResult {
 interface WeeklyPnlResult {
   totalPnl: number;
   tradeCount: number;
-  source: 'tradier' | 'legacy';
+  source: 'database';
 }
 
 export const dynamic = 'force-dynamic';
@@ -75,17 +75,20 @@ function formatUtcDateOnly(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+const BILLING_WEEK_START_DAY = 2; // Tuesday (0=Sun ... 6=Sat)
+
 /**
- * Get current calendar week dates (Monday through Sunday) in market timezone.
+ * Get current billing week dates in market timezone.
+ * Meridian billing week runs Tuesday through Monday.
  */
 function getCurrentWeekDates(now = new Date()): { weekStart: string; weekEnd: string } {
   const zonedParts = getZonedDateParts(now, MARKET_TIMEZONE);
   const weekday = getWeekdayInTimezone(now, MARKET_TIMEZONE);
 
   const marketDate = new Date(Date.UTC(zonedParts.year, zonedParts.month - 1, zonedParts.day));
-  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
+  const daysFromWeekStart = (weekday - BILLING_WEEK_START_DAY + 7) % 7;
   const weekStartDate = new Date(marketDate);
-  weekStartDate.setUTCDate(weekStartDate.getUTCDate() - daysFromMonday);
+  weekStartDate.setUTCDate(weekStartDate.getUTCDate() - daysFromWeekStart);
 
   const weekEndDate = new Date(weekStartDate);
   weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 6);
@@ -101,40 +104,12 @@ async function calculateWeeklyPnl(
   weekStart: string,
   weekEnd: string
 ): Promise<WeeklyPnlResult> {
-  // Source-of-truth pass: only Tradier gain/loss synced rows.
-  const tradierResult = await pool.query(
+  const result = await pool.query(
     `WITH trades_with_pnl AS (
       SELECT ${NET_PNL_SQL} AS net_pnl
       FROM trades t
       WHERE t.user_id = $1
         AND t.status = 'closed'
-        AND t.tradier_position_id IS NOT NULL
-        AND ((exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date BETWEEN $2::date AND $3::date)
-    )
-    SELECT
-      COALESCE(SUM(net_pnl), 0) AS total_pnl,
-      COUNT(*) FILTER (WHERE net_pnl IS NOT NULL)::INTEGER AS trade_count
-    FROM trades_with_pnl`,
-    [userId, weekStart, weekEnd]
-  );
-
-  const tradierTradeCount = parseInt(String(tradierResult.rows[0].trade_count || 0), 10) || 0;
-  if (tradierTradeCount > 0) {
-    return {
-      totalPnl: parseFloat(String(tradierResult.rows[0].total_pnl || 0)) || 0,
-      tradeCount: tradierTradeCount,
-      source: 'tradier',
-    };
-  }
-
-  // Fallback pass: legacy manually inserted rows with no Tradier position id.
-  const legacyResult = await pool.query(
-    `WITH trades_with_pnl AS (
-      SELECT ${NET_PNL_SQL} AS net_pnl
-      FROM trades t
-      WHERE t.user_id = $1
-        AND t.status = 'closed'
-        AND t.tradier_position_id IS NULL
         AND ((exit_date AT TIME ZONE '${MARKET_TIMEZONE}')::date BETWEEN $2::date AND $3::date)
     )
     SELECT
@@ -145,9 +120,9 @@ async function calculateWeeklyPnl(
   );
 
   return {
-    totalPnl: parseFloat(String(legacyResult.rows[0].total_pnl || 0)) || 0,
-    tradeCount: parseInt(String(legacyResult.rows[0].trade_count || 0), 10) || 0,
-    source: 'legacy',
+    totalPnl: parseFloat(String(result.rows[0].total_pnl || 0)) || 0,
+    tradeCount: parseInt(String(result.rows[0].trade_count || 0), 10) || 0,
+    source: 'database',
   };
 }
 

@@ -12,26 +12,35 @@ const NET_PNL_SQL = buildNetPnlSql('t');
 const GROSS_PNL_SQL = buildGrossPnlSql('t');
 const COMMISSION_SQL = buildCommissionSql('t');
 
-const FILTERED_TRADES_CTE = `
-  WITH source_pref AS (
-    SELECT EXISTS(
-      SELECT 1
-      FROM trades
-      WHERE user_id = $1
-        AND status = 'closed'
-        AND tradier_position_id IS NOT NULL
-    ) AS use_tradier
-  ),
-  filtered_trades AS (
+interface UserTradeRow {
+  id: number;
+  symbol: string;
+  direction: string;
+  asset_type: string;
+  entry_price: number | string;
+  exit_price: number | string | null;
+  quantity: number;
+  entry_date: string;
+  exit_date: string | null;
+  status: string;
+  setup_type: string | null;
+  stop_loss: number | string | null;
+  take_profit: number | string | null;
+  entry_reasoning: string | null;
+  strike: number | string | null;
+  expiry: string | null;
+  notes: string | null;
+  gross_pnl: number | string | null;
+  commission_amount: number | string | null;
+  pnl: number | string | null;
+  pnl_percent: number | string | null;
+}
+
+const USER_TRADES_CTE = `
+  WITH user_trades AS (
     SELECT t.*
     FROM trades t
-    CROSS JOIN source_pref sp
     WHERE t.user_id = $1
-      AND (
-        t.status <> 'closed'
-        OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
-        OR (NOT sp.use_tradier AND t.tradier_position_id IS NULL)
-      )
   )
 `;
 
@@ -72,7 +81,7 @@ export async function GET(
 
     // Get user's trades with consistent gross/commission/net values.
     const tradesResult = await pool.query(
-      `${FILTERED_TRADES_CTE}
+      `${USER_TRADES_CTE}
       SELECT 
         t.id,
         t.symbol,
@@ -100,19 +109,19 @@ export async function GET(
             ELSE NULL
           END
         ) AS pnl_percent
-       FROM filtered_trades t
+       FROM user_trades t
        ORDER BY entry_date DESC`,
       [userId]
     );
 
     // Calculate stats with net P&L.
     const statsResult = await pool.query(
-      `${FILTERED_TRADES_CTE},
+      `${USER_TRADES_CTE},
       trades_with_pnl AS (
         SELECT 
           ${buildNetPnlSql('t')} AS net_pnl,
           t.exit_date
-        FROM filtered_trades t
+        FROM user_trades t
         WHERE t.status = 'closed'
       )
       SELECT
@@ -161,7 +170,7 @@ export async function GET(
         discord_username: user.username,
         discord_avatar: user.avatar,
       },
-      trades: tradesResult.rows.map((trade: any) => ({
+      trades: (tradesResult.rows as UserTradeRow[]).map((trade) => ({
         ...trade,
         entry_price: parseFloat(String(trade.entry_price)),
         exit_price: trade.exit_price ? parseFloat(String(trade.exit_price)) : null,
