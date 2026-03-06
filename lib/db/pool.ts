@@ -31,18 +31,28 @@ const pool = new Pool({
   connectionString: DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000, // Increased from 5s to 10s for Render
   ssl: useSsl
     ? {
         rejectUnauthorized,
       }
     : undefined,
+  // TCP Keepalive settings for Render PostgreSQL stability
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 30000,
 });
 
 pool.on('error', (error) => {
   console.error('Database pool idle client error', {
     message: error.message,
     code: (error as NodeJS.ErrnoException).code,
+  });
+});
+
+// Graceful connection recovery
+pool.on('connect', (client) => {
+  client.on('error', (err) => {
+    console.error('Database client error:', err.message);
   });
 });
 
