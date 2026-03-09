@@ -202,3 +202,21 @@ export function useUserStats() {
     timestamp: string;
   }>('/api/user/stats', 30_000);
 }
+
+export interface TodayPnLData {
+  date: string;
+  totalPnL: number;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgWin: number;
+  avgLoss: number;
+  bestTrade: { symbol: string; pnl: number } | null;
+  worstTrade: { symbol: string; pnl: number } | null;
+  timestamp: string;
+}
+
+export function useTodayPnL() {
+  return useLiveData<TodayPnLData>('/api/user/tradier-pnl/today', 30_000);
+}

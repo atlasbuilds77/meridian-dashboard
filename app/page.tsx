@@ -23,6 +23,7 @@ import { ShareCardModal } from '@/components/share-card-modal';
 import { PnLShareButton } from '@/components/pnl-share-button';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { Sparkline } from '@/components/sparkline';
+import { TodayPnLCard } from '@/components/today-pnl-card';
 
 interface TradierPnLData {
   totalPnL: number;
@@ -458,6 +459,7 @@ export default function Dashboard() {
           </Button>
         </header>
 
+        <TodayPnLCard />
         <PortfolioHeader />
         <StatsGrid />
         <RecentActivity />
