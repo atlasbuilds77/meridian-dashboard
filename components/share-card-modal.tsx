@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -245,11 +246,14 @@ export function ShareCardModal({ open, onOpenChange, userId, mode = 'user' }: Sh
 
               {/* Card Preview */}
               <div className="flex justify-center rounded-lg border border-border/40 bg-black p-6">
-                <img
+                <Image
                   src={cardData.image}
                   alt="Share Card"
+                  width={600}
+                  height={600}
                   className="max-w-full rounded-lg shadow-2xl"
-                  style={{ maxHeight: '600px' }}
+                  style={{ maxHeight: '600px', width: 'auto', height: 'auto' }}
+                  priority
                 />
               </div>
 

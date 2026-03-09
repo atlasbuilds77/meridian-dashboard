@@ -1,11 +1,11 @@
 {
-  "name": "Meridian Trading Dashboard",
+  "name": "Meridian Dashboard",
   "short_name": "Meridian",
-  "description": "Professional Trading Analytics Dashboard - Track your P&L, analyze performance, and optimize your trading.",
+  "description": "Advanced trading analytics and portfolio management",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
-  "theme_color": "#8b5cf6",
+  "theme_color": "#6366f1",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -19,20 +19,8 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
     }
   ],
-  "categories": ["finance", "business"],
-  "screenshots": [
-    {
-      "src": "/screenshots/dashboard.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "label": "Dashboard view"
-    }
-  ]
+  "categories": ["finance", "productivity"],
+  "screenshots": []
 }
