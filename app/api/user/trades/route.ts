@@ -4,6 +4,7 @@ import { TradeSchema, TradeUpdateSchema } from '@/lib/validation/schemas';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { MERIDIAN_START_DATE } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
   try {
     // Prefer Tradier-sourced closed trades when present for this user.
     // This avoids double-counting rows when legacy/manual and Tradier sync data coexist.
+    // Filter to MERIDIAN_START_DATE to exclude pre-Meridian losses.
     const tradesResult = await pool.query(
       `WITH source_pref AS (
         SELECT EXISTS(
@@ -81,6 +83,7 @@ export async function GET(request: Request) {
         FROM trades t
         CROSS JOIN source_pref sp
         WHERE t.user_id = $1
+          AND COALESCE(t.entry_date, t.created_at) >= $3::date
           AND (
             t.status <> 'closed'
             OR (sp.use_tradier AND t.tradier_position_id IS NOT NULL)
@@ -104,11 +107,12 @@ export async function GET(request: Request) {
        FROM filtered_trades
        ORDER BY entry_date DESC
        LIMIT $2`,
-      [authResult.userId, limit]
+      [authResult.userId, limit, MERIDIAN_START_DATE]
     );
 
     // Use fallback PnL calculation when pnl is NULL but exit_price exists.
     // Closed-trade source is filtered the same way as the trades list above.
+    // Filter to MERIDIAN_START_DATE to exclude pre-Meridian losses.
     const summaryResult = await pool.query(
       `WITH source_pref AS (
         SELECT EXISTS(
@@ -139,6 +143,7 @@ export async function GET(request: Request) {
         CROSS JOIN source_pref sp
         WHERE user_id = $1
           AND status = 'closed'
+          AND COALESCE(entry_date, created_at) >= $2::date
           AND (
             (sp.use_tradier AND tradier_position_id IS NOT NULL)
             OR (NOT sp.use_tradier AND tradier_position_id IS NULL)
@@ -153,7 +158,7 @@ export async function GET(request: Request) {
         COALESCE(AVG(pnl_value) FILTER (WHERE pnl_value < 0), 0) as avg_loss,
         COALESCE(100.0 * COUNT(*) FILTER (WHERE pnl_value > 0) / NULLIF(COUNT(*), 0), 0) as win_rate
        FROM trade_pnl`,
-      [authResult.userId]
+      [authResult.userId, MERIDIAN_START_DATE]
     );
 
     const summary = summaryResult.rows[0] || {};

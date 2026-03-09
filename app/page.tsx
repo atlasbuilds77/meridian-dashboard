@@ -17,10 +17,29 @@ import {
   AlertCircle,
   Share2,
 } from 'lucide-react';
-import { useTradeData, useMarketData, useAccountData, useSystemStatus } from '@/hooks/use-live-data';
+import { useTradeData, useMarketData, useAccountData, useSystemStatus, useLiveData } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent, formatDate } from '@/lib/utils-client';
 import { ShareCardModal } from '@/components/share-card-modal';
 import { PnLShareButton } from '@/components/pnl-share-button';
+import { AnimatedCounter } from '@/components/animated-counter';
+import { Sparkline } from '@/components/sparkline';
+
+interface TradierPnLData {
+  totalPnL: number;
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  profitFactor: number;
+  avgWin: number;
+  avgLoss: number;
+  dailyPnL: Array<{ date: string; dailyPnL: number; cumulativePnL: number }>;
+  timestamp: string;
+}
+
+function useTradierPnL() {
+  return useLiveData<TradierPnLData>('/api/user/tradier-pnl', 60_000);
+}
 
 type DashboardTrade = {
   symbol?: string;
@@ -93,6 +112,7 @@ function PortfolioHeader() {
   const { data: trades, loading: tradesLoading, error: tradesError } = useTradeData();
   const { data: accounts, loading: accountsLoading } = useAccountData();
   const { data: market, lastUpdate } = useMarketData('QQQ');
+  const { data: tradierPnL } = useTradierPnL();
 
   if (tradesLoading || accountsLoading) {
     return <LoadingCard />;
@@ -102,7 +122,8 @@ function PortfolioHeader() {
     return <ErrorCard message="Failed to load portfolio data" />;
   }
 
-  const totalPnL = trades.summary.totalPnL || 0;
+  // Use Tradier P&L as source of truth when available, fall back to DB trades
+  const totalPnL = tradierPnL?.totalPnL ?? trades.summary.totalPnL ?? 0;
   const accountBalance = accounts?.totalBalance || 0;
   // Portfolio value = current balance (already includes today's P/L)
   // Don't add totalPnL again - that would double-count!
@@ -110,6 +131,11 @@ function PortfolioHeader() {
   const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   const isPositive = totalPnL >= 0;
   const shareText = `Meridian P&L update: ${formatCurrency(totalPnL)} on ${formatCurrency(totalValue)} portfolio value (${formatPercent(totalReturn)}).`;
+
+  // Extract sparkline data from Tradier daily P&L (cumulative, last 14 days)
+  const sparklineData = tradierPnL?.dailyPnL
+    ? tradierPnL.dailyPnL.slice(-14).map((d) => d.cumulativePnL)
+    : [];
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
@@ -127,7 +153,11 @@ function PortfolioHeader() {
 
         <div className="mb-5 flex flex-wrap items-end gap-3">
           <h1 className={`text-4xl font-bold tracking-tight sm:text-6xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
-            {formatCurrency(totalValue)}
+            <AnimatedCounter
+              value={totalValue}
+              duration={1000}
+              formatFn={formatCurrency}
+            />
           </h1>
 
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5">
@@ -136,12 +166,27 @@ function PortfolioHeader() {
               {formatPercent(totalReturn)}
             </span>
           </div>
+
+          {sparklineData.length >= 2 && (
+            <Sparkline
+              data={sparklineData}
+              width={120}
+              height={40}
+              className="hidden sm:block"
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 sm:gap-5">
           <div className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
             P&amp;L:{' '}
-            <span className={`font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>{formatCurrency(totalPnL)}</span>
+            <span className={`font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>
+              <AnimatedCounter
+                value={totalPnL}
+                duration={1000}
+                formatFn={formatCurrency}
+              />
+            </span>
           </div>
 
           {market && (
