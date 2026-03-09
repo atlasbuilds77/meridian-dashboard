@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -213,10 +214,13 @@ export default function SettingsPage() {
             <div className="flex items-start gap-4">
               {userSession?.avatar && (
                 <div className="shrink-0">
-                  <img
+                  <Image
                     src={userSession.avatar}
                     alt={userSession.username}
+                    width={64}
+                    height={64}
                     className="h-16 w-16 rounded-full border-2 border-primary/40"
+                    priority
                   />
                 </div>
               )}

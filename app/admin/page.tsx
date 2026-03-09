@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Share2 } from 'lucide-react';
 import { ShareCardModal } from '@/components/share-card-modal';
 import { AdminAccountValues } from '@/components/admin-account-values';
@@ -459,13 +460,15 @@ export default function AdminDashboard() {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         {stats.user.discord_avatar ? (
-                          <img
+                          <Image
                             src={
                               stats.user.discord_avatar.startsWith('http')
                                 ? stats.user.discord_avatar
                                 : `https://cdn.discordapp.com/avatars/${stats.user.discord_id}/${stats.user.discord_avatar}.png`
                             }
                             alt=""
+                            width={40}
+                            height={40}
                             className="h-10 w-10 rounded-full border border-primary/30"
                           />
                         ) : (

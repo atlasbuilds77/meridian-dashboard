@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -511,13 +512,15 @@ export default function UserDetailPage() {
 
             <div className="flex items-center gap-3">
               {user.discord_avatar ? (
-                <img
+                <Image
                   src={
                     user.discord_avatar.startsWith('http')
                       ? user.discord_avatar
                       : `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png`
                   }
                   alt=""
+                  width={48}
+                  height={48}
                   className="h-12 w-12 rounded-full border-2 border-primary/30"
                 />
               ) : (
@@ -711,14 +714,14 @@ export default function UserDetailPage() {
                   <div className="pt-4 border-t border-primary/10">
                     <h4 className="text-sm font-medium mb-3">Recent Charges</h4>
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="sticky top-0 z-20 backdrop-blur-md bg-background/95 border-b border-primary/20">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead>Week</TableHead>
-                          <TableHead className="text-right">P&L</TableHead>
-                          <TableHead className="text-right">Fee</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right">Charge ID</TableHead>
+                          <TableHead className="sticky top-0 bg-background/95">Week</TableHead>
+                          <TableHead className="text-right sticky top-0 bg-background/95">P&L</TableHead>
+                          <TableHead className="text-right sticky top-0 bg-background/95">Fee</TableHead>
+                          <TableHead className="sticky top-0 bg-background/95">Status</TableHead>
+                          <TableHead className="sticky top-0 bg-background/95">Date</TableHead>
+                          <TableHead className="text-right sticky top-0 bg-background/95">Charge ID</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -942,19 +945,19 @@ export default function UserDetailPage() {
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-20 backdrop-blur-md bg-background/95 border-b border-primary/20">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Strike</TableHead>
-                    <TableHead>Expiry</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Entry</TableHead>
-                    <TableHead className="text-right">Exit</TableHead>
-                    <TableHead className="text-right">Gross P&L</TableHead>
-                    <TableHead className="text-right">Comm.</TableHead>
-                    <TableHead className="text-right">Net P&L</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Date</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Symbol</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Strike</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Expiry</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Direction</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Qty</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Entry</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Exit</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Gross P&L</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Comm.</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Net P&L</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

@@ -4,28 +4,13 @@ import { TrendingUp, TrendingDown, Zap, Trophy, Target } from 'lucide-react';
 import { useTodayPnL } from '@/hooks/use-live-data';
 import { formatCurrency } from '@/lib/utils-client';
 import { AnimatedCounter } from '@/components/animated-counter';
-
-function TodayPnLSkeleton() {
-  return (
-    <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
-      <div className="animate-pulse">
-        <div className="mb-4 h-5 w-40 rounded bg-white/10" />
-        <div className="mb-6 h-16 w-64 rounded bg-white/10" />
-        <div className="flex gap-6">
-          <div className="h-10 w-28 rounded bg-white/10" />
-          <div className="h-10 w-28 rounded bg-white/10" />
-          <div className="h-10 w-28 rounded bg-white/10" />
-        </div>
-      </div>
-    </section>
-  );
-}
+import { PnLCardSkeleton } from '@/components/skeletons';
 
 export function TodayPnLCard() {
   const { data, loading } = useTodayPnL();
 
   if (loading && !data) {
-    return <TodayPnLSkeleton />;
+    return <PnLCardSkeleton />;
   }
 
   // Default to zero state if no data yet (market not open, no trades)

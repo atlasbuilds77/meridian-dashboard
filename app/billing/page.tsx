@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { WeeklyBillingView } from '@/components/weekly-billing-view';
 import { PaymentMethodManager } from '@/components/payment-method-form';
 
@@ -31,10 +32,13 @@ export default function BillingPage() {
         {/* Header */}
         <header className="flex items-center gap-4">
           {userSession?.avatar && (
-            <img
+            <Image
               src={userSession.avatar}
               alt={userSession.username}
+              width={48}
+              height={48}
               className="h-12 w-12 rounded-full border-2 border-primary/40"
+              priority
             />
           )}
           <div className="space-y-1">

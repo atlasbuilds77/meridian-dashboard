@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,12 @@ import { PnLShareButton } from '@/components/pnl-share-button';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { Sparkline } from '@/components/sparkline';
 import { TodayPnLCard } from '@/components/today-pnl-card';
+import { 
+  PortfolioHeaderSkeleton, 
+  StatsCardSkeleton, 
+  TableRowSkeleton 
+} from '@/components/skeletons';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 
 interface TradierPnLData {
   totalPnL: number;
@@ -85,16 +92,7 @@ function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
   );
 }
 
-function LoadingCard() {
-  return (
-    <Card className="animate-pulse">
-      <CardContent className="p-6">
-        <div className="mb-4 h-8 w-32 rounded bg-white/10" />
-        <div className="h-12 w-48 rounded bg-white/10" />
-      </CardContent>
-    </Card>
-  );
-}
+
 
 function ErrorCard({ message }: { message: string }) {
   return (
@@ -116,7 +114,7 @@ function PortfolioHeader() {
   const { data: tradierPnL } = useTradierPnL();
 
   if (tradesLoading || accountsLoading) {
-    return <LoadingCard />;
+    return <PortfolioHeaderSkeleton />;
   }
 
   if (tradesError || !trades) {
@@ -213,7 +211,7 @@ function StatsGrid() {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((item) => (
-          <LoadingCard key={item} />
+          <StatsCardSkeleton key={item} />
         ))}
       </div>
     );
@@ -321,7 +319,18 @@ function RecentActivity() {
   const { data: trades, loading, error } = useTradeData();
 
   if (loading) {
-    return <LoadingCard />;
+    return (
+      <Card className="col-span-full border-primary/30">
+        <CardHeader className="border-b border-primary/20 pb-4">
+          <div className="animate-pulse h-6 w-32 bg-white/10 rounded" />
+        </CardHeader>
+        <CardContent className="p-0">
+          {[1, 2, 3, 4, 5].map((item) => (
+            <TableRowSkeleton key={item} />
+          ))}
+        </CardContent>
+      </Card>
+    );
   }
 
   if (error || !trades) {
@@ -402,6 +411,7 @@ function RecentActivity() {
 export default function Dashboard() {
   const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; discordId: string | null; userId: string | null } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -428,16 +438,27 @@ export default function Dashboard() {
       .catch(() => {});
   }, []);
 
+  const handleRefresh = async () => {
+    // Trigger data refetch by updating key
+    setRefreshKey((prev) => prev + 1);
+    // Wait a bit to show the refresh animation
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  };
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
       <div className="mx-auto max-w-[1600px] space-y-6">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {userSession?.avatar && (
-              <img
+              <Image
                 src={userSession.avatar}
                 alt={userSession.username}
+                width={48}
+                height={48}
                 className="h-12 w-12 rounded-full border-2 border-primary/40"
+                priority
               />
             )}
             <div className="space-y-1">
@@ -472,5 +493,6 @@ export default function Dashboard() {
         />
       </div>
     </div>
+    </PullToRefresh>
   );
 }

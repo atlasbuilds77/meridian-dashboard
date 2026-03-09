@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { RefreshCw, DollarSign, Wallet, TrendingUp, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -195,13 +196,15 @@ export function AdminAccountValues() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           {account.avatar ? (
-                            <img
+                            <Image
                               src={
                                 account.avatar.startsWith('http')
                                   ? account.avatar
                                   : `https://cdn.discordapp.com/avatars/${account.discordId}/${account.avatar}.png`
                               }
                               alt=""
+                              width={32}
+                              height={32}
                               className="h-8 w-8 rounded-full border border-primary/30"
                             />
                           ) : (

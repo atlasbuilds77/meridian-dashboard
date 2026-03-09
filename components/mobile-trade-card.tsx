@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils-client';
+import { SwipeableCard } from '@/components/swipeable-card';
 
 interface Trade {
   id: number;
@@ -30,6 +31,8 @@ interface MobileTradeCardProps {
   commission: number;
   netPnL: number;
   onClick?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 function isBullish(direction: string): boolean {
@@ -37,16 +40,17 @@ function isBullish(direction: string): boolean {
   return d === 'LONG' || d === 'CALL' || d === 'BUY';
 }
 
-export function MobileTradeCard({ trade, grossPnL, commission, netPnL, onClick }: MobileTradeCardProps) {
+export function MobileTradeCard({ trade, grossPnL, commission, netPnL, onClick, onDelete, onEdit }: MobileTradeCardProps) {
   const bullish = isBullish(trade.direction);
   const isWin = netPnL > 0;
 
   return (
-    <Card 
-      className="border-primary/30 cursor-pointer hover:bg-secondary/20 transition-colors"
-      onClick={onClick}
-    >
-      <CardContent className="p-4">
+    <SwipeableCard onDelete={onDelete} onEdit={onEdit}>
+      <Card 
+        className="border-primary/30 cursor-pointer hover:bg-secondary/20 transition-colors"
+        onClick={onClick}
+      >
+        <CardContent className="p-4">
         {/* Top row: Symbol + Direction + Net P&L */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -104,5 +108,6 @@ export function MobileTradeCard({ trade, grossPnL, commission, netPnL, onClick }
         </div>
       </CardContent>
     </Card>
+    </SwipeableCard>
   );
 }

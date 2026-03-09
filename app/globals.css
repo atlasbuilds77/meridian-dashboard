@@ -147,6 +147,14 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Safe area support for iOS notch and home indicator */
+  :root {
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  }
+
   body {
     @apply bg-background text-foreground;
     position: relative;
@@ -273,4 +281,29 @@ textarea,
   transition-property: background-color, border-color, color, box-shadow, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 180ms;
+}
+
+/* Mobile touch targets - minimum 44px height (Apple HIG) */
+@media (max-width: 768px) {
+  button,
+  a,
+  [role='button'],
+  input[type='button'],
+  input[type='submit'],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Ensure icon buttons are large enough */
+  button[data-size='icon'],
+  button[data-size='icon-sm'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Add padding to small interactive elements */
+  a:not([class*='h-']) {
+    padding: 8px;
+  }
 }

@@ -7,6 +7,7 @@ import { UserMenu } from '@/components/user-menu';
 import { NavLinks } from '@/components/nav-links';
 import { LayoutContentInner } from '@/components/layout-content';
 import { MobileNav } from '@/components/mobile-nav';
+import { PageTransition } from '@/components/page-transition';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -36,8 +37,8 @@ export const metadata: Metadata = {
 
 function Navigation() {
   return (
-    <nav className="fixed left-0 right-0 top-0 z-50 border-b border-primary/25 bg-[rgba(8,8,14,0.85)] backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-8 lg:px-12">
+    <nav className="fixed left-0 right-0 top-0 z-50 border-b border-primary/25 bg-[rgba(8,8,14,0.85)] backdrop-blur-xl" style={{ paddingTop: 'var(--safe-area-inset-top)' }}>
+      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-8 lg:px-12" style={{ paddingLeft: 'max(1rem, var(--safe-area-inset-left))', paddingRight: 'max(1rem, var(--safe-area-inset-right))' }}>
         <div className="flex items-center gap-6 lg:gap-10">
           <Link href="/" className="group flex items-center gap-3">
             <div className="relative h-11 w-11 transition-transform duration-300 group-hover:scale-105">
@@ -73,7 +74,9 @@ export default function RootLayout({
         <div className="nebula-orb nebula-orb-3" />
         <Navigation />
         <LayoutContentInner>
-          <div className="pb-20 md:pb-0">{children}</div>
+          <div className="pb-20 md:pb-0" style={{ paddingBottom: 'calc(5rem + var(--safe-area-inset-bottom))' }}>
+            <PageTransition>{children}</PageTransition>
+          </div>
         </LayoutContentInner>
         <MobileNav />
       </body>

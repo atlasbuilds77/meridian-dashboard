@@ -160,19 +160,19 @@ export default function TradesPage() {
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-20 backdrop-blur-md bg-background/95 border-b border-primary/20">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Strike</TableHead>
-                    <TableHead>Expiry</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="text-right">Entry</TableHead>
-                    <TableHead className="text-right">Exit</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Gross P&L</TableHead>
-                    <TableHead className="text-right">Comm.</TableHead>
-                    <TableHead className="text-right">Net P&L</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Date</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Symbol</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Strike</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Expiry</TableHead>
+                    <TableHead className="sticky top-0 bg-background/95">Direction</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Entry</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Exit</TableHead>
+                    <TableHead className="text-center sticky top-0 bg-background/95">Status</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Gross P&L</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Comm.</TableHead>
+                    <TableHead className="text-right sticky top-0 bg-background/95">Net P&L</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
