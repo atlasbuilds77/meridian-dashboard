@@ -20,6 +20,7 @@ import {
   PieChart,
   Pie,
 } from "recharts";
+import { PnlHeatmap } from "@/components/pnl-heatmap";
 
 interface DailyResult {
   date: string;
@@ -204,6 +205,9 @@ export default function AnalyticsPage() {
             trend={stats && stats.total_return_pct > 0 ? "up" : "down"}
           />
         </div>
+
+        {/* P&L Heatmap Calendar */}
+        <PnlHeatmap weeks={12} />
 
         {/* Cumulative P&L Chart */}
         <Card>
