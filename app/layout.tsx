@@ -21,6 +21,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Meridian Dashboard',
   description: 'Professional trading analytics dashboard',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Meridian',
+  },
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/apple-touch-icon.png',
+  },
+  themeColor: '#8b5cf6',
 };
 
 function Navigation() {
