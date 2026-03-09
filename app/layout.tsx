@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { UserMenu } from '@/components/user-menu';
 import { NavLinks } from '@/components/nav-links';
 import { LayoutContentInner } from '@/components/layout-content';
+import { MobileNav } from '@/components/mobile-nav';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -60,7 +61,10 @@ export default function RootLayout({
         <div className="nebula-orb nebula-orb-2" />
         <div className="nebula-orb nebula-orb-3" />
         <Navigation />
-        <LayoutContentInner>{children}</LayoutContentInner>
+        <LayoutContentInner>
+          <div className="pb-20 md:pb-0">{children}</div>
+        </LayoutContentInner>
+        <MobileNav />
       </body>
     </html>
   );

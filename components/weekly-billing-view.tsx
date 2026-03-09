@@ -20,9 +20,11 @@ import {
 } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight, Calendar, TrendingUp, TrendingDown, Receipt, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils-client';
+import { MobileTradeCard } from '@/components/mobile-trade-card';
 
-// Commission rate: $2.06/contract × 2 legs = $4.12/round trip
-const COMMISSION_PER_ROUND_TRIP = 4.12;
+// Commission rate: Use actual commission from Tradier (most accounts are $0)
+// Fallback to $0 if not provided - don't assume commissions
+const DEFAULT_COMMISSION_PER_ROUND_TRIP = 0;
 const MARKET_TIMEZONE = 'America/Los_Angeles';
 
 interface Trade {
@@ -67,15 +69,14 @@ function hasExplicitTradeBreakdown(trade: Trade): boolean {
 }
 
 function calculateCommission(trade: Trade): number {
+  // Use actual commission from trade data (from Tradier)
+  // Don't assume commissions - most accounts show $0
   if (trade.commission !== null && trade.commission !== undefined) {
     return parseNumber(trade.commission);
   }
 
-  if (trade.asset_type === 'option') {
-    return COMMISSION_PER_ROUND_TRIP * trade.quantity;
-  }
-
-  return 0;
+  // Only use default if no commission data available
+  return DEFAULT_COMMISSION_PER_ROUND_TRIP * trade.quantity;
 }
 
 function calculateTradePnL(trade: Trade): number {
@@ -365,57 +366,79 @@ export function WeeklyBillingView() {
               No trades this week.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Date</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead>Strike</TableHead>
-                    <TableHead>Expiry</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="text-right">Entry</TableHead>
-                    <TableHead className="text-right">Exit</TableHead>
-                    <TableHead className="text-right">Gross P&L</TableHead>
-                    <TableHead className="text-right">Comm.</TableHead>
-                    <TableHead className="text-right">Net P&L</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {weeklyData.trades.map((trade) => {
-                    const grossPnL = calculateTradePnL(trade);
-                    const commission = calculateCommission(trade);
-                    const netPnL = calculateNetPnL(trade);
-                    const bullish = isBullish(trade.direction);
-                    const isWin = netPnL > 0;
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {weeklyData.trades.map((trade) => {
+                  const grossPnL = calculateTradePnL(trade);
+                  const commission = calculateCommission(trade);
+                  const netPnL = calculateNetPnL(trade);
+                  
+                  return (
+                    <MobileTradeCard
+                      key={trade.id}
+                      trade={trade}
+                      grossPnL={grossPnL}
+                      commission={commission}
+                      netPnL={netPnL}
+                      onClick={() => setSelectedTrade(trade)}
+                    />
+                  );
+                })}
+              </div>
 
-                    return (
-                      <TableRow
-                        key={trade.id}
-                        className="cursor-pointer hover:bg-secondary/30"
-                        onClick={() => setSelectedTrade(trade)}
-                      >
-                        <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{new Date(trade.entry_date).toLocaleDateString()}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(trade.entry_date).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-semibold">{trade.symbol}</TableCell>
-                        <TableCell>
-                          {trade.strike ? `$${trade.strike.toFixed(0)}` : '—'}
-                        </TableCell>
-                        <TableCell>
-                          {trade.expiry 
-                            ? new Date(trade.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : '—'}
-                        </TableCell>
-                        <TableCell>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Date</TableHead>
+                      <TableHead>Symbol</TableHead>
+                      <TableHead>Strike</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Direction</TableHead>
+                      <TableHead className="text-right">Entry</TableHead>
+                      <TableHead className="text-right">Exit</TableHead>
+                      <TableHead className="text-right">Gross P&L</TableHead>
+                      <TableHead className="text-right">Comm.</TableHead>
+                      <TableHead className="text-right">Net P&L</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {weeklyData.trades.map((trade) => {
+                      const grossPnL = calculateTradePnL(trade);
+                      const commission = calculateCommission(trade);
+                      const netPnL = calculateNetPnL(trade);
+                      const bullish = isBullish(trade.direction);
+                      const isWin = netPnL > 0;
+
+                      return (
+                        <TableRow
+                          key={trade.id}
+                          className="cursor-pointer hover:bg-secondary/30"
+                          onClick={() => setSelectedTrade(trade)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                              <span>{new Date(trade.entry_date).toLocaleDateString()}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(trade.entry_date).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-semibold">{trade.symbol}</TableCell>
+                          <TableCell>
+                            {trade.strike ? `$${trade.strike.toFixed(0)}` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {trade.expiry 
+                              ? new Date(trade.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
                           <div className="flex items-center gap-1">
                             {bullish ? (
                               <TrendingUp className="h-4 w-4 text-profit" />
@@ -448,9 +471,10 @@ export function WeeklyBillingView() {
                       </TableRow>
                     );
                   })}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
