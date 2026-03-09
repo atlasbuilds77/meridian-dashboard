@@ -21,6 +21,7 @@ import { StatsCard } from '@/components/stats-card';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useTradeData } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent } from '@/lib/utils-client';
+import { StatsCardSkeleton, TableRowSkeleton } from '@/components/skeletons';
 
 // Commission rate: $2.06/contract × 2 legs = $4.12/round trip
 const COMMISSION_PER_ROUND_TRIP = 4.12;
@@ -96,11 +97,29 @@ export default function TradesPage() {
   if (loading || !data) {
     return (
       <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-48" />
-            <div className="h-64 bg-muted rounded" />
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-white/10 rounded w-48 mb-2" />
+            <div className="h-4 bg-white/10 rounded w-64" />
           </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+          </div>
+
+          <Card className="border-primary/30">
+            <CardHeader>
+              <div className="animate-pulse h-6 w-32 bg-white/10 rounded" />
+            </CardHeader>
+            <CardContent className="p-0">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
+                <TableRowSkeleton key={item} />
+              ))}
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

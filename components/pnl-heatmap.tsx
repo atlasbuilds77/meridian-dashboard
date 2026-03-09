@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChartSkeleton } from '@/components/skeletons';
 
 interface DailyPnl {
   date: string;
@@ -197,18 +198,7 @@ export function PnlHeatmap({ weeks = 12, onDayClick }: PnlHeatmapProps) {
   }
 
   if (loading) {
-    return (
-      <Card className="border-primary/30 bg-[rgba(19,19,28,0.72)]">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">P&L Heatmap</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32 text-muted-foreground">
-            Loading heatmap...
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <ChartSkeleton />;
   }
 
   return (
