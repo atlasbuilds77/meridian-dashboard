@@ -8,6 +8,7 @@ import { NavLinks } from '@/components/nav-links';
 import { LayoutContentInner } from '@/components/layout-content';
 import { MobileNav } from '@/components/mobile-nav';
 import { PageTransition } from '@/components/page-transition';
+import NDAProvider from '@/components/NDAProvider';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -73,11 +74,13 @@ export default function RootLayout({
         <div className="nebula-orb nebula-orb-2" />
         <div className="nebula-orb nebula-orb-3" />
         <Navigation />
-        <LayoutContentInner>
-          <div className="pb-20 md:pb-0" style={{ paddingBottom: 'calc(5rem + var(--safe-area-inset-bottom))' }}>
-            <PageTransition>{children}</PageTransition>
-          </div>
-        </LayoutContentInner>
+        <NDAProvider>
+          <LayoutContentInner>
+            <div className="pb-20 md:pb-0" style={{ paddingBottom: 'calc(5rem + var(--safe-area-inset-bottom))' }}>
+              <PageTransition>{children}</PageTransition>
+            </div>
+          </LayoutContentInner>
+        </NDAProvider>
         <MobileNav />
       </body>
     </html>
