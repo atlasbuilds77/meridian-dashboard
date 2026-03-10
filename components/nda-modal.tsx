@@ -48,11 +48,9 @@ export function NdaModal({ onAccept }: NdaModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={() => { /* Prevent closing - NDA required */ }}>
       <DialogContent
         className="max-w-3xl border-primary/30 bg-[rgba(19,19,28,0.98)]"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
