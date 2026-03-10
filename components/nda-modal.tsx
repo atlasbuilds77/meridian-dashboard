@@ -101,7 +101,7 @@ export function NdaModal({ onAccept }: NdaModalProps) {
               <section>
                 <h3 className="text-base font-semibold text-foreground mb-3">2. Non-Compete</h3>
                 <p className="mb-3">
-                  During your subscription and for 12 months after termination, you agree not to:
+                  During your access to the service and for the survival period defined in Section 7, you agree not to:
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>
@@ -174,17 +174,17 @@ export function NdaModal({ onAccept }: NdaModalProps) {
               <section>
                 <h3 className="text-base font-semibold text-foreground mb-3">7. Term and Survival</h3>
                 <p className="mb-3">
-                  <strong>For subscription users:</strong> This agreement remains in effect during your subscription 
-                  and for 24 months after termination.
+                  <strong>For subscription users:</strong> All obligations under this agreement remain in effect 
+                  during your subscription and for 24 months after termination or cancellation.
                 </p>
                 <p className="mb-3">
-                  <strong>For lifetime access users:</strong> This agreement remains in effect permanently for the 
-                  duration of your access and in perpetuity thereafter. By accepting lifetime access, you acknowledge 
-                  that confidentiality obligations have no expiration.
+                  <strong>For lifetime access users:</strong> All obligations under this agreement remain in effect 
+                  permanently for the duration of your access and in perpetuity thereafter. By accepting lifetime 
+                  access, you acknowledge that all confidentiality and non-compete obligations have no expiration.
                 </p>
                 <p>
-                  Sections 1 (Confidential Information), 2 (Non-Compete), 4 (Intellectual Property), and 5
-                  (Remedies) survive termination indefinitely.
+                  For all users, Sections 1 (Confidential Information), 4 (Intellectual Property), 5 (Remedies), 
+                  and 6 (Indemnification) survive termination for the periods specified above.
                 </p>
               </section>
 
@@ -217,7 +217,7 @@ export function NdaModal({ onAccept }: NdaModalProps) {
 
               <p className="text-xs text-muted-foreground/70 mt-8 pt-6 border-t border-primary/10">
                 <strong>Orion Solana LLC dba ZeroG Trading</strong><br />
-                Last Updated: March 10, 2026 • Version 1.1
+                Last Updated: March 10, 2026 • Version 1.2
               </p>
             </div>
           </ScrollArea>
