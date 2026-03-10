@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -173,35 +173,48 @@ export function WeeklyBillingView() {
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   const { start: weekStart, end: weekEnd } = getWeekBounds(currentWeek);
-
-  const fetchWeeklyTrades = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const startStr = formatDateForApi(weekStart);
-      const endStr = formatDateForApi(weekEnd);
-
-      const res = await fetch(`/api/user/trades/weekly?start=${startStr}&end=${endStr}&_t=${Date.now()}`, {
-        cache: 'no-store',
-      });
-      
-      if (!res.ok) {
-        throw new Error('Failed to fetch weekly trades');
-      }
-      
-      const data = await res.json();
-      setWeeklyData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load trades');
-    } finally {
-      setLoading(false);
-    }
-  }, [weekStart, weekEnd]);
+  
+  // Memoize date strings to prevent infinite re-fetch loop
+  const startStr = useMemo(() => formatDateForApi(weekStart), [weekStart.getTime()]);
+  const endStr = useMemo(() => formatDateForApi(weekEnd), [weekEnd.getTime()]);
 
   useEffect(() => {
+    let cancelled = false;
+    
+    const fetchWeeklyTrades = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const res = await fetch(`/api/user/trades/weekly?start=${startStr}&end=${endStr}`, {
+          cache: 'no-store',
+        });
+        
+        if (!res.ok) {
+          throw new Error('Failed to fetch weekly trades');
+        }
+        
+        const data = await res.json();
+        if (!cancelled) {
+          setWeeklyData(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load trades');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     void fetchWeeklyTrades();
-  }, [fetchWeeklyTrades]);
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [startStr, endStr]);
 
   const goToPreviousWeek = () => {
     const newDate = new Date(currentWeek);
