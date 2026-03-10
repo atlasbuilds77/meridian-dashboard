@@ -57,8 +57,15 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get today's date in YYYY-MM-DD format (market timezone = ET, but Tradier dates are date-only)
-    const today = new Date().toISOString().slice(0, 10);
+    // Get today's date in YYYY-MM-DD format using ET (market timezone)
+    // Tradier uses market dates, so we need to match
+    const etFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const today = etFormatter.format(new Date()); // Returns "YYYY-MM-DD" in ET
 
     // Fetch positions closed today only
     const positions = await fetchTradierGainLoss(accountNumber, credential.api_key, {
