@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
-import { getApiCredential } from '@/lib/db/api-credentials';
-import { fetchTradierGainLoss } from '@/lib/api-clients/tradier-gainloss';
 import pool from '@/lib/db/pool';
 
 export const dynamic = 'force-dynamic';
@@ -33,93 +31,70 @@ export async function GET(request: Request) {
   }
 
   try {
-    const credential = await getApiCredential(authResult.userId, 'tradier');
-    if (!credential) {
-      return NextResponse.json(
-        { error: 'No Tradier credentials configured' },
-        { status: 404 },
-      );
-    }
-
-    const accountInfo = await pool.query(
-      `SELECT account_number FROM api_credentials
-       WHERE user_id = $1 AND platform = 'tradier' LIMIT 1`,
-      [authResult.userId],
+    // Query trades from database using ET timezone for "today"
+    // This is more reliable than Tradier API which can have delays
+    const result = await pool.query(
+      `SELECT 
+        id, symbol, direction, pnl, exit_date
+      FROM trades 
+      WHERE user_id = $1 
+        AND exit_date IS NOT NULL
+        AND (exit_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/New_York')::date = 
+            (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+      ORDER BY exit_date DESC`,
+      [authResult.userId]
     );
 
-    const accountNumber = accountInfo.rows[0]?.account_number as
-      | string
-      | undefined;
-    if (!accountNumber) {
-      return NextResponse.json(
-        { error: 'No Tradier account number found' },
-        { status: 404 },
-      );
-    }
+    const todayTrades = result.rows;
 
-    // Get today's date in YYYY-MM-DD format using ET (market timezone)
-    // Tradier uses market dates, so we need to match
+    // Get today's date in ET for response
     const etFormatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
-    const today = etFormatter.format(new Date()); // Returns "YYYY-MM-DD" in ET
+    const today = etFormatter.format(new Date());
 
-    // Fetch positions closed today only
-    const positions = await fetchTradierGainLoss(accountNumber, credential.api_key, {
-      start: today,
-      end: today,
-      sortBy: 'closeDate',
-      sort: 'desc',
-      limit: 100,
-    });
-
-    // Filter to positions actually closed today (belt + suspenders)
-    const todayPositions = positions.filter(
-      (p) => p.close_date.slice(0, 10) === today,
-    );
-
-    const totalPnL = todayPositions.reduce((sum, p) => sum + p.gain_loss, 0);
-    const wins = todayPositions.filter((p) => p.gain_loss > 0);
-    const losses = todayPositions.filter((p) => p.gain_loss < 0);
+    const totalPnL = todayTrades.reduce((sum, t) => sum + parseFloat(t.pnl || 0), 0);
+    const wins = todayTrades.filter((t) => parseFloat(t.pnl) > 0);
+    const losses = todayTrades.filter((t) => parseFloat(t.pnl) < 0);
     const winRate =
-      todayPositions.length > 0
-        ? (wins.length / todayPositions.length) * 100
+      todayTrades.length > 0
+        ? (wins.length / todayTrades.length) * 100
         : 0;
 
     const avgWin =
       wins.length > 0
-        ? wins.reduce((sum, p) => sum + p.gain_loss, 0) / wins.length
+        ? wins.reduce((sum, t) => sum + parseFloat(t.pnl), 0) / wins.length
         : 0;
     const avgLoss =
       losses.length > 0
-        ? losses.reduce((sum, p) => sum + p.gain_loss, 0) / losses.length
+        ? losses.reduce((sum, t) => sum + parseFloat(t.pnl), 0) / losses.length
         : 0;
 
     // Best and worst trade today
-    const bestTrade = todayPositions.length > 0
-      ? todayPositions.reduce((best, p) => p.gain_loss > best.gain_loss ? p : best)
+    const bestTrade = todayTrades.length > 0
+      ? todayTrades.reduce((best, t) => parseFloat(t.pnl) > parseFloat(best.pnl) ? t : best)
       : null;
-    const worstTrade = todayPositions.length > 0
-      ? todayPositions.reduce((worst, p) => p.gain_loss < worst.gain_loss ? p : worst)
+    const worstTrade = todayTrades.length > 0
+      ? todayTrades.reduce((worst, t) => parseFloat(t.pnl) < parseFloat(worst.pnl) ? t : worst)
       : null;
 
     return NextResponse.json({
       date: today,
       totalPnL,
-      totalTrades: todayPositions.length,
+      totalTrades: todayTrades.length,
       wins: wins.length,
       losses: losses.length,
       winRate,
       avgWin,
       avgLoss,
       bestTrade: bestTrade
-        ? { symbol: bestTrade.symbol, pnl: bestTrade.gain_loss }
+        ? { symbol: bestTrade.symbol, pnl: parseFloat(bestTrade.pnl) }
         : null,
       worstTrade: worstTrade
-        ? { symbol: worstTrade.symbol, pnl: worstTrade.gain_loss }
+        ? { symbol: worstTrade.symbol, pnl: parseFloat(worstTrade.pnl) }
         : null,
       timestamp: new Date().toISOString(),
     });
