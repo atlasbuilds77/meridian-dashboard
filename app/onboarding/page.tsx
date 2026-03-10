@@ -271,9 +271,8 @@ export default function OnboardingPage() {
                   <p className="font-semibold">{COMPANY_NAME} - FEE STRUCTURE</p>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="font-semibold">Monthly Membership:</span> $1,200/month (monthly plan)</p>
-                  <p><span className="font-semibold">Lifetime Membership:</span> one-time purchase, same platform access as monthly members, no recurring monthly membership charge</p>
-                  <p><span className="font-semibold">Automation Service Fee:</span> 10% of weekly profits (applies to both monthly and lifetime members)</p>
+                  <p><span className="font-semibold">Monthly Membership:</span> $1,200/month + 10% of weekly profits</p>
+                  <p><span className="font-semibold">Lifetime Membership:</span> One-time purchase + 10% of weekly profits (no monthly fee)</p>
                 </div>
                 
                 <div className="pt-3 border-t border-border/50">

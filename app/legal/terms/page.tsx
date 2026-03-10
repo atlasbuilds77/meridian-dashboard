@@ -37,10 +37,9 @@ const sections: TermsSection[] = [
   {
     title: 'Fees and Billing',
     paragraphs: [
-      'Monthly Membership: $1,200 per month for platform access.',
-      'Lifetime Membership: one-time purchase with the same platform access as monthly members and no recurring monthly membership charge.',
-      'Automation Service Fee: 10% of weekly profits (Monday through Friday performance window, charged Sunday night only when profitable).',
-      'The weekly 10% service fee applies to both monthly and lifetime members when automation services are enabled.',
+      'Monthly Membership: $1,200 per month + 10% of weekly profits.',
+      'Lifetime Membership: One-time purchase + 10% of weekly profits (no recurring monthly fee).',
+      'The 10% service fee is calculated on net weekly profits (Monday through Friday), charged Sunday night only when profitable.',
     ],
     callout: 'All sales are final. No refunds.',
   },
