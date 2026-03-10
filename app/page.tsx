@@ -31,6 +31,7 @@ import {
   TableRowSkeleton 
 } from '@/components/skeletons';
 import { PullToRefresh } from '@/components/pull-to-refresh';
+import { NdaModal } from '@/components/nda-modal';
 
 interface TradierPnLData {
   totalPnL: number;
@@ -412,6 +413,7 @@ export default function Dashboard() {
   const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; discordId: string | null; userId: string | null } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [ndaAccepted, setNdaAccepted] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/session')
@@ -446,6 +448,11 @@ export default function Dashboard() {
   };
 
   return (
+    <>
+      {/* NDA Modal - shows on first visit */}
+      <NdaModal onAccept={() => setNdaAccepted(true)} />
+
+      {/* Dashboard Content */}
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
       <div className="mx-auto max-w-[1600px] space-y-6">
@@ -494,5 +501,6 @@ export default function Dashboard() {
       </div>
     </div>
     </PullToRefresh>
+    </>
   );
 }
