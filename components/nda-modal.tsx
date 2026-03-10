@@ -18,41 +18,32 @@ interface NdaModalProps {
 }
 
 export function NdaModal({ onAccept }: NdaModalProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // Always open when rendered
   const [accepted, setAccepted] = useState(false);
   const [understood, setUnderstood] = useState(false);
-
-  useEffect(() => {
-    // Check if user has already accepted NDA
-    const hasAccepted = localStorage.getItem('meridian_nda_accepted');
-    if (!hasAccepted) {
-      setOpen(true);
-    }
-  }, []);
+  const [loading, setLoading] = useState(false);
 
   const handleAccept = async () => {
-    if (!accepted || !understood) {
+    if (!accepted || !understood || loading) {
       return;
     }
 
+    setLoading(true);
     try {
-      // Record NDA acceptance in database
       const response = await fetch('/api/user/nda-acceptance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          acceptedAt: new Date().toISOString(),
-          version: '1.0',
-        }),
+        body: JSON.stringify({ accepted: true }),
       });
 
       if (response.ok) {
-        localStorage.setItem('meridian_nda_accepted', 'true');
         setOpen(false);
         onAccept();
       }
     } catch (error) {
       console.error('Failed to record NDA acceptance:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,13 +89,14 @@ export function NdaModal({ onAccept }: NdaModalProps) {
                   1. Confidential Information
                 </h3>
                 <p className="mb-3">
-                  You acknowledge that Meridian's trading system, signals, strategies, algorithms, performance
-                  data, and all related intellectual property (collectively, "Confidential Information") are
+                  You acknowledge that the trading system, signals, strategies, algorithms, performance
+                  data, and all related intellectual property of <strong>Orion Solana LLC dba ZeroG Trading</strong> 
+                  (operating as "Meridian") (collectively, "Confidential Information") are
                   proprietary and confidential.
                 </p>
                 <p>
                   You agree not to disclose, copy, reproduce, or share any Confidential Information with any third
-                  party without prior written consent from Meridian.
+                  party without prior written consent from <strong>Orion Solana LLC dba ZeroG Trading</strong>.
                 </p>
               </section>
 
@@ -182,6 +174,7 @@ export function NdaModal({ onAccept }: NdaModalProps) {
               </section>
 
               <p className="text-xs text-muted-foreground/70 mt-8 pt-6 border-t border-primary/10">
+                <strong>Orion Solana LLC dba ZeroG Trading</strong><br />
                 Last Updated: March 10, 2026 • Version 1.0
               </p>
             </div>

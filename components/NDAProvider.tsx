@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import NDAModal from './NDAModal';
+import { NdaModal } from './nda-modal';
 
 // Routes that don't require NDA (login, onboarding, legal pages)
 const EXEMPT_ROUTES = ['/login', '/onboarding', '/legal', '/api'];
@@ -53,7 +53,7 @@ export default function NDAProvider({ children }: { children: React.ReactNode })
     return (
       <>
         {children}
-        <NDAModal onAccept={() => setNdaAccepted(true)} />
+        <NdaModal onAccept={() => setNdaAccepted(true)} />
       </>
     );
   }
