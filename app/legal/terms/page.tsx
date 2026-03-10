@@ -5,12 +5,13 @@ type TermsSection = {
   callout?: string;
 };
 
-const LAST_UPDATED = 'February 21, 2026';
+const LAST_UPDATED = 'March 10, 2026';
+const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
 
 const sections: TermsSection[] = [
   {
     title: 'Agreement',
-    paragraphs: ['These Terms of Service govern your access to and use of Meridian. By using the Services, you agree to be bound by these Terms.'],
+    paragraphs: [`These Terms of Service ("Terms") constitute a legally binding agreement between you and ${COMPANY_NAME} (operating as "Meridian"). By accessing or using the Services, you agree to be bound by these Terms. If you do not agree, do not use the Services.`],
   },
   {
     title: 'Nature of Services',
@@ -54,8 +55,8 @@ const sections: TermsSection[] = [
   {
     title: 'Limitation of Liability',
     paragraphs: [
-      'Our maximum liability to you is limited to the lesser of $1,200 or the total fees paid to Meridian during your lifetime.',
-      'We exclude liability for lost profits, trading losses, data loss, platform outages, and third-party broker failures.',
+      `The maximum aggregate liability of ${COMPANY_NAME} to you for any claims arising from or related to these Terms or your use of the Services is limited to the lesser of $1,200 or the total fees you have paid to us.`,
+      `${COMPANY_NAME} shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to lost profits, trading losses, data loss, platform outages, missed trading opportunities, or third-party broker failures.`,
     ],
   },
   {
@@ -65,8 +66,15 @@ const sections: TermsSection[] = [
     ],
   },
   {
+    title: 'Governing Law',
+    paragraphs: [
+      'These Terms are governed by the laws of the State of California, United States, without regard to conflict of law principles.',
+      'Any disputes not subject to arbitration shall be resolved exclusively in the state or federal courts located in Los Angeles County, California.',
+    ],
+  },
+  {
     title: 'Contact',
-    paragraphs: ['Questions about these terms can be sent to support@meridian.com.'],
+    paragraphs: [`Questions about these terms can be sent to support@zerogtrading.com. ${COMPANY_NAME}, California, United States.`],
   },
 ];
 
@@ -76,7 +84,7 @@ export default function TermsPage() {
       <div className="mx-auto grid max-w-[1500px] gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <aside className="xl:sticky xl:top-24 xl:self-start">
           <div className="nebula-panel rounded-2xl p-6 sm:p-8">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Meridian Legal</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{COMPANY_NAME}</p>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight nebula-gradient-text">Licensing Agreement</h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Terms covering membership access, automation billing, risk allocation, and acceptable platform usage.

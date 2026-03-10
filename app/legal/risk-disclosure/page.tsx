@@ -4,6 +4,8 @@ type RiskSection = {
   paragraphs?: string[];
 };
 
+const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
+
 const sections: RiskSection[] = [
   {
     title: 'Options Trading Risks',
@@ -65,7 +67,13 @@ const sections: RiskSection[] = [
   {
     title: 'No Investment Advice',
     paragraphs: [
-      'Meridian is a technology platform, not an investment adviser. We do not recommend specific trades, evaluate suitability, or guarantee outcomes.',
+      `${COMPANY_NAME} (operating as "Meridian") is a technology platform, not a registered investment adviser, broker-dealer, or financial planner. We do not recommend specific trades, evaluate suitability, or guarantee outcomes. You are solely responsible for your trading decisions.`,
+    ],
+  },
+  {
+    title: 'Acknowledgment',
+    paragraphs: [
+      `By using the Services provided by ${COMPANY_NAME}, you acknowledge that you have read, understood, and agree to accept all risks described in this disclosure. You confirm that you are trading with capital you can afford to lose and that you have consulted with appropriate financial, legal, and tax professionals as needed.`,
     ],
   },
 ];
@@ -112,7 +120,7 @@ export default function RiskDisclosurePage() {
           </div>
 
           <div className="mt-8 rounded-lg border border-loss/35 bg-loss/10 p-4 text-sm font-semibold text-loss">
-            Final warning: Meridian cannot eliminate market risk, execution risk, or operational risk.
+            Final warning: {COMPANY_NAME} (Meridian) cannot eliminate market risk, execution risk, or operational risk. Trading involves substantial risk of loss.
           </div>
         </article>
       </div>

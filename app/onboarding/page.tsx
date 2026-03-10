@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { CheckCircle2 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 
+const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
+
 const RISK_TYPES = [
   { id: 'options_trading_risk', label: 'I understand options trading involves substantial risk, including total loss of capital' },
-  { id: 'no_investment_advice', label: 'I understand Meridian is an automated technology platform, NOT an investment adviser' },
+  { id: 'no_investment_advice', label: `I understand ${COMPANY_NAME} (Meridian) is an automated technology platform, NOT an investment adviser` },
   { id: 'user_sole_responsibility', label: 'I am solely responsible for all investment decisions and outcomes' },
   { id: 'past_performance_disclaimer', label: 'I understand past performance does not guarantee future results' },
   { id: 'system_downtime_risk', label: 'I accept that system failures, bugs, or API outages may occur' },
@@ -132,6 +134,9 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <div className="text-center space-y-2">
               <h2 className="text-3xl font-bold">Welcome to Meridian</h2>
+              <p className="text-sm text-muted-foreground mb-2">
+                Operated by {COMPANY_NAME}
+              </p>
               <p className="text-muted-foreground">
                 Before you start trading, please review and accept our legal agreements.
               </p>
@@ -263,7 +268,7 @@ export default function OnboardingPage() {
             <div className="space-y-4 border border-border rounded-lg p-6 bg-secondary/10">
               <div className="space-y-3">
                 <div>
-                  <p className="font-semibold">MERIDIAN FEE STRUCTURE</p>
+                  <p className="font-semibold">{COMPANY_NAME} - FEE STRUCTURE</p>
                 </div>
                 <div className="space-y-2 text-sm">
                   <p><span className="font-semibold">Monthly Membership:</span> $1,200/month (monthly plan)</p>
@@ -322,11 +327,12 @@ export default function OnboardingPage() {
             
             <div className="space-y-4 border border-border rounded-lg p-6 bg-secondary/10">
               <p className="text-sm">
-                By typing your full legal name below, you electronically sign and agree to:
+                By typing your full legal name below, you electronically sign and agree to the following agreements with <strong>{COMPANY_NAME}</strong>:
               </p>
               <ul className="space-y-1 text-sm list-disc list-inside">
                 <li>Terms of Service</li>
                 <li>Risk Disclosure Agreement</li>
+                <li>Non-Disclosure Agreement</li>
                 <li>Privacy Policy</li>
                 <li>Fee Agreement</li>
               </ul>
