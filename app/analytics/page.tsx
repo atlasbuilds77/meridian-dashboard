@@ -244,7 +244,10 @@ export default function AnalyticsPage() {
                       backgroundColor: "#18181b",
                       border: "1px solid #27272a",
                       borderRadius: "8px",
+                      color: "#ffffff",
                     }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#22c55e" }}
                     formatter={(value) => [
                       `$${Number(value || 0).toLocaleString()}`,
                       "Cumulative P&L",
@@ -291,7 +294,10 @@ export default function AnalyticsPage() {
                       backgroundColor: "#18181b",
                       border: "1px solid #27272a",
                       borderRadius: "8px",
+                      color: "#ffffff",
                     }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#ffffff" }}
                     formatter={(value) => [
                       `$${Number(value || 0).toLocaleString()}`,
                       "Daily P&L",
@@ -342,7 +348,10 @@ export default function AnalyticsPage() {
                         backgroundColor: "#18181b",
                         border: "1px solid #27272a",
                         borderRadius: "8px",
+                        color: "#ffffff",
                       }}
+                      labelStyle={{ color: "#a1a1aa" }}
+                      itemStyle={{ color: "#3b82f6" }}
                       formatter={(value) => [`${Number(value || 0).toFixed(1)}%`, "Win Rate"]}
                     />
                     <Line
@@ -386,7 +395,10 @@ export default function AnalyticsPage() {
                         backgroundColor: "#18181b",
                         border: "1px solid #27272a",
                         borderRadius: "8px",
+                        color: "#ffffff",
                       }}
+                      labelStyle={{ color: "#a1a1aa" }}
+                      itemStyle={{ color: "#ffffff" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -441,7 +453,10 @@ export default function AnalyticsPage() {
                       backgroundColor: "#18181b",
                       border: "1px solid #27272a",
                       borderRadius: "8px",
+                      color: "#ffffff",
                     }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#ffffff" }}
                     formatter={(value) => [`$${Number(value || 0).toLocaleString()}`, "P&L"]}
                   />
                   <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
