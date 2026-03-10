@@ -139,41 +139,85 @@ export function NdaModal({ onAccept }: NdaModalProps) {
               </section>
 
               <section>
-                <h3 className="text-base font-semibold text-foreground mb-3">5. Remedies</h3>
-                <p className="mb-3">You acknowledge that:</p>
+                <h3 className="text-base font-semibold text-foreground mb-3">5. Remedies and Liability</h3>
+                <p className="mb-3">You acknowledge and agree that:</p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>
-                    Breach of this agreement may cause irreparable harm to Meridian for which monetary damages may
+                    Breach of this agreement may cause irreparable harm for which monetary damages may
                     be inadequate
                   </li>
                   <li>
-                    Meridian is entitled to seek injunctive relief in addition to any other remedies available at
-                    law or in equity
+                    The Company is entitled to seek injunctive relief, specific performance, and any other remedies 
+                    available at law or in equity
                   </li>
                   <li>Violation will result in immediate termination of your access without refund</li>
+                  <li>
+                    You shall be liable for all damages, including but not limited to actual damages, consequential 
+                    damages, lost profits, and attorney fees resulting from your breach
+                  </li>
+                  <li>
+                    In the event of unauthorized disclosure, you agree to pay liquidated damages of $50,000 per 
+                    incident, which you acknowledge is a reasonable estimate of potential harm
+                  </li>
                 </ul>
               </section>
 
               <section>
-                <h3 className="text-base font-semibold text-foreground mb-3">6. Term and Survival</h3>
+                <h3 className="text-base font-semibold text-foreground mb-3">6. Indemnification</h3>
                 <p>
-                  This agreement remains in effect during your subscription and for 12 months after termination.
-                  Sections 1 (Confidential Information), 2 (Non-Compete), 4 (Intellectual Property), and 5
-                  (Remedies) survive termination.
+                  You agree to indemnify, defend, and hold harmless Orion Solana LLC dba ZeroG Trading, its officers, 
+                  directors, employees, and agents from any claims, damages, losses, or expenses (including reasonable 
+                  attorney fees) arising from your breach of this agreement or misuse of Confidential Information.
                 </p>
               </section>
 
               <section>
-                <h3 className="text-base font-semibold text-foreground mb-3">7. Governing Law</h3>
+                <h3 className="text-base font-semibold text-foreground mb-3">7. Term and Survival</h3>
+                <p className="mb-3">
+                  <strong>For subscription users:</strong> This agreement remains in effect during your subscription 
+                  and for 24 months after termination.
+                </p>
+                <p className="mb-3">
+                  <strong>For lifetime access users:</strong> This agreement remains in effect permanently for the 
+                  duration of your access and in perpetuity thereafter. By accepting lifetime access, you acknowledge 
+                  that confidentiality obligations have no expiration.
+                </p>
                 <p>
+                  Sections 1 (Confidential Information), 2 (Non-Compete), 4 (Intellectual Property), and 5
+                  (Remedies) survive termination indefinitely.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-base font-semibold text-foreground mb-3">8. Trading Risk Disclaimer</h3>
+                <p className="mb-3">
+                  You acknowledge that trading involves substantial risk of loss and is not suitable for all investors. 
+                  Past performance is not indicative of future results. The Company makes no guarantees regarding 
+                  trading performance or profitability.
+                </p>
+                <p>
+                  You agree that the Company, its officers, directors, employees, and agents shall not be liable for 
+                  any trading losses, missed opportunities, technical failures, or any other damages arising from 
+                  your use of the service. You trade at your own risk and are solely responsible for your trading decisions.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-base font-semibold text-foreground mb-3">9. Governing Law and Dispute Resolution</h3>
+                <p className="mb-3">
                   This agreement is governed by the laws of California, United States, without regard to conflict of law
                   principles. You consent to exclusive jurisdiction in California state and federal courts.
+                </p>
+                <p>
+                  Any disputes shall first be subject to good-faith mediation. If mediation fails, disputes shall be 
+                  resolved by binding arbitration in Los Angeles County, California under AAA Commercial Arbitration Rules. 
+                  You waive any right to participate in class action lawsuits against the Company.
                 </p>
               </section>
 
               <p className="text-xs text-muted-foreground/70 mt-8 pt-6 border-t border-primary/10">
                 <strong>Orion Solana LLC dba ZeroG Trading</strong><br />
-                Last Updated: March 10, 2026 • Version 1.0
+                Last Updated: March 10, 2026 • Version 1.1
               </p>
             </div>
           </ScrollArea>
