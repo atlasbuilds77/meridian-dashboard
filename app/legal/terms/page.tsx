@@ -39,7 +39,7 @@ const sections: TermsSection[] = [
     paragraphs: [
       'Monthly Membership: $1,200 per month + 10% of weekly profits.',
       'Lifetime Membership: One-time purchase + 10% of weekly profits (no recurring monthly fee).',
-      'The 10% service fee is calculated on net weekly profits (Monday through Friday), charged Sunday night only when profitable.',
+      'The 10% service fee is calculated on net weekly profits (Monday through Friday), charged Friday after market close only when profitable.',
     ],
     callout: 'All sales are final. No refunds.',
   },

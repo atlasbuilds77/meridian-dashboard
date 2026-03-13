@@ -279,7 +279,7 @@ export default function OnboardingPage() {
                   <p className="text-sm font-semibold mb-2">How the automation fee works:</p>
                   <ul className="space-y-1 text-sm list-disc list-inside">
                     <li>Calculated Monday-Friday each week</li>
-                    <li>If profitable: 10% charged Sunday night</li>
+                    <li>If profitable: 10% charged Friday after close</li>
                     <li>If losing week: $0 automation fee</li>
                     <li>Charged automatically via Stripe</li>
                   </ul>
