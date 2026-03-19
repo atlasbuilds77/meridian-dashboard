@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
-import { requireAdminRole } from '@/lib/api/require-auth';
+import { requireAdminSession } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return rateLimitExceededResponse(limiterResult, 'admin_sync');
   }
 
-  const authResult = await requireAdminRole();
+  const authResult = await requireAdminSession();
   if (!authResult.ok) {
     return authResult.response;
   }
