@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, LineChart, Receipt, Settings } from 'lucide-react';
+import { Home, LineChart, Receipt, Settings, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/trades', label: 'Trades', icon: LineChart },
+  { href: '/prediction-markets', label: 'Predict', icon: Zap },
   { href: '/billing', label: 'Billing', icon: Receipt },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

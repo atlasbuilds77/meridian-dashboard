@@ -54,6 +54,11 @@ async function main() {
       'Data Integrity Constraints'
     );
 
+    await runMigration(
+      path.join(__dirname, 'lib/db/migrations/20260318_copy_trade_positions.sql'),
+      'Copy-Trade Positions & Execution Log'
+    );
+
     console.log('\n✅ All migrations completed successfully!');
   } catch (error) {
     console.error('\n❌ Migration failed:', error.message);
