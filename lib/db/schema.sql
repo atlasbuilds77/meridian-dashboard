@@ -52,6 +52,27 @@ CREATE TABLE IF NOT EXISTS trades (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Auto-execute: users can opt in to have Helios signals auto-executed via SnapTrade
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_execute_enabled BOOLEAN DEFAULT false;
+
+-- Audit log for all auto-executions from Helios webhook
+CREATE TABLE IF NOT EXISTS auto_execution_log (
+    id SERIAL PRIMARY KEY,
+    signal_id VARCHAR(255) NOT NULL,
+    ticker VARCHAR(20) NOT NULL,
+    action VARCHAR(10) NOT NULL,
+    contract_symbol VARCHAR(100),
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username VARCHAR(255),
+    status VARCHAR(50) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_auto_exec_log_signal ON auto_execution_log(signal_id);
+CREATE INDEX IF NOT EXISTS idx_auto_exec_log_user ON auto_execution_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_auto_exec_log_created ON auto_execution_log(created_at DESC);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_discord_id ON users(discord_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);

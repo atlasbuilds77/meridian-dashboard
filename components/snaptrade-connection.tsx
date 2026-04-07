@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useCsrfToken, fetchWithCsrf } from '@/hooks/use-csrf-token';
-import { Link2, Unplug, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Link2, Unplug, CheckCircle2, ChevronDown, Zap } from 'lucide-react';
 
 interface SnapTradeAccount {
   id: string;
@@ -20,6 +20,12 @@ interface SnapTradeState {
   accounts: SnapTradeAccount[];
 }
 
+interface AutoExecuteState {
+  enabled: boolean;
+  loading: boolean;
+  toggling: boolean;
+}
+
 export function SnapTradeConnectionCard() {
   const [state, setState] = useState<SnapTradeState>({
     connected: false,
@@ -33,7 +39,62 @@ export function SnapTradeConnectionCard() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [autoExecute, setAutoExecute] = useState<AutoExecuteState>({
+    enabled: false,
+    loading: true,
+    toggling: false,
+  });
+
   const { token: csrfToken } = useCsrfToken();
+
+  const fetchAutoExecuteStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/settings/auto-execute');
+      if (res.ok) {
+        const data = await res.json();
+        setAutoExecute((prev) => ({ ...prev, enabled: data.auto_execute_enabled, loading: false }));
+      } else {
+        setAutoExecute((prev) => ({ ...prev, loading: false }));
+      }
+    } catch {
+      setAutoExecute((prev) => ({ ...prev, loading: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchAutoExecuteStatus();
+  }, [fetchAutoExecuteStatus]);
+
+  const handleToggleAutoExecute = async () => {
+    if (!csrfToken) return;
+    const newValue = !autoExecute.enabled;
+    setAutoExecute((prev) => ({ ...prev, toggling: true }));
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetchWithCsrf(
+        '/api/user/settings/auto-execute',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: newValue }),
+        },
+        csrfToken
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setAutoExecute((prev) => ({ ...prev, enabled: newValue, toggling: false }));
+        setSuccess(newValue ? 'Auto-execute enabled. Helios signals will be executed automatically.' : 'Auto-execute disabled.');
+      } else {
+        setError(data.error || 'Failed to toggle auto-execute');
+        setAutoExecute((prev) => ({ ...prev, toggling: false }));
+      }
+    } catch {
+      setError('Failed to toggle auto-execute');
+      setAutoExecute((prev) => ({ ...prev, toggling: false }));
+    }
+  };
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -252,6 +313,43 @@ export function SnapTradeConnectionCard() {
                 );
               })}
             </div>
+
+            {/* Auto-Execute Toggle */}
+            {state.selectedAccount && (
+              <div className="rounded-xl border border-border/40 bg-secondary/20 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className={`h-4 w-4 ${autoExecute.enabled ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Auto-Execute</p>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically execute Helios signals via your broker
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleAutoExecute}
+                    disabled={autoExecute.loading || autoExecute.toggling || !csrfToken}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+                      autoExecute.enabled ? 'bg-primary' : 'bg-secondary'
+                    } ${autoExecute.toggling ? 'opacity-50' : ''}`}
+                    role="switch"
+                    aria-checked={autoExecute.enabled}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+                        autoExecute.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {autoExecute.enabled && (
+                  <p className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs text-primary">
+                    ⚡ Active — Helios signals will be auto-executed on your selected broker account.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Re-connect button */}
             <Button
