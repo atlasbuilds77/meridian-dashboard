@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/api/require-auth';
 import { currentUserHasRole } from '@/lib/auth/check-discord-role';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { isAdminDiscordId } from '@/lib/auth/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,11 @@ export async function GET(request: Request) {
 
   // If no HELIOS_ROLE_ID is configured, grant access to all authenticated users
   if (!HELIOS_ROLE_ID) {
+    return NextResponse.json({ hasAccess: true });
+  }
+
+  // Admins always have access
+  if (isAdminDiscordId(sessionResult.session.discordId)) {
     return NextResponse.json({ hasAccess: true });
   }
 
