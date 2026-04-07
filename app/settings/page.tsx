@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PaymentMethodManager } from '@/components/payment-method-form';
 import { RiskSettingsCard } from '@/components/risk-settings';
+import { SnapTradeConnectionCard } from '@/components/snaptrade-connection';
 import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCsrfToken, fetchWithCsrf } from '@/hooks/use-csrf-token';
@@ -429,6 +430,8 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </div>
+
+        <SnapTradeConnectionCard />
 
         <PaymentMethodManager />
 
