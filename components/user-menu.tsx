@@ -64,7 +64,7 @@ export function UserMenu() {
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="h-10 w-10 overflow-hidden rounded-full border-2 border-primary/40 transition-all hover:scale-105 hover:border-primary/70"
+        className="h-10 w-10 overflow-hidden rounded-full border-2 border-primary/40 transition-all duration-200 hover:scale-105 hover:border-primary/70"
       >
         {user.avatar ? (
           <Image src={user.avatar} alt={user.username} width={40} height={40} className="object-cover" />
@@ -104,7 +104,7 @@ export function UserMenu() {
                   router.push('/settings');
                   setShowMenu(false);
                 }}
-                className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
+                className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-primary/10 hover:text-primary"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -123,7 +123,7 @@ export function UserMenu() {
                     router.push('/admin');
                     setShowMenu(false);
                   }}
-                  className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-primary transition-all hover:bg-primary/15 hover:text-primary"
+                  className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-primary transition-all duration-200 hover:bg-primary/15 hover:text-primary"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -140,7 +140,7 @@ export function UserMenu() {
 
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-primary/10 hover:text-primary"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path

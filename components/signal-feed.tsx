@@ -227,12 +227,12 @@ export function SignalFeed({ oracleTrades, nightwatchTrades, nightwatchPositions
     return (
       <Card className="border-primary/30 bg-[rgba(19,19,28,0.72)] backdrop-blur">
         <CardHeader className="border-b border-primary/20 pb-4">
-          <div className="animate-pulse h-6 w-40 rounded bg-white/10" />
+          <div className="animate-pulse h-6 w-40 rounded bg-muted/30" />
         </CardHeader>
         <CardContent className="p-4">
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="animate-pulse h-16 rounded-xl bg-white/5" />
+              <div key={i} className="animate-pulse h-16 rounded-xl bg-muted/20" />
             ))}
           </div>
         </CardContent>

@@ -240,11 +240,11 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:min-w-80">
-              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3">
+              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3 transition-all duration-200 hover:border-primary/30 hover:bg-secondary/60">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Connected</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{platforms.length}</p>
               </div>
-              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3">
+              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3 transition-all duration-200 hover:border-primary/30 hover:bg-secondary/60">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Available</p>
                 <p className="mt-1 text-xl font-semibold text-foreground">{availablePlatforms.length}</p>
               </div>
@@ -283,8 +283,19 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="rounded-xl border border-border/40 bg-secondary/20 py-8 text-center text-muted-foreground">
-                  Loading connected platforms...
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4 animate-pulse">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-muted/30" />
+                        <div className="space-y-2">
+                          <div className="h-4 w-24 rounded bg-muted/30" />
+                          <div className="h-3 w-40 rounded bg-muted/30" />
+                        </div>
+                      </div>
+                      <div className="h-8 w-20 rounded-md bg-muted/30" />
+                    </div>
+                  ))}
                 </div>
               ) : platforms.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border/50 bg-secondary/15 py-8 text-center">
@@ -300,7 +311,7 @@ export default function SettingsPage() {
                     return (
                       <div
                         key={platform.id}
-                        className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4"
+                        className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4 transition-all duration-200 hover:border-border/60 hover:bg-secondary/30"
                       >
                         <div className="flex min-w-0 flex-1 items-start gap-3">
                           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background text-sm font-semibold text-foreground">
@@ -364,7 +375,7 @@ export default function SettingsPage() {
                     id="platform"
                     value={selectedPlatform}
                     onChange={(e) => setSelectedPlatform(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all duration-200 hover:border-primary/40"
                     required
                   >
                     <option value="">Select a platform...</option>
@@ -438,7 +449,7 @@ export default function SettingsPage() {
         <Card className="border-border/50 bg-secondary/25">
           <CardContent className="p-6">
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+              <div className="rounded-xl border border-border/40 bg-background/60 p-4 transition-all duration-200 hover:border-border/60 hover:bg-background/80">
                 <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Lock className="h-4 w-4 text-primary" />
                   Security and Privacy
@@ -450,7 +461,7 @@ export default function SettingsPage() {
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-border/40 bg-background/60 p-4">
+              <div className="rounded-xl border border-border/40 bg-background/60 p-4 transition-all duration-200 hover:border-border/60 hover:bg-background/80">
                 <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <ShieldCheck className="h-4 w-4 text-primary" />
                   Access and Billing

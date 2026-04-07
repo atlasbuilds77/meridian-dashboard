@@ -25,7 +25,7 @@ export function StatsCard({
   return (
     <Card
       className={cn(
-        'border-primary/30 bg-[rgba(19,19,28,0.72)] hover:border-primary/55 hover:shadow-[0_14px_36px_rgba(147,51,234,0.24)]',
+        'border-primary/30 bg-[rgba(19,19,28,0.72)] hover:border-primary/55 hover:shadow-[0_14px_36px_rgba(147,51,234,0.24)] transition-all duration-300',
         className
       )}
     >

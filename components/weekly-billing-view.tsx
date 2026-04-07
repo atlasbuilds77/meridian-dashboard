@@ -367,8 +367,16 @@ export function WeeklyBillingView() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="py-12 text-center text-muted-foreground">
-              Loading trades...
+            <div className="space-y-3 animate-pulse py-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-16 rounded bg-muted/30" />
+                    <div className="h-6 w-20 rounded-full bg-muted/30" />
+                  </div>
+                  <div className="h-6 w-24 rounded bg-muted/30" />
+                </div>
+              ))}
             </div>
           ) : error ? (
             <div className="py-12 text-center text-loss">

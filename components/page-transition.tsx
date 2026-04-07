@@ -16,15 +16,22 @@ export function PageTransition({ children }: PageTransitionProps) {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
-    // Trigger exit animation
+    // Start hidden on route change
     setIsTransitioning(true);
     
-    // Reset after animation completes
-    const timer = setTimeout(() => {
-      setIsTransitioning(false);
-    }, 50);
+    // Use rAF to ensure the hidden state is painted before animating in
+    const raf = requestAnimationFrame(() => {
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+      }, 30);
+      // Store timer for cleanup
+      (raf as any)._timer = timer;
+    });
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      if ((raf as any)._timer) clearTimeout((raf as any)._timer);
+    };
   }, [pathname]);
 
   return (

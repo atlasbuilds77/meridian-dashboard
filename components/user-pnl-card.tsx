@@ -202,15 +202,15 @@ export function UserPnLCard() {
       <Card className="border-primary/30 bg-[rgba(19,19,28,0.72)] backdrop-blur">
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
-            <div className="h-6 w-40 rounded bg-white/10" />
+            <div className="h-6 w-40 rounded bg-muted/30" />
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-16 rounded-xl bg-white/5" />
+                <div key={i} className="h-16 rounded-xl bg-muted/20" />
               ))}
             </div>
             <div className="space-y-3">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-16 rounded-xl bg-white/5" />
+                <div key={i} className="h-16 rounded-xl bg-muted/20" />
               ))}
             </div>
           </div>

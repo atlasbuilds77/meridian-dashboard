@@ -225,8 +225,19 @@ export function SnapTradeConnectionCard() {
         )}
 
         {loading ? (
-          <div className="rounded-xl border border-border/40 bg-secondary/20 py-6 text-center text-muted-foreground text-sm">
-            Loading broker connection...
+          <div className="space-y-3 animate-pulse">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded-full bg-muted/30" />
+                <div className="h-4 w-32 rounded bg-muted/30" />
+              </div>
+              <div className="h-8 w-24 rounded-md bg-muted/30" />
+            </div>
+            <div className="rounded-xl border border-border/40 bg-secondary/10 p-4 space-y-3">
+              <div className="h-4 w-28 rounded bg-muted/30" />
+              <div className="h-10 w-full rounded-lg bg-muted/20" />
+              <div className="h-10 w-full rounded-lg bg-muted/20" />
+            </div>
           </div>
         ) : !state.connected || state.accounts.length === 0 ? (
           <div className="space-y-4">
@@ -368,10 +379,10 @@ function SystemAccountSelector({
             <button
               key={account.id}
               onClick={() => onSelectAccount(account.id)}
-              className={`flex w-full items-center justify-between rounded-lg border p-2.5 text-left transition-colors ${
+              className={`flex w-full items-center justify-between rounded-lg border p-2.5 text-left transition-all duration-200 ${
                 isSelected
-                  ? 'border-primary/50 bg-primary/10'
-                  : 'border-border/40 bg-secondary/20 hover:bg-secondary/40'
+                  ? 'border-primary/50 bg-primary/10 shadow-[0_0_12px_rgba(217,70,239,0.1)]'
+                  : 'border-border/40 bg-secondary/20 hover:bg-secondary/40 hover:border-border/60'
               }`}
             >
               <div className="min-w-0 flex-1">
@@ -415,7 +426,7 @@ function SystemAccountSelector({
             <button
               onClick={onToggleAutoExecute}
               disabled={togglingAutoExecute || !csrfToken}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${
                 autoExecuteEnabled ? 'bg-primary' : 'bg-secondary'
               } ${togglingAutoExecute ? 'opacity-50' : ''}`}
               role="switch"

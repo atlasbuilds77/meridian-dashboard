@@ -6,10 +6,10 @@ import { useLiveData } from '@/hooks/use-live-data';
 
 function navLinkClass(isActive: boolean): string {
   if (isActive) {
-    return 'rounded-full border border-primary/40 bg-primary/15 px-4 py-2 text-sm font-semibold text-primary shadow-[0_0_20px_rgba(217,70,239,0.25)]';
+    return 'rounded-full border border-primary/40 bg-primary/15 px-4 py-2 text-sm font-semibold text-primary shadow-[0_0_20px_rgba(217,70,239,0.25)] transition-all duration-200';
   }
 
-  return 'rounded-full border border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/35 hover:bg-primary/10 hover:text-primary';
+  return 'rounded-full border border-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:border-primary/35 hover:bg-primary/10 hover:text-primary transition-all duration-200';
 }
 
 export function NavLinks() {

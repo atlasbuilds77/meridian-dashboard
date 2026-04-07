@@ -100,25 +100,41 @@ export function RiskSettingsCard() {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-border/50 bg-card/80 backdrop-blur">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="size-5" />
+            <Shield className="size-5 text-primary" />
             Risk Management
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-muted-foreground">Loading settings...</div>
+          <div className="space-y-4 animate-pulse">
+            <div className="rounded-lg border border-border/40 bg-secondary/20 p-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="h-4 w-36 rounded bg-muted/30" />
+                  <div className="h-3 w-56 rounded bg-muted/30" />
+                </div>
+                <div className="h-6 w-11 rounded-full bg-muted/30" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 w-28 rounded bg-muted/30" />
+              <div className="h-4 w-full rounded bg-muted/30" />
+              <div className="h-12 w-full rounded-md bg-muted/20" />
+            </div>
+            <div className="h-11 w-full rounded-md bg-muted/30" />
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
+    <Card className="border-border/50 bg-card/80 backdrop-blur">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Shield className="size-5" />
+          <Shield className="size-5 text-primary" />
           Risk Management
         </CardTitle>
         <CardDescription>Control how much of your account is risked per trade</CardDescription>

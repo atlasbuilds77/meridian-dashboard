@@ -73,8 +73,27 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 flex items-center justify-center">
-        <div className="text-muted-foreground">Loading analytics...</div>
+      <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="space-y-1 animate-pulse">
+            <div className="h-8 w-40 rounded bg-muted/30" />
+            <div className="h-4 w-64 rounded bg-muted/30" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="border-primary/30">
+                <CardContent className="p-6 animate-pulse">
+                  <div className="h-3 w-20 rounded bg-muted/30 mb-2" />
+                  <div className="h-8 w-16 rounded bg-muted/30" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="border-primary/30">
+            <CardHeader><div className="animate-pulse h-5 w-32 rounded bg-muted/30" /></CardHeader>
+            <CardContent><div className="h-80 rounded-lg bg-muted/10 animate-pulse" /></CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

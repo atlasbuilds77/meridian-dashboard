@@ -269,7 +269,7 @@ function StatsGrid() {
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
-          <Card key={index} className="border-primary/30 hover:border-primary/55">
+          <Card key={index} className="border-primary/30 hover:border-primary/55 hover:shadow-[0_14px_36px_rgba(147,51,234,0.24)] transition-all duration-300">
             <CardContent className="p-6">
               <div className="mb-4 flex items-start justify-between">
                 <div
@@ -323,7 +323,7 @@ function RecentActivity() {
     return (
       <Card className="col-span-full border-primary/30">
         <CardHeader className="border-b border-primary/20 pb-4">
-          <div className="animate-pulse h-6 w-32 bg-white/10 rounded" />
+          <div className="animate-pulse h-6 w-32 bg-muted/30 rounded" />
         </CardHeader>
         <CardContent className="p-0">
           {[1, 2, 3, 4, 5].map((item) => (
@@ -362,7 +362,7 @@ function RecentActivity() {
             return (
               <div
                 key={`${trade.symbol || 'trade'}-${index}`}
-                className="flex flex-col gap-3 p-4 transition-colors hover:bg-primary/[0.06] sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 p-4 transition-all duration-200 hover:bg-primary/[0.06] sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-center gap-4">
                   <div

@@ -237,8 +237,19 @@ export function PaymentMethodManager() {
 
         {/* Existing Payment Methods */}
         {loading ? (
-          <div className="rounded-xl border border-border/40 bg-secondary/20 py-8 text-center text-muted-foreground">
-            Loading payment methods...
+          <div className="space-y-3 animate-pulse">
+            {[1, 2].map((i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-14 rounded bg-muted/30" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-24 rounded bg-muted/30" />
+                    <div className="h-3 w-20 rounded bg-muted/30" />
+                  </div>
+                </div>
+                <div className="h-8 w-20 rounded-md bg-muted/30" />
+              </div>
+            ))}
           </div>
         ) : paymentMethods.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/50 bg-secondary/15 py-8 text-center">
@@ -250,7 +261,7 @@ export function PaymentMethodManager() {
             {paymentMethods.map((method) => (
               <div
                 key={method.id}
-                className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 p-4"
+                className="flex items-center justify-between rounded-xl border border-border/40 bg-secondary/20 p-4 transition-all duration-200 hover:border-border/60 hover:bg-secondary/30"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-14 items-center justify-center rounded bg-background text-xs font-semibold uppercase">

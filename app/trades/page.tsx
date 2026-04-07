@@ -99,8 +99,8 @@ export default function TradesPage() {
       <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="animate-pulse">
-            <div className="h-8 bg-white/10 rounded w-48 mb-2" />
-            <div className="h-4 bg-white/10 rounded w-64" />
+            <div className="h-8 bg-muted/30 rounded w-48 mb-2" />
+            <div className="h-4 bg-muted/30 rounded w-64" />
           </div>
           
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -112,7 +112,7 @@ export default function TradesPage() {
 
           <Card className="border-primary/30">
             <CardHeader>
-              <div className="animate-pulse h-6 w-32 bg-white/10 rounded" />
+              <div className="animate-pulse h-6 w-32 bg-muted/30 rounded" />
             </CardHeader>
             <CardContent className="p-0">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (

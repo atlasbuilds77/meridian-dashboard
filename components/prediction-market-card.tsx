@@ -103,15 +103,15 @@ export function PredictionMarketCard({ name, description, status, stats, variant
         <CardContent className="p-6">
           <div className="animate-pulse space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-white/10" />
+              <div className="h-12 w-12 rounded-xl bg-muted/30" />
               <div className="space-y-2">
-                <div className="h-5 w-24 rounded bg-white/10" />
-                <div className="h-3 w-40 rounded bg-white/10" />
+                <div className="h-5 w-24 rounded bg-muted/30" />
+                <div className="h-3 w-40 rounded bg-muted/30" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-12 rounded-lg bg-white/5" />
+                <div key={i} className="h-12 rounded-lg bg-muted/20" />
               ))}
             </div>
           </div>
