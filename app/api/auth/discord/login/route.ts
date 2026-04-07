@@ -9,11 +9,13 @@ import { getPublicOrigin } from '@/lib/url/origin';
 
 export const dynamic = 'force-dynamic';
 
-if (!process.env.DISCORD_CLIENT_ID) {
-  throw new Error('DISCORD_CLIENT_ID must be configured');
+function getDiscordClientId(): string {
+  const id = process.env.DISCORD_CLIENT_ID;
+  if (!id) {
+    throw new Error('DISCORD_CLIENT_ID must be configured');
+  }
+  return id;
 }
-
-const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 
 export async function GET(request: Request) {
   const origin = await getPublicOrigin(request);
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
   const signedState = await createOAuthStateToken(state);
 
   const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
+    client_id: getDiscordClientId(),
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'identify guilds guilds.members.read',

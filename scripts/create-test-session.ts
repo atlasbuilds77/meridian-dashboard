@@ -13,7 +13,7 @@
 import { Pool } from 'pg';
 import { randomBytes } from 'crypto';
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL: string = process.env.DATABASE_URL ?? '';
 if (!DATABASE_URL) {
   console.error('ERROR: DATABASE_URL is required. Export it or add to .env.local');
   process.exit(1);
