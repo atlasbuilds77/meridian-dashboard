@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   }
 
   // Admins always have access
-  if (isAdminDiscordId(sessionResult.session.discordId)) {
+  if (await isAdminDiscordId(sessionResult.session.discordId)) {
     return NextResponse.json({ hasAccess: true });
   }
 
