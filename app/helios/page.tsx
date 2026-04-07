@@ -130,9 +130,9 @@ function SkeletonRow({ cols }: { cols: number }) {
 
 function StatBox({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 text-center transition-all duration-200 hover:border-primary/40 hover:bg-primary/10">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color ?? 'text-foreground'}`}>{value}</p>
+    <div className="stat-box rounded text-center">
+      <p className="stat-box-label">{label}</p>
+      <p className={`stat-box-value ${color ?? 'text-foreground'}`}>{value}</p>
     </div>
   );
 }
@@ -142,13 +142,12 @@ function StatBox({ label, value, color }: { label: string; value: string; color?
 function AccessDenied() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
-      <Card className="max-w-md border-loss/30">
-        <CardContent className="p-8 text-center">
-          <ShieldCheck className="mx-auto h-12 w-12 text-loss" />
-          <h2 className="mt-4 text-xl font-bold">Access Restricted</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            You need the Helios role in Discord to access signals.
-            Contact an admin if you believe this is an error.
+      <Card className="max-w-sm border-loss/30">
+        <CardContent className="p-6 text-center">
+          <ShieldCheck className="mx-auto h-8 w-8 text-loss" />
+          <h2 className="mt-3 text-sm font-semibold uppercase tracking-wide">Access Restricted</h2>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Helios role required. Contact admin if needed.
           </p>
         </CardContent>
       </Card>
@@ -165,11 +164,11 @@ function OpenPositions({ positions, loading }: { positions: HeliosPosition[]; lo
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Radio className="h-5 w-5 text-primary" />
+          <Radio className="h-4 w-4 text-primary" />
           Open Positions
           {hasPositions && (
-            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
-              {positions.length} ACTIVE
+            <Badge>
+              {positions.length} Active
             </Badge>
           )}
         </CardTitle>
@@ -180,7 +179,7 @@ function OpenPositions({ positions, loading }: { positions: HeliosPosition[]; lo
             <TableHeader>
               <TableRow>
                 <TableHead>Symbol</TableHead>
-                <TableHead>Direction</TableHead>
+                <TableHead>Dir</TableHead>
                 <TableHead className="text-right">Entry</TableHead>
                 <TableHead className="text-right">Current</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
@@ -192,17 +191,16 @@ function OpenPositions({ positions, loading }: { positions: HeliosPosition[]; lo
             </TableBody>
           </Table>
         ) : !hasPositions ? (
-          <div className="py-12 text-center">
-            <Activity className="mx-auto h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-3 text-sm text-muted-foreground">No open positions</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">Helios is watching the market…</p>
+          <div className="py-8 text-center">
+            <Activity className="mx-auto h-6 w-6 text-muted-foreground/40" />
+            <p className="mt-2 text-xs text-muted-foreground">No open positions</p>
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Symbol</TableHead>
-                <TableHead>Direction</TableHead>
+                <TableHead>Dir</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="text-right">Entry</TableHead>
                 <TableHead className="text-right">Current</TableHead>
@@ -218,53 +216,54 @@ function OpenPositions({ positions, loading }: { positions: HeliosPosition[]; lo
 
                 return (
                   <TableRow key={`${pos.symbol}-${idx}`}>
-                    <TableCell className="font-mono font-semibold">
+                    <TableCell className="font-semibold">
                       {pos.symbol}
                       {pos.strike && (
-                        <span className="ml-1 text-xs text-muted-foreground">
+                        <span className="ml-1 text-muted-foreground">
                           ${pos.strike}
                         </span>
                       )}
                       {pos.expiry && (
-                        <span className="ml-1 text-xs text-muted-foreground">
+                        <span className="ml-1 text-muted-foreground">
                           {pos.expiry}
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
                       <Badge
+                        variant="outline"
                         className={
                           bull
-                            ? 'bg-profit/20 text-profit border-profit/30'
-                            : 'bg-loss/20 text-loss border-loss/30'
+                            ? 'border-profit/30 text-profit'
+                            : 'border-loss/30 text-loss'
                         }
                       >
                         {bull ? (
-                          <ArrowUpRight className="mr-1 h-3 w-3" />
+                          <ArrowUpRight className="h-2.5 w-2.5" />
                         ) : (
-                          <ArrowDownRight className="mr-1 h-3 w-3" />
+                          <ArrowDownRight className="h-2.5 w-2.5" />
                         )}
                         {pos.direction.toUpperCase()}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {pos.quantity}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {fmtCurrency(pos.entry_price)}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {pos.current_price != null ? fmtCurrency(pos.current_price) : '—'}
                     </TableCell>
-                    <TableCell className={`text-right font-mono font-semibold ${isProfit ? 'text-profit' : 'text-loss'}`}>
+                    <TableCell className={`text-right font-semibold ${isProfit ? 'text-profit' : 'text-loss'}`}>
                       {isProfit ? '+' : ''}{fmtCurrency(pnl)}
                       {pos.pnl_percent != null && (
-                        <span className="ml-1 text-xs opacity-70">
+                        <span className="ml-1 opacity-70">
                           ({fmtPct(pos.pnl_percent)})
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground">
                       {fmtDate(pos.opened_at)}
                     </TableCell>
                   </TableRow>
@@ -287,11 +286,11 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          Weekly Trade History
+          <TrendingUp className="h-4 w-4 text-primary" />
+          Weekly History
           {hasTrades && (
-            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
-              {trades.length} TRADES
+            <Badge>
+              {trades.length} Trades
             </Badge>
           )}
         </CardTitle>
@@ -302,7 +301,7 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
             <TableHeader>
               <TableRow>
                 <TableHead>Symbol</TableHead>
-                <TableHead>Direction</TableHead>
+                <TableHead>Dir</TableHead>
                 <TableHead className="text-right">Entry</TableHead>
                 <TableHead className="text-right">Exit</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
@@ -314,16 +313,16 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
             </TableBody>
           </Table>
         ) : !hasTrades ? (
-          <div className="py-12 text-center">
-            <TrendingUp className="mx-auto h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-3 text-sm text-muted-foreground">No trades this week</p>
+          <div className="py-8 text-center">
+            <TrendingUp className="mx-auto h-6 w-6 text-muted-foreground/40" />
+            <p className="mt-2 text-xs text-muted-foreground">No trades this week</p>
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Symbol</TableHead>
-                <TableHead>Direction</TableHead>
+                <TableHead>Dir</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="text-right">Entry</TableHead>
                 <TableHead className="text-right">Exit</TableHead>
@@ -340,43 +339,44 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
 
                 return (
                   <TableRow key={`${trade.symbol}-${idx}`}>
-                    <TableCell className="font-mono font-semibold">
+                    <TableCell className="font-semibold">
                       {trade.symbol}
                       {trade.strike && (
-                        <span className="ml-1 text-xs text-muted-foreground">
+                        <span className="ml-1 text-muted-foreground">
                           ${trade.strike}
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
                       <Badge
+                        variant="outline"
                         className={
                           bull
-                            ? 'bg-profit/20 text-profit border-profit/30'
-                            : 'bg-loss/20 text-loss border-loss/30'
+                            ? 'border-profit/30 text-profit'
+                            : 'border-loss/30 text-loss'
                         }
                       >
                         {bull ? (
-                          <ArrowUpRight className="mr-1 h-3 w-3" />
+                          <ArrowUpRight className="h-2.5 w-2.5" />
                         ) : (
-                          <ArrowDownRight className="mr-1 h-3 w-3" />
+                          <ArrowDownRight className="h-2.5 w-2.5" />
                         )}
                         {trade.direction.toUpperCase()}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {trade.quantity ?? '—'}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {fmtCurrency(trade.entry_price)}
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                    <TableCell className="text-right">
                       {trade.exit_price != null ? fmtCurrency(trade.exit_price) : '—'}
                     </TableCell>
-                    <TableCell className={`text-right font-mono font-semibold ${isProfit ? 'text-profit' : 'text-loss'}`}>
+                    <TableCell className={`text-right font-semibold ${isProfit ? 'text-profit' : 'text-loss'}`}>
                       {isProfit ? '+' : ''}{fmtCurrency(pnl)}
                       {trade.pnl_percent != null && (
-                        <span className="ml-1 text-xs opacity-70">
+                        <span className="ml-1 opacity-70">
                           ({fmtPct(trade.pnl_percent)})
                         </span>
                       )}
@@ -386,7 +386,7 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
                         variant="outline"
                         className={
                           trade.status === 'closed'
-                            ? 'border-muted-foreground/30'
+                            ? ''
                             : trade.status === 'stopped'
                               ? 'border-loss/30 text-loss'
                               : 'border-primary/30 text-primary'
@@ -395,7 +395,7 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
                         {(trade.status ?? 'closed').toUpperCase()}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
+                    <TableCell className="text-right text-muted-foreground">
                       {fmtDate(trade.closed_at)}
                     </TableCell>
                   </TableRow>
@@ -428,35 +428,27 @@ function SummaryHeader({
   const winRate = summary?.win_rate ?? 0;
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
-      <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl" />
-
+    <section className="hero-section rounded border border-border">
       <div className="relative z-10">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Helios Signals</p>
-            <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px]">
-              LIVE
-            </Badge>
+            <p className="data-label">Helios Signals</p>
+            <span className="status-live">Live</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-muted-foreground">
-              <div className="h-2 w-2 rounded-full bg-profit animate-pulse" />
-              <span>{positions.length} Open Position{positions.length !== 1 ? 's' : ''}</span>
-            </div>
+          <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+            <div className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
+            <span>{positions.length} Open</span>
           </div>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-end gap-3">
-          <h1 className={`text-4xl font-bold tracking-tight sm:text-5xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
+        <div className="mb-4 flex flex-wrap items-baseline gap-3">
+          <h1 className={`font-mono text-3xl font-bold tabular-nums sm:text-4xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
             {isPositive ? '+' : ''}{fmtCurrency(totalPnL)}
           </h1>
-          <span className="mb-1 text-sm text-muted-foreground">combined P&L</span>
+          <span className="text-xs text-muted-foreground">combined P&L</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatBox label="Open P&L" value={`${openPnL >= 0 ? '+' : ''}${fmtCurrency(openPnL)}`} color={openPnL >= 0 ? 'text-profit' : 'text-loss'} />
           <StatBox label="Weekly P&L" value={`${weeklyPnL >= 0 ? '+' : ''}${fmtCurrency(weeklyPnL)}`} color={weeklyPnL >= 0 ? 'text-profit' : 'text-loss'} />
           <StatBox label="Trades" value={String(totalTrades)} />
@@ -496,27 +488,26 @@ export default function HeliosPage() {
   const loading = positionsLoading || weeklyLoading;
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
-      <div className="mx-auto max-w-[1600px] space-y-6">
+    <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-4">
         {/* Header */}
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Helios Integration</p>
-          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Helios</h1>
+        <header>
+          <p className="data-label">Signals</p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Helios</h1>
         </header>
 
         {/* Summary */}
         <SummaryHeader positions={positions} weeklyData={weeklyData} />
 
         {/* Beta Notice */}
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+        <Card className="border-amber-500/20">
+          <CardContent className="p-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Helios — Live Feed</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Real-time positions and weekly trade data from Helios. Data refreshes automatically.
-                  Copy-trading execution coming soon via SnapTrade integration.
+                <p className="text-xs font-semibold text-foreground">Live Feed</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Real-time data. Copy-trading via SnapTrade coming soon.
                 </p>
               </div>
             </div>

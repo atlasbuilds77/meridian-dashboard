@@ -207,46 +207,42 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 sm:px-8 sm:py-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <section className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card to-secondary/60 p-6 sm:p-8">
-          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
-          <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-start gap-4">
+    <div className="min-h-screen bg-background px-3 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto max-w-6xl space-y-4">
+        <section className="hero-section rounded border border-border">
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex items-start gap-3">
               {userSession?.avatar && (
                 <div className="shrink-0">
                   <Image
                     src={userSession.avatar}
                     alt={userSession.username}
-                    width={64}
-                    height={64}
-                    className="h-16 w-16 rounded-full border-2 border-primary/40"
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 rounded border border-border"
                     priority
                   />
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary/90">Account Configuration</p>
-                <h1 className="mt-2 text-3xl font-bold text-foreground">Settings</h1>
+                <p className="data-label">Account Configuration</p>
+                <h1 className="mt-1 text-xl font-semibold text-foreground">Settings</h1>
                 {userSession && (
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {userSession.username}
                   </p>
                 )}
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                  Connect your trading platforms and billing method once. Meridian validates keys before enabling automation.
-                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:min-w-80">
-              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3 transition-all duration-200 hover:border-primary/30 hover:bg-secondary/60">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Connected</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{platforms.length}</p>
+            <div className="grid grid-cols-2 gap-2 sm:min-w-60">
+              <div className="stat-box rounded">
+                <p className="stat-box-label">Connected</p>
+                <p className="stat-box-value">{platforms.length}</p>
               </div>
-              <div className="rounded-xl border border-border/40 bg-secondary/40 p-3 transition-all duration-200 hover:border-primary/30 hover:bg-secondary/60">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Available</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{availablePlatforms.length}</p>
+              <div className="stat-box rounded">
+                <p className="stat-box-label">Available</p>
+                <p className="stat-box-value">{availablePlatforms.length}</p>
               </div>
             </div>
           </div>
@@ -255,55 +251,55 @@ export default function SettingsPage() {
         <RiskSettingsCard />
 
         {csrfError && (
-          <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+          <div className="rounded border border-loss/30 p-2 text-xs text-loss">
             <strong>Security Error:</strong> {csrfError}. Please refresh the page.
           </div>
         )}
 
         {error && (
-          <div className="rounded-xl border border-loss/40 bg-loss/10 p-3 text-sm text-loss">
+          <div className="rounded border border-loss/30 p-2 text-xs text-loss">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm text-primary">
+          <div className="rounded border border-profit/30 p-2 text-xs text-profit">
             {success}
           </div>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card className="border-border/50 bg-card/80 backdrop-blur">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Link2 className="h-5 w-5 text-primary" />
+                <Link2 className="h-4 w-4 text-primary" />
                 Connected Platforms
               </CardTitle>
-              <CardDescription>Platforms currently linked to your Meridian account.</CardDescription>
+              <CardDescription>Platforms linked to your account.</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {[1, 2].map((i) => (
-                    <div key={i} className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4 animate-pulse">
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-muted/30" />
-                        <div className="space-y-2">
-                          <div className="h-4 w-24 rounded bg-muted/30" />
-                          <div className="h-3 w-40 rounded bg-muted/30" />
+                    <div key={i} className="flex items-start justify-between gap-3 rounded border border-border p-3 animate-pulse">
+                      <div className="flex items-start gap-2">
+                        <div className="h-8 w-8 rounded bg-muted/30" />
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-20 rounded bg-muted/30" />
+                          <div className="h-2.5 w-32 rounded bg-muted/30" />
                         </div>
                       </div>
-                      <div className="h-8 w-20 rounded-md bg-muted/30" />
+                      <div className="h-6 w-16 rounded bg-muted/30" />
                     </div>
                   ))}
                 </div>
               ) : platforms.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/50 bg-secondary/15 py-8 text-center">
-                  <p className="text-sm font-medium text-foreground">No platforms connected yet.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Use the Add Platform form to connect your first account.</p>
+                <div className="rounded border border-dashed border-border py-6 text-center">
+                  <p className="text-xs font-medium text-foreground">No platforms connected</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">Add a platform below</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {platforms.map((platform) => {
                     const info = platformInfo[platform.platform];
                     const displayName = info?.name || platform.platform;
@@ -311,18 +307,18 @@ export default function SettingsPage() {
                     return (
                       <div
                         key={platform.id}
-                        className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-secondary/20 p-4 transition-all duration-200 hover:border-border/60 hover:bg-secondary/30"
+                        className="flex items-start justify-between gap-3 rounded border border-border p-3 hover:border-border/80"
                       >
-                        <div className="flex min-w-0 flex-1 items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-background text-sm font-semibold text-foreground">
+                        <div className="flex min-w-0 flex-1 items-start gap-2">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded bg-secondary text-[10px] font-semibold text-foreground">
                             {displayName.slice(0, 2).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-semibold text-foreground">{displayName}</h3>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h3 className="text-xs font-semibold text-foreground">{displayName}</h3>
                               <span
                                 className={cn(
-                                  'rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize',
+                                  'rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
                                   verificationBadgeClass(platform.verification_status)
                                 )}
                               >

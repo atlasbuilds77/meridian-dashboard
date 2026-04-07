@@ -23,28 +23,23 @@ export function StatsCard({
   large = false,
 }: StatsCardProps) {
   return (
-    <Card
-      className={cn(
-        'border-primary/30 bg-[rgba(19,19,28,0.72)] hover:border-primary/55 hover:shadow-[0_14px_36px_rgba(147,51,234,0.24)] transition-all duration-300',
-        className
-      )}
-    >
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-[0.12em]">{title}</CardTitle>
-        {icon && <div className="text-primary">{icon}</div>}
+    <Card className={cn('hover:border-border/80', className)}>
+      <CardHeader className="flex flex-row items-center justify-between pb-1">
+        <CardTitle className="data-label">{title}</CardTitle>
+        {icon && <div className="text-muted-foreground">{icon}</div>}
       </CardHeader>
       <CardContent>
         <div
           className={cn(
-            'font-bold tracking-tight',
-            large ? 'text-4xl md:text-5xl' : 'text-2xl',
+            'font-mono font-semibold tabular-nums',
+            large ? 'text-2xl md:text-3xl' : 'text-lg',
             trend === 'up' && 'text-profit',
             trend === 'down' && 'text-loss'
           )}
         >
           {value}
         </div>
-        {subtitle && <p className="text-muted-foreground mt-1 text-xs">{subtitle}</p>}
+        {subtitle && <p className="text-muted-foreground mt-0.5 text-[10px]">{subtitle}</p>}
       </CardContent>
     </Card>
   );
@@ -66,27 +61,16 @@ export function PnLCard({ value, title = 'Total P&L', subtitle }: PnLCardProps) 
   });
 
   return (
-    <Card
-      className={cn(
-        'relative overflow-hidden border-2 transition-all duration-300',
-        isPositive ? 'border-profit/35 bg-profit/10' : 'border-loss/35 bg-loss/10'
-      )}
-    >
-      <div
-        className={cn(
-          'absolute inset-0 opacity-20',
-          isPositive ? 'bg-gradient-to-br from-profit/35 to-transparent' : 'bg-gradient-to-br from-loss/35 to-transparent'
-        )}
-      />
-      <CardHeader className="pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-[0.12em]">{title}</CardTitle>
+    <Card className={cn('border', isPositive ? 'border-profit/30' : 'border-loss/30')}>
+      <CardHeader className="pb-1">
+        <CardTitle className="data-label">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className={cn('text-4xl font-bold tracking-tight md:text-6xl', isPositive ? 'text-profit' : 'text-loss')}>
+        <div className={cn('font-mono text-2xl font-bold tabular-nums md:text-4xl', isPositive ? 'text-profit' : 'text-loss')}>
           {isPositive ? '+' : '-'}
           {formatted}
         </div>
-        {subtitle && <p className="text-muted-foreground mt-2 text-sm">{subtitle}</p>}
+        {subtitle && <p className="text-muted-foreground mt-1 text-[10px]">{subtitle}</p>}
       </CardContent>
     </Card>
   );

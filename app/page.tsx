@@ -86,9 +86,11 @@ function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
   const isLive = secondsAgo < 60;
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-muted-foreground">
-      <div className={`h-2 w-2 rounded-full ${isLive ? 'bg-profit animate-pulse' : 'bg-muted-foreground'}`} />
-      <span>{isLive ? 'Live' : `${secondsAgo}s ago`}</span>
+    <div className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide">
+      <div className={`h-1.5 w-1.5 rounded-full ${isLive ? 'bg-profit animate-pulse' : 'bg-muted-foreground'}`} />
+      <span className={isLive ? 'text-profit' : 'text-muted-foreground'}>
+        {isLive ? 'Live' : `${secondsAgo}s`}
+      </span>
     </div>
   );
 }
@@ -97,11 +99,11 @@ function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
 
 function ErrorCard({ message }: { message: string }) {
   return (
-    <Card className="border-loss/50 bg-loss/10">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-3 text-loss">
-          <AlertCircle className="h-5 w-5" />
-          <p className="text-sm">{message}</p>
+    <Card className="border-loss/30">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-2 text-loss">
+          <AlertCircle className="h-4 w-4" />
+          <p className="text-xs font-medium">{message}</p>
         </div>
       </CardContent>
     </Card>
@@ -138,21 +140,18 @@ function PortfolioHeader() {
     : [];
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
-      <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-
+    <section className="hero-section rounded border border-border">
       <div className="relative z-10">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Portfolio Value</p>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="data-label">Portfolio Value</p>
+          <div className="flex flex-wrap items-center gap-3">
             <LiveIndicator lastUpdate={lastUpdate} />
             <PnLShareButton title="Meridian P&L" text={shareText} />
           </div>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-end gap-3">
-          <h1 className={`text-4xl font-bold tracking-tight sm:text-6xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
+        <div className="mb-4 flex flex-wrap items-baseline gap-3">
+          <h1 className={`font-mono text-3xl font-bold tabular-nums sm:text-5xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
             <AnimatedCounter
               value={totalValue}
               duration={1000}
@@ -160,9 +159,9 @@ function PortfolioHeader() {
             />
           </h1>
 
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5">
-            {isPositive ? <ArrowUpRight className="h-5 w-5 text-profit" /> : <ArrowDownRight className="h-5 w-5 text-loss" />}
-            <span className={`text-lg font-semibold sm:text-2xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
+          <div className="inline-flex items-center gap-1">
+            {isPositive ? <ArrowUpRight className="h-4 w-4 text-profit" /> : <ArrowDownRight className="h-4 w-4 text-loss" />}
+            <span className={`font-mono text-base font-semibold tabular-nums sm:text-xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
               {formatPercent(totalReturn)}
             </span>
           </div>
@@ -170,17 +169,17 @@ function PortfolioHeader() {
           {sparklineData.length >= 2 && (
             <Sparkline
               data={sparklineData}
-              width={120}
-              height={40}
+              width={100}
+              height={32}
               className="hidden sm:block"
             />
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 sm:gap-5">
-          <div className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
-            P&amp;L:{' '}
-            <span className={`font-semibold ${isPositive ? 'text-profit' : 'text-loss'}`}>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="stat-box rounded">
+            <span className="stat-box-label">P&L</span>
+            <span className={`stat-box-value ${isPositive ? 'text-profit' : 'text-loss'}`}>
               <AnimatedCounter
                 value={totalPnL}
                 duration={1000}
@@ -190,11 +189,13 @@ function PortfolioHeader() {
           </div>
 
           {market && (
-            <div className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
-              QQQ: <span className="font-semibold text-foreground">${market.price.toFixed(2)}</span>{' '}
-              <span className={market.change >= 0 ? 'text-profit' : 'text-loss'}>
-                {market.change >= 0 ? '+' : ''}
-                {market.changePercent.toFixed(2)}%
+            <div className="stat-box rounded">
+              <span className="stat-box-label">QQQ</span>
+              <span className="stat-box-value">
+                ${market.price.toFixed(2)}{' '}
+                <span className={`text-sm ${market.change >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {market.change >= 0 ? '+' : ''}{market.changePercent.toFixed(2)}%
+                </span>
               </span>
             </div>
           )}
@@ -265,43 +266,33 @@ function StatsGrid() {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
-          <Card key={index} className="border-primary/30 hover:border-primary/55 hover:shadow-[0_14px_36px_rgba(147,51,234,0.24)] transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div
-                  className={`rounded-xl border p-2 ${
+          <Card key={index} className="hover:border-border/80">
+            <CardContent className="p-3">
+              <div className="mb-2 flex items-start justify-between">
+                <Icon
+                  className={`h-3.5 w-3.5 ${
                     stat.color === 'profit'
-                      ? 'border-profit/30 bg-profit/15'
+                      ? 'text-profit'
                       : stat.color === 'loss'
-                      ? 'border-loss/30 bg-loss/15'
-                      : 'border-primary/35 bg-primary/10'
+                      ? 'text-loss'
+                      : 'text-muted-foreground'
                   }`}
-                >
-                  <Icon
-                    className={`h-4 w-4 ${
-                      stat.color === 'profit'
-                        ? 'text-profit'
-                        : stat.color === 'loss'
-                        ? 'text-loss'
-                        : 'text-muted-foreground'
-                    }`}
-                  />
-                </div>
+                />
                 {stat.change &&
                   (stat.change === 'up' ? (
-                    <TrendingUp className="h-4 w-4 text-profit" />
+                    <TrendingUp className="h-3 w-3 text-profit" />
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-loss" />
+                    <TrendingDown className="h-3 w-3 text-loss" />
                   ))}
               </div>
               <div>
-                <p className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">{stat.label}</p>
+                <p className="data-label mb-0.5">{stat.label}</p>
                 <p
-                  className={`text-2xl font-bold ${
+                  className={`font-mono text-lg font-semibold tabular-nums ${
                     stat.color === 'profit' ? 'text-profit' : stat.color === 'loss' ? 'text-loss' : 'text-foreground'
                   }`}
                 >
@@ -341,17 +332,17 @@ function RecentActivity() {
   const recentTrades = (trades.trades as DashboardTrade[]).slice(0, 10);
 
   return (
-    <Card className="col-span-full border-primary/30">
-      <CardHeader className="border-b border-primary/20 pb-4">
+    <Card className="col-span-full">
+      <CardHeader className="border-b border-border pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-bold">Recent Activity</CardTitle>
-          <Link href="/trades" className="text-sm font-medium text-primary transition-colors hover:text-primary/80">
+          <CardTitle>Recent Activity</CardTitle>
+          <Link href="/trades" className="text-[10px] font-medium uppercase tracking-wide text-primary hover:text-primary/80">
             View all →
           </Link>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-primary/15">
+        <div className="divide-y divide-border">
           {recentTrades.map((trade, index) => {
             const direction = (trade.direction || 'UNKNOWN').toUpperCase();
             const bullish = isBullishDirection(direction);
@@ -362,43 +353,39 @@ function RecentActivity() {
             return (
               <div
                 key={`${trade.symbol || 'trade'}-${index}`}
-                className="flex flex-col gap-3 p-4 transition-all duration-200 hover:bg-primary/[0.06] sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 px-4 py-2.5 hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-lg border ${
-                      bullish ? 'border-profit/30 bg-profit/15' : 'border-loss/30 bg-loss/15'
-                    }`}
-                  >
-                    {bullish ? <TrendingUp className="h-5 w-5 text-profit" /> : <TrendingDown className="h-5 w-5 text-loss" />}
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-7 w-7 items-center justify-center rounded ${bullish ? 'bg-profit/10' : 'bg-loss/10'}`}>
+                    {bullish ? <TrendingUp className="h-3.5 w-3.5 text-profit" /> : <TrendingDown className="h-3.5 w-3.5 text-loss" />}
                   </div>
 
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{trade.symbol || 'N/A'}</span>
+                      <span className="font-mono text-sm font-semibold text-foreground">{trade.symbol || 'N/A'}</span>
                       <Badge variant="outline" className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}>
                         {direction}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {trade.created_at ? formatDate(trade.created_at) : 'Unknown date'}
-                      {entryPrice !== null ? ` • Entry: $${entryPrice.toFixed(2)}` : ''}
+                    <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                      {trade.created_at ? formatDate(trade.created_at) : '—'}
+                      {entryPrice !== null ? ` · $${entryPrice.toFixed(2)}` : ''}
                     </div>
                   </div>
                 </div>
 
                 <div className="text-left sm:text-right">
-                  <div className={`text-lg font-bold ${isWin ? 'text-profit' : 'text-loss'}`}>
+                  <div className={`font-mono text-sm font-semibold tabular-nums ${isWin ? 'text-profit' : 'text-loss'}`}>
                     {pnlValue !== null ? (
                       <>
                         {pnlValue >= 0 ? '+' : ''}
                         {formatCurrency(pnlValue)}
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Pending</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">{trade.status || 'Unknown'}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{trade.status || '—'}</div>
                 </div>
               </div>
             );
@@ -449,36 +436,37 @@ export default function Dashboard() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-    <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <header className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-4">
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             {userSession?.avatar && (
               <Image
                 src={userSession.avatar}
                 alt={userSession.username}
-                width={48}
-                height={48}
-                className="h-12 w-12 rounded-full border-2 border-primary/40"
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded border border-border"
                 priority
               />
             )}
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                {userSession ? `Welcome back, ${userSession.username}` : 'Nebula System Style'}
+            <div>
+              <p className="data-label">
+                {userSession ? userSession.username : 'Meridian'}
               </p>
-              <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Dashboard</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">Dashboard</h1>
             </div>
           </div>
 
           {/* Share P&L Button */}
           <Button
             onClick={() => setShareModalOpen(true)}
-            size="lg"
-            className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+            size="sm"
+            variant="outline"
+            className="flex items-center gap-1.5"
           >
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Share P&L</span>
+            <Share2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Share</span>
           </Button>
         </header>
 

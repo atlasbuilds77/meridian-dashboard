@@ -27,14 +27,14 @@ export function MobileNav() {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-primary/30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-background"
       style={{ 
         paddingBottom: 'var(--safe-area-inset-bottom)',
         paddingLeft: 'var(--safe-area-inset-left)',
         paddingRight: 'var(--safe-area-inset-right)'
       }}
     >
-      <div className="flex items-center justify-around min-h-[64px] px-2">
+      <div className="flex items-center justify-around min-h-[52px] px-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href || 
             (item.href !== '/' && pathname.startsWith(item.href));
@@ -45,14 +45,17 @@ export function MobileNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-lg transition-all duration-200 min-w-[64px] min-h-[56px]',
+                'flex flex-col items-center justify-center gap-0.5 px-3 py-2 transition-colors min-w-[56px] min-h-[48px]',
                 isActive 
-                  ? 'text-primary bg-primary/10' 
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  ? 'text-primary' 
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Icon className={cn('h-6 w-6', isActive && 'text-primary')} />
-              <span className={cn('text-xs font-medium', isActive && 'text-primary')}>
+              <Icon className={cn('h-5 w-5', isActive && 'text-primary')} />
+              <span className={cn(
+                'text-[10px] font-medium uppercase tracking-wide',
+                isActive ? 'text-primary' : 'text-muted-foreground'
+              )}>
                 {item.label}
               </span>
             </Link>
