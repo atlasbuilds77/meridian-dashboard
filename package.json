@@ -10,7 +10,9 @@
     "lint": "eslint",
     "billing:weekly": "npx tsx scripts/weekly-billing.ts",
     "billing:migrate": "node scripts/run-billing-migration.js",
-    "db:migrate": "node scripts/run-migrations.js"
+    "db:migrate": "node scripts/run-migrations.js",
+    "test:e2e": "./test/expect-tests.sh",
+    "test:create-session": "npx tsx scripts/create-test-session.ts"
   },
   "dependencies": {
     "@radix-ui/react-slider": "^1.3.6",
@@ -35,6 +37,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",
+    "snaptrade-typescript-sdk": "^9.0.178",
     "stripe": "^20.3.1",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4",
