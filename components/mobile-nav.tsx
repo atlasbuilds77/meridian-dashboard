@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, LineChart, Receipt, Settings, Zap } from 'lucide-react';
+import { Home, LineChart, Radio, Receipt, Settings, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLiveData } from '@/hooks/use-live-data';
 
-const navItems = [
+const baseNavItems = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/trades', label: 'Trades', icon: LineChart },
   { href: '/prediction-markets', label: 'Predict', icon: Zap },
@@ -13,8 +14,16 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+const signalsItem = { href: '/signals', label: 'Signals', icon: Radio };
+
 export function MobileNav() {
   const pathname = usePathname();
+  const { data: heliosAccess } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
+  const showSignals = heliosAccess?.hasAccess ?? false;
+
+  const navItems = showSignals
+    ? [baseNavItems[0], baseNavItems[1], signalsItem, ...baseNavItems.slice(2)]
+    : baseNavItems;
 
   return (
     <nav 

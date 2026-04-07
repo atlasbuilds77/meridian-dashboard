@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLiveData } from '@/hooks/use-live-data';
 
 function navLinkClass(isActive: boolean): string {
   if (isActive) {
@@ -13,11 +14,16 @@ function navLinkClass(isActive: boolean): string {
 
 export function NavLinks() {
   const pathname = usePathname();
+  const { data: heliosAccess } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
+  const showSignals = heliosAccess?.hasAccess ?? false;
 
   return (
     <div className="hidden items-center gap-2 md:flex">
       <Link href="/" className={navLinkClass(pathname === '/')}>Dashboard</Link>
       <Link href="/trades" className={navLinkClass(pathname === '/trades')}>Trades</Link>
+      {showSignals && (
+        <Link href="/signals" className={navLinkClass(pathname === '/signals')}>Signals</Link>
+      )}
       <Link href="/prediction-markets" className={navLinkClass(pathname === '/prediction-markets')}>Predictions</Link>
       <Link href="/billing" className={navLinkClass(pathname === '/billing')}>Billing</Link>
       <Link href="/analytics" className={navLinkClass(pathname === '/analytics')}>Analytics</Link>
