@@ -107,21 +107,21 @@ export async function POST(request: NextRequest) {
 
   const client = await pool.connect();
   try {
-    // --- Find all users with auto_execute_enabled AND SnapTrade connected ---
+    // --- Find all users with Helios auto-execute enabled AND SnapTrade connected ---
     const usersResult = await client.query(
       `SELECT
          u.id,
          u.username,
          u.snaptrade_user_id,
          u.snaptrade_user_secret,
-         u.snaptrade_selected_account,
+         u.helios_snaptrade_account as snaptrade_selected_account,
          COALESCE(uts.size_pct, 1.0) as size_pct
        FROM users u
        LEFT JOIN user_trading_settings uts ON uts.user_id = u.id
-       WHERE u.auto_execute_enabled = true
+       WHERE COALESCE(u.helios_auto_execute_enabled, u.auto_execute_enabled) = true
          AND u.snaptrade_user_id IS NOT NULL
          AND u.snaptrade_user_secret IS NOT NULL
-         AND u.snaptrade_selected_account IS NOT NULL`
+         AND u.helios_snaptrade_account IS NOT NULL`
     );
 
     const eligibleUsers = usersResult.rows;

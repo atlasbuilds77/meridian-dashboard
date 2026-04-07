@@ -43,6 +43,10 @@ export async function GET() {
       connected: true,
       connectedAt: snapData.snaptrade_connected_at,
       selectedAccount: snapData.snaptrade_selected_account,
+      heliosAccount: snapData.helios_snaptrade_account,
+      meridianAccount: snapData.meridian_snaptrade_account,
+      heliosAutoExecute: snapData.helios_auto_execute_enabled ?? false,
+      meridianAutoExecute: snapData.meridian_auto_execute_enabled ?? false,
       accounts: accounts.map((acct: Record<string, unknown>) => ({
         id: acct.id,
         name: acct.name,

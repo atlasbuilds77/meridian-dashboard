@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
-import { getSnapTradeData } from '@/lib/db/snaptrade-users';
+import { getSnapTradeData, type TradingSystem } from '@/lib/db/snaptrade-users';
 import { placeOrder, isConfigured } from '@/lib/snaptrade/client';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
 import pool from '@/lib/db/pool';
@@ -20,6 +20,7 @@ export const dynamic = 'force-dynamic';
  *   optionSymbol?: string,  // OCC-style option symbol if isOption
  *   orderType?: "Market" | "Limit",
  *   price?: number,         // required for Limit orders
+ *   system?: 'helios' | 'meridian', // which system is executing (default: meridian)
  * }
  */
 export async function POST(request: NextRequest) {
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { symbol, action, quantity, isOption, optionSymbol, orderType, price } = body;
+    const system: TradingSystem = body.system === 'helios' ? 'helios' : 'meridian';
 
     // Validate required fields
     if (!symbol || !action || !quantity) {
@@ -76,9 +78,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!snapData.snaptrade_selected_account) {
+    // Use system-specific account, fall back to legacy selected account
+    const systemAccountKey = system === 'helios' ? 'helios_snaptrade_account' : 'meridian_snaptrade_account';
+    const accountId = snapData[systemAccountKey] || snapData.snaptrade_selected_account;
+
+    if (!accountId) {
+      const systemLabel = system.charAt(0).toUpperCase() + system.slice(1);
       return NextResponse.json(
-        { error: 'No broker account selected. Please select an account in Settings.' },
+        { error: `No broker account selected for ${systemLabel}. Please select an account in Settings.` },
         { status: 400 }
       );
     }
@@ -93,11 +100,11 @@ export async function POST(request: NextRequest) {
       snapAction = action.toUpperCase() as 'BUY' | 'SELL';
     }
 
-    // Place the order
+    // Place the order using system-specific account
     const orderResult = await placeOrder({
       userId: snapData.snaptrade_user_id,
       userSecret: snapData.snaptrade_user_secret,
-      accountId: snapData.snaptrade_selected_account,
+      accountId,
       symbol: tradingSymbol,
       action: snapAction,
       quantity,

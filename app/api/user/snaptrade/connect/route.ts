@@ -45,6 +45,10 @@ export async function POST() {
         snaptrade_user_secret: registration.userSecret!,
         snaptrade_selected_account: null,
         snaptrade_connected_at: null,
+        helios_snaptrade_account: null,
+        meridian_snaptrade_account: null,
+        helios_auto_execute_enabled: false,
+        meridian_auto_execute_enabled: false,
       };
     }
 
@@ -54,8 +58,8 @@ export async function POST() {
 
     // Get connection portal URL
     const loginResponse = await getConnectionUrl(
-      snapData.snaptrade_user_id!,
-      snapData.snaptrade_user_secret!,
+      snapData!.snaptrade_user_id!,
+      snapData!.snaptrade_user_secret!,
       callbackUrl
     );
 
