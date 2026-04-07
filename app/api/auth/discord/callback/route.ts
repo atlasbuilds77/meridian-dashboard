@@ -13,17 +13,19 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
-  throw new Error('DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET must be configured');
+function getDiscordEnv() {
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+  const guildId = process.env.DISCORD_GUILD_ID;
+  const singularityRoleId = process.env.SINGULARITY_ROLE_ID;
+  if (!clientId || !clientSecret) {
+    throw new Error('DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET must be configured');
+  }
+  if (!guildId || !singularityRoleId) {
+    throw new Error('DISCORD_GUILD_ID and SINGULARITY_ROLE_ID must be configured');
+  }
+  return { clientId, clientSecret, guildId, singularityRoleId };
 }
-if (!process.env.DISCORD_GUILD_ID || !process.env.SINGULARITY_ROLE_ID) {
-  throw new Error('DISCORD_GUILD_ID and SINGULARITY_ROLE_ID must be configured');
-}
-
-const DISCORD_CLIENT_ID: string = process.env.DISCORD_CLIENT_ID;
-const DISCORD_CLIENT_SECRET: string = process.env.DISCORD_CLIENT_SECRET;
-const DISCORD_GUILD_ID: string = process.env.DISCORD_GUILD_ID;
-const SINGULARITY_ROLE_ID: string = process.env.SINGULARITY_ROLE_ID;
 
 function redirectWithError(request: Request, errorCode: string): NextResponse {
   const origin = new URL(request.url).origin;
@@ -32,6 +34,8 @@ function redirectWithError(request: Request, errorCode: string): NextResponse {
 }
 
 export async function GET(request: Request) {
+  const { clientId: DISCORD_CLIENT_ID, clientSecret: DISCORD_CLIENT_SECRET, guildId: DISCORD_GUILD_ID, singularityRoleId: SINGULARITY_ROLE_ID } = getDiscordEnv();
+
   const limiterResult = await enforceRateLimit({
     request,
     name: 'discord_oauth_callback',
@@ -164,7 +168,7 @@ export async function GET(request: Request) {
 
     // IMPORTANT: set cookies on the response (not via cookies()) so they are reliably
     // included even on redirects.
-    console.log('[CALLBACK] Setting session cookie on response, token preview:', token.substring(0, 30));
+    console.log('[CALLBACK] Setting session cookie on response');
     response.cookies.set('meridian_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

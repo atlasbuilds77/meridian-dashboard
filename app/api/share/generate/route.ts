@@ -323,10 +323,7 @@ export async function POST(request: NextRequest) {
     console.error('Share card generation error:', error);
     
     return NextResponse.json(
-      { 
-        error: 'Failed to generate share card',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Failed to generate share card' },
       { status: 500 }
     );
   }

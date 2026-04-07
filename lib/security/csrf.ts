@@ -6,17 +6,16 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { getUserIdFromSession } from '@/lib/auth/session';
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-
-if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
-  throw new Error('SESSION_SECRET must be at least 32 characters for CSRF protection');
+function getCsrfSecret(): string {
+  const s = process.env.SESSION_SECRET;
+  if (!s || s.length < 32) {
+    throw new Error('SESSION_SECRET must be at least 32 characters for CSRF protection');
+  }
+  return s;
 }
-
-// TypeScript now knows this is defined
-const CSRF_SECRET: string = SESSION_SECRET;
 
 /**
  * Generate a CSRF token for the current session
@@ -26,7 +25,7 @@ export function generateCsrfToken(userId: number): string {
   const random = randomBytes(16).toString('hex');
   const payload = `${userId}:${timestamp}:${random}`;
   
-  const hmac = createHmac('sha256', CSRF_SECRET);
+  const hmac = createHmac('sha256', getCsrfSecret());
   hmac.update(payload);
   const signature = hmac.digest('hex');
   
@@ -55,11 +54,15 @@ export function validateCsrfToken(token: string, userId: number): boolean {
     
     // Verify signature
     const payload = `${tokenUserId}:${timestamp}:${random}`;
-    const hmac = createHmac('sha256', CSRF_SECRET);
+    const hmac = createHmac('sha256', getCsrfSecret());
     hmac.update(payload);
     const expectedSignature = hmac.digest('hex');
     
-    return signature === expectedSignature;
+    if (signature.length !== expectedSignature.length) return false;
+    return timingSafeEqual(
+      Buffer.from(signature, 'utf8'),
+      Buffer.from(expectedSignature, 'utf8')
+    );
   } catch {
     return false;
   }

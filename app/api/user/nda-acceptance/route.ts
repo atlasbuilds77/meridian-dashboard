@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserIdFromSession } from '@/lib/auth/session';
+import { validateCsrfFromRequest } from '@/lib/security/csrf';
 import pool from '@/lib/db/pool';
 
 export async function GET(req: NextRequest) {
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest) {
     const userId = await getUserIdFromSession();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // CSRF Protection
+    const csrfResult = await validateCsrfFromRequest(req);
+    if (!csrfResult.valid) {
+      return csrfResult.response;
     }
 
     const { accepted } = await req.json();

@@ -145,7 +145,6 @@ export async function GET(request: Request) {
       {
         connected: true,
         error: 'Failed to fetch wallet balance',
-        details: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
       },
       { status: 500 }

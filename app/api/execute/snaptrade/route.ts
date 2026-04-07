@@ -3,6 +3,7 @@ import { requireUserId } from '@/lib/api/require-auth';
 import { getSnapTradeData, type TradingSystem } from '@/lib/db/snaptrade-users';
 import { placeOrder, isConfigured } from '@/lib/snaptrade/client';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
 import pool from '@/lib/db/pool';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,18 @@ export async function POST(request: NextRequest) {
   if (!authResult.ok) return authResult.response;
   const userId = authResult.userId;
 
+  // Rate limiting - trade execution is sensitive
+  const limiterResult = await enforceRateLimit({
+    request,
+    name: 'snaptrade_execute',
+    limit: 10,
+    windowMs: 60_000,
+    userId,
+  });
+  if (!limiterResult.allowed) {
+    return rateLimitExceededResponse(limiterResult, 'snaptrade_execute');
+  }
+
   // CSRF
   const csrfResult = await validateCsrfFromRequest(request);
   if (!csrfResult.valid) return csrfResult.response;
@@ -54,16 +67,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['buy', 'sell'].includes(action.toLowerCase())) {
+    if (typeof symbol !== 'string' || symbol.length > 50) {
+      return NextResponse.json(
+        { error: 'symbol must be a string of 50 characters or fewer' },
+        { status: 400 }
+      );
+    }
+
+    if (!['buy', 'sell'].includes(String(action).toLowerCase())) {
       return NextResponse.json(
         { error: 'action must be "buy" or "sell"' },
         { status: 400 }
       );
     }
 
-    if (typeof quantity !== 'number' || quantity <= 0) {
+    if (typeof quantity !== 'number' || quantity <= 0 || quantity > 10000 || !Number.isFinite(quantity)) {
       return NextResponse.json(
-        { error: 'quantity must be a positive number' },
+        { error: 'quantity must be a positive number (max 10,000)' },
         { status: 400 }
       );
     }
@@ -145,7 +165,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: unknown) {
     console.error('[SnapTrade Execute] Error:', error);
-    const message = error instanceof Error ? error.message : 'Trade execution failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Trade execution failed' }, { status: 500 });
   }
 }

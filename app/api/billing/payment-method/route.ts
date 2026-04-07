@@ -223,7 +223,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error('Save payment method error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to save payment method' },
+      { error: 'Failed to save payment method' },
       { status: 500 }
     );
   }
@@ -324,7 +324,7 @@ export async function DELETE(request: Request) {
   } catch (error: unknown) {
     console.error('Delete payment method error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete payment method' },
+      { error: 'Failed to delete payment method' },
       { status: 500 }
     );
   }

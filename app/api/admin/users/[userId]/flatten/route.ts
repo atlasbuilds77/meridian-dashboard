@@ -502,10 +502,7 @@ export async function POST(
     }
     
     return NextResponse.json(
-      { 
-        error: 'Internal server error during flatten operation',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      },
+      { error: 'Internal server error during flatten operation' },
       { status: 500 }
     );
   }

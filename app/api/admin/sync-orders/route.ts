@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db/pool';
+import { requireAdminSession } from '@/lib/api/require-auth';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/sync-orders
- * Returns count of pending orders
+ * Returns count of pending orders (admin-only)
  */
 export async function GET() {
+  const adminResult = await requireAdminSession();
+  if (!adminResult.ok) {
+    return adminResult.response;
+  }
+
   try {
     const result = await pool.query(`
       SELECT COUNT(*) as pending_count

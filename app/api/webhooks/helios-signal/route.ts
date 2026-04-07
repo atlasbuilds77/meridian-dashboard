@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import pool from '@/lib/db/pool';
 import { placeOrder, isConfigured } from '@/lib/snaptrade/client';
 
@@ -77,7 +78,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!body.secret || body.secret !== expectedSecret) {
+  if (
+    !body.secret ||
+    typeof body.secret !== 'string' ||
+    body.secret.length !== expectedSecret.length ||
+    !timingSafeEqual(Buffer.from(body.secret, 'utf8'), Buffer.from(expectedSecret, 'utf8'))
+  ) {
     console.warn('[HeliosWebhook] Invalid secret from', clientIp);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -90,11 +96,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!['buy', 'sell'].includes(body.action.toLowerCase())) {
+  if (typeof body.signal_id !== 'string' || body.signal_id.length > 200) {
+    return NextResponse.json({ error: 'Invalid signal_id' }, { status: 400 });
+  }
+
+  if (typeof body.ticker !== 'string' || body.ticker.length > 50) {
+    return NextResponse.json({ error: 'Invalid ticker' }, { status: 400 });
+  }
+
+  if (!['buy', 'sell'].includes(String(body.action).toLowerCase())) {
     return NextResponse.json(
       { error: 'action must be "buy" or "sell"' },
       { status: 400 }
     );
+  }
+
+  if (body.qty !== undefined && (typeof body.qty !== 'number' || body.qty <= 0 || body.qty > 10000 || !Number.isFinite(body.qty))) {
+    return NextResponse.json({ error: 'Invalid qty' }, { status: 400 });
   }
 
   // --- Check SnapTrade configured on server ---

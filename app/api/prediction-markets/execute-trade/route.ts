@@ -267,10 +267,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('[CopyTrade] Execute trade error:', error);
     return NextResponse.json(
-      {
-        error: 'Failed to execute copy-trade',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Failed to execute copy-trade' },
       { status: 500 }
     );
   }

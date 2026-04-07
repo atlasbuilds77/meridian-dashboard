@@ -1,13 +1,13 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-
-if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
-  throw new Error('SESSION_SECRET must be at least 32 characters');
+function getSessionSecret(): Uint8Array {
+  const s = process.env.SESSION_SECRET;
+  if (!s || s.length < 32) {
+    throw new Error('SESSION_SECRET must be at least 32 characters');
+  }
+  return new TextEncoder().encode(s);
 }
-
-const secret = new TextEncoder().encode(SESSION_SECRET);
 
 export interface SessionPayload {
   discordId: string;
@@ -32,7 +32,7 @@ export async function createSession(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
-    .sign(secret);
+    .sign(getSessionSecret());
 }
 
 /**
@@ -76,15 +76,15 @@ export async function getUserIdFromSession(): Promise<number | null> {
   const session = cookieStore.get('meridian_session');
   
   if (!session) {
-    console.log('[SESSION] No cookie found in cookieStore');
+    // No session cookie found
     return null;
   }
   
   try {
-    const { payload } = await jwtVerify(session.value, secret);
+    const { payload } = await jwtVerify(session.value, getSessionSecret());
     return payload.dbUserId as number;
   } catch (e) {
-    console.log('[SESSION] JWT verify failed:', e);
+    // JWT verify failed (tampered or expired)
     return null; // Invalid/tampered token
   }
 }
@@ -100,7 +100,7 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!session) return null;
   
   try {
-    const { payload } = await jwtVerify(session.value, secret);
+    const { payload } = await jwtVerify(session.value, getSessionSecret());
     return {
       discordId: payload.discordId as string,
       dbUserId: payload.dbUserId as number,

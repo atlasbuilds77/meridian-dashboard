@@ -231,10 +231,7 @@ export async function POST(request: Request) {
     clearPendingRequest(authResult.userId.toString(), '/api/user/credentials', 'POST');
     
     return NextResponse.json(
-      { 
-        error: 'Failed to store credential',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Failed to store credential' },
       { status: 500 }
     );
   }
