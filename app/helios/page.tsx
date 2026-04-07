@@ -436,7 +436,7 @@ function SummaryHeader({
       <div className="relative z-10">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Helios Signals</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Helios Helios</p>
             <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px]">
               LIVE
             </Badge>
@@ -469,7 +469,7 @@ function SummaryHeader({
 
 // ─── Page ────────────────────────────────────────────────────────────
 
-export default function SignalsPage() {
+export default function HeliosPage() {
   const { data: access, loading: accessLoading } = useLiveData<HeliosAccessResponse>(
     '/api/helios/access',
     300_000, // check access every 5 min
@@ -501,7 +501,7 @@ export default function SignalsPage() {
         {/* Header */}
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Helios Integration</p>
-          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Signals</h1>
+          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Helios</h1>
         </header>
 
         {/* Summary */}
@@ -513,7 +513,7 @@ export default function SignalsPage() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Helios Signals — Live Feed</p>
+                <p className="text-sm font-semibold text-foreground">Helios Helios — Live Feed</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Real-time positions and weekly trade data from Helios. Data refreshes automatically.
                   Copy-trading execution coming soon via SnapTrade integration.

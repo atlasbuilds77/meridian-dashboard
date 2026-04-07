@@ -14,14 +14,14 @@ const baseNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const signalsItem = { href: '/signals', label: 'Signals', icon: Radio };
+const signalsItem = { href: '/helios', label: 'Helios', icon: Radio };
 
 export function MobileNav() {
   const pathname = usePathname();
   const { data: heliosAccess } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
-  const showSignals = heliosAccess?.hasAccess ?? false;
+  const showHelios = heliosAccess?.hasAccess ?? false;
 
-  const navItems = showSignals
+  const navItems = showHelios
     ? [baseNavItems[0], baseNavItems[1], signalsItem, ...baseNavItems.slice(2)]
     : baseNavItems;
 
