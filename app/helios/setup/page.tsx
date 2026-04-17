@@ -70,7 +70,7 @@ function StepDots({ current }: { current: number }) {
 
 export default function HeliosSetupPage() {
   const router  = useRouter();
-  const { csrfToken } = useCsrfToken();
+  const { token: csrfToken } = useCsrfToken();
 
   const [step,     setStep]     = useState(0);
   const [accounts, setAccounts] = useState<SnapAccount[]>([]);
