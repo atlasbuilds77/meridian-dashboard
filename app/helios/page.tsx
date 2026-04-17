@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLiveData } from '@/hooks/use-live-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -462,6 +464,22 @@ function SummaryHeader({
 // ─── Page ────────────────────────────────────────────────────────────
 
 export default function HeliosPage() {
+  const router = useRouter();
+
+  // Check if user has completed Helios setup
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/user/snaptrade/accounts');
+        const data = await res.json();
+        // If connected but no helios account selected or auto-execute not enabled → setup
+        if (!data.connected || !data.heliosAccount || !data.heliosAutoExecute) {
+          router.replace('/helios/setup');
+        }
+      } catch { /* let them through if check fails */ }
+    })();
+  }, [router]);
+
   const { data: access, loading: accessLoading } = useLiveData<HeliosAccessResponse>(
     '/api/helios/access',
     300_000, // check access every 5 min
