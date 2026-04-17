@@ -40,6 +40,11 @@ function getClient(): Snaptrade {
 }
 
 // ─── User Registration ─────────────────────────────────────────────
+export async function deleteUser(userId: string) {
+  const client = getClient();
+  return client.authentication.deleteSnapTradeUser({ userId });
+}
+
 export async function registerUser(userId: string) {
   const client = getClient();
   const response = await client.authentication.registerSnapTradeUser({

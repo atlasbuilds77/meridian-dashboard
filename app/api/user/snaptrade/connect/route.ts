@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
 import { getSnapTradeData, setSnapTradeRegistration } from '@/lib/db/snaptrade-users';
-import { registerUser, getConnectionUrl, isConfigured } from '@/lib/snaptrade/client';
+import { registerUser, getConnectionUrl, isConfigured, deleteUser } from '@/lib/snaptrade/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +32,21 @@ export async function POST() {
     // Register user with SnapTrade if not already registered
     if (!snapData?.snaptrade_user_id || !snapData?.snaptrade_user_secret) {
       const snapUserId = `meridian-${userId}`;
-      const registration = await registerUser(snapUserId);
+
+      let registration;
+      try {
+        registration = await registerUser(snapUserId);
+      } catch (regError: unknown) {
+        // 400 = user already exists in SnapTrade but not in our DB — delete and re-register
+        const msg = regError instanceof Error ? regError.message : '';
+        if (msg.includes('400') || msg.includes('already exists') || msg.includes('BAD_REQUEST')) {
+          console.log(`[SnapTrade Connect] User ${snapUserId} already exists, deleting and re-registering`);
+          try { await deleteUser(snapUserId); } catch { /* ignore delete errors */ }
+          registration = await registerUser(snapUserId);
+        } else {
+          throw regError;
+        }
+      }
 
       await setSnapTradeRegistration(
         userId,
