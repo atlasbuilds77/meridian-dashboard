@@ -113,8 +113,8 @@ function fmtDate(d?: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function isBullish(direction: string): boolean {
-  const d = direction.toUpperCase();
+function isBullish(direction: string | null | undefined): boolean {
+  const d = (direction ?? '').toUpperCase();
   return d === 'LONG' || d === 'CALL' || d === 'BULL' || d === 'BUY';
 }
 
@@ -247,7 +247,7 @@ function OpenPositions({ positions, loading }: { positions: HeliosPosition[]; lo
                         ) : (
                           <ArrowDownRight className="h-2.5 w-2.5" />
                         )}
-                        {pos.direction.toUpperCase()}
+                        {(pos.direction ?? '').toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
