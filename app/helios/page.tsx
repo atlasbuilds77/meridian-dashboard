@@ -560,7 +560,8 @@ export default function HeliosPage() {
         const res = await fetch('/api/user/snaptrade/accounts');
         const data = await res.json();
         // If connected but no helios account selected or auto-execute not enabled → setup
-        if (!data.connected || !data.heliosAccount || !data.heliosAutoExecute) {
+        // Only redirect to setup if not connected at all
+        if (data.connected === false) {
           router.replace('/helios/setup');
         }
       } catch { /* let them through if check fails */ }
