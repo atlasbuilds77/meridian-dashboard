@@ -132,7 +132,7 @@ function HeliosSettingsSection() {
           Helios Auto-Execute
         </CardTitle>
         <CardDescription className="text-xs">
-          Manage your Helios broker connection and auto-execution settings.
+          Use this to pause/resume auto-execution. To connect for the first time, use the <a href="/helios/setup" className="text-orange-400 hover:underline">setup wizard</a>.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 space-y-4">
