@@ -110,10 +110,10 @@ function HeliosSettingsSection() {
     setError(null);
     try {
       const newVal = !snapData?.heliosAutoExecute;
-      const res = await fetchWithCsrf('/api/user/settings/auto-execute', csrfToken, {
+      const res = await fetchWithCsrf('/api/user/settings/auto-execute', {
         method: 'POST',
         body: JSON.stringify({ system: 'helios', enabled: newVal }),
-      });
+      }, csrfToken);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update');
       await loadSnapData();

@@ -211,10 +211,10 @@ export default function HeliosSetupPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithCsrf('/api/user/snaptrade/select-system-account', csrfToken, {
+      const res = await fetchWithCsrf('/api/user/snaptrade/select-system-account', {
         method: 'POST',
         body: JSON.stringify({ accountId: selected, system: 'helios' }),
-      });
+      }, csrfToken);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save account');
       setStep(3);
@@ -290,10 +290,10 @@ export default function HeliosSetupPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithCsrf('/api/user/settings/auto-execute', csrfToken, {
+      const res = await fetchWithCsrf('/api/user/settings/auto-execute', {
         method: 'POST',
         body: JSON.stringify({ system: 'helios', enabled: true }),
-      });
+      }, csrfToken);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to enable');
       setStep(4);
