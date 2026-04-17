@@ -348,7 +348,7 @@ export function WeeklyBillingView() {
                 {weeklyData.feeAmount > 0 ? formatCurrency(weeklyData.feeAmount) : '$0.00'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {weeklyData.feeAmount > 0 ? 'Due Sunday 11:59 PM' : 'No fee (no net profit)'}
+                {weeklyData.feeAmount > 0 ? 'Due Friday 1:00 PM PST (Market Close)' : 'No fee (no net profit)'}
               </div>
             </CardContent>
           </Card>
