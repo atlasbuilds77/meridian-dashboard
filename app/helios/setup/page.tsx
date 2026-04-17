@@ -2,10 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, Zap, Link2, Wallet, ToggleRight } from 'lucide-react';
+import { CheckCircle2, Loader2, Zap, Link2, Wallet, ToggleRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { fetchWithCsrf, useCsrfToken } from '@/hooks/use-csrf-token';
+
+// ─── Broker capability map ───────────────────────────────────────────────────
+// Source: SnapTrade brokerage support matrix (options trading column)
+const BROKERS_WITH_OPTIONS = [
+  { name: 'Tastytrade',           options: true  },
+  { name: 'Interactive Brokers',  options: true  },
+  { name: 'Alpaca',               options: true  },
+  { name: 'TD Ameritrade',        options: true  },
+  { name: 'Charles Schwab',       options: true  },
+  { name: 'Tradier',              options: true  },
+  { name: 'Robinhood',            options: false },
+  { name: 'Webull',               options: false },
+  { name: 'Fidelity',             options: false },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,10 +162,20 @@ export default function HeliosSetupPage() {
           We use SnapTrade to securely connect to 50+ brokerages. Your credentials are never stored here.
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto text-xs text-zinc-500">
-        {['Tastytrade', 'TD Ameritrade', 'Interactive Brokers', 'Webull', 'Robinhood', 'Alpaca'].map(b => (
-          <div key={b} className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-center">{b}</div>
+      {/* Broker capability grid */}
+      <div className="max-w-sm mx-auto space-y-2 text-xs">
+        <p className="text-zinc-500 uppercase tracking-wide text-[10px] text-left mb-1">Options execution supported:</p>
+        {BROKERS_WITH_OPTIONS.map(b => (
+          <div key={b.name} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded px-3 py-2">
+            <span className="font-medium text-zinc-200">{b.name}</span>
+            <div className="flex items-center gap-1.5">
+              {b.options
+                ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /><span className="text-green-400">Full execution</span></>
+                : <><span className="text-zinc-600">Data only</span></>}
+            </div>
+          </div>
         ))}
+        <p className="text-zinc-600 text-[10px] text-left pt-1">Other brokers may connect for data only. Options execution requires broker support.</p>
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <Button onClick={handleConnect} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white px-8">
@@ -230,6 +254,18 @@ export default function HeliosSetupPage() {
           ))}
         </div>
       )}
+      {/* Options support warning based on institution name */}
+      {accounts.some(a => {
+        const name = (a.institution_name || a.name || '').toLowerCase();
+        const noOptions = ['robinhood','webull','fidelity'];
+        return a.id === selected && noOptions.some(n => name.includes(n));
+      }) && (
+        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 max-w-sm mx-auto text-xs text-amber-300">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>This broker may not support options execution via SnapTrade. Helios trades 0DTE options — consider Tastytrade, IBKR, or Alpaca for full execution.</span>
+        </div>
+      )}
+
       {!connected && (
         <p className="text-center text-sm text-zinc-500">
           Don&apos;t see your account?{' '}
