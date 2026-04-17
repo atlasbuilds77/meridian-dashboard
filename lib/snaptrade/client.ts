@@ -58,6 +58,7 @@ export async function getConnectionUrl(
   const response = await client.authentication.loginSnapTradeUser({
     userId,
     userSecret,
+    connectionType: 'trade',   // REQUIRED: request trading permissions (not read-only)
     ...(customRedirect ? { customRedirect } : {}),
   });
   return response.data; // { redirectURI, ... }
