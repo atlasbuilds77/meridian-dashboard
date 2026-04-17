@@ -1,33 +1,32 @@
 'use client';
 
 import { useLiveData } from '@/hooks/use-live-data';
-import { PredictionMarketCard } from '@/components/prediction-market-card';
-import { SignalFeed } from '@/components/signal-feed';
-import { WalletConnection } from '@/components/wallet-connection';
-import { PolymarketSetupGuide } from '@/components/polymarket-setup-guide';
-import { UserPnLCard } from '@/components/user-pnl-card';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Zap,
-  Eye,
-  ShieldCheck,
-  AlertTriangle,
-  TrendingUp,
   Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Eye,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+  Clock,
+  Target,
+  DollarSign,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface OracleResponse {
   status: 'online' | 'stopped' | 'offline' | 'unknown';
   name: string;
-  description: string;
   stats: {
     total_trades: number;
     wins: number;
     losses: number;
     pending: number;
-    total_invested: number;
-    total_returned: number;
     total_profit: number;
     win_rate: number;
   } | null;
@@ -36,14 +35,10 @@ interface OracleResponse {
     timestamp: string;
     asset: string;
     direction: string;
-    market_type: string;
-    shares: number;
-    entry_price: number;
     cost: number;
     edge: number;
     model_prob: number;
     outcome: string;
-    payout: number;
     profit: number;
   }>;
 }
@@ -51,92 +46,97 @@ interface OracleResponse {
 interface NightWatchResponse {
   status: 'online' | 'stopped' | 'offline' | 'unknown' | 'error';
   name: string;
-  description: string;
   stats: {
     totalTrades: number;
-    buyTrades: number;
-    sellTrades: number;
-    totalStaked: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalPnL: number;
     openPositions: number;
     openPnL: number;
   } | null;
   recentTrades: Array<{
-    id: string;
-    market_id: string;
-    side: string;
-    price: number;
-    size: number;
+    question: string;
+    category: string;
+    confidence: string;
+    edge_at_entry: number;
     stake_usd: number;
-    status: string;
-    dry_run: number;
-    created_at: string;
+    pnl: number;
+    resolved_at: string;
   }>;
   openPositions: Array<{
-    market_id: string;
+    question: string;
     direction: string;
     entry_price: number;
     current_price: number;
     pnl: number;
-    question: string;
-    market_type: string;
     stake_usd: number;
   }>;
 }
 
-function CombinedPnLHeader({ oracle, nightwatch }: { oracle: OracleResponse | null; nightwatch: NightWatchResponse | null }) {
-  const oracleProfit = oracle?.stats?.total_profit || 0;
-  const nightwatchPnL = nightwatch?.stats?.openPnL || 0;
-  const totalPnL = oracleProfit + nightwatchPnL;
-  const isPositive = totalPnL >= 0;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  const totalTrades = (oracle?.stats?.total_trades || 0) + (nightwatch?.stats?.totalTrades || 0);
+function fmtTime(ts: string) {
+  try {
+    return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch { return ts; }
+}
+
+function StatusDot({ status }: { status: string }) {
+  const color = status === 'online' ? 'bg-profit animate-pulse' : status === 'stopped' ? 'bg-yellow-500' : 'bg-loss';
+  return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />;
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────────
+
+function Header({ oracle, nightwatch }: { oracle: OracleResponse | null; nightwatch: NightWatchResponse | null }) {
+  const oraclePnL = oracle?.stats?.total_profit || 0;
+  const nwPnL = nightwatch?.stats?.totalPnL || 0;
+  const totalPnL = oraclePnL + nwPnL;
+  const isPos = totalPnL >= 0;
   const oracleOnline = oracle?.status === 'online';
-  const nightwatchOnline = nightwatch?.status === 'online';
-  const botsOnline = (oracleOnline ? 1 : 0) + (nightwatchOnline ? 1 : 0);
+  const nwOnline = nightwatch?.status === 'online';
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-primary/35 bg-[rgba(19,19,28,0.78)] p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:p-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
-      <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-16 -left-16 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl" />
-
+    <section className="hero-section rounded border border-border">
       <div className="relative z-10">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Prediction Markets</p>
-            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
-              BETA
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-muted-foreground">
-              <div className={`h-2 w-2 rounded-full ${botsOnline > 0 ? 'bg-profit animate-pulse' : 'bg-loss'}`} />
-              <span>{botsOnline}/2 Bots Active</span>
-            </div>
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="data-label">Prediction Markets</p>
+          <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="flex items-center gap-1.5">
+              <StatusDot status={oracle?.status || 'unknown'} />
+              Oracle {oracleOnline ? 'Live' : 'Offline'}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <StatusDot status={nightwatch?.status || 'unknown'} />
+              NightWatch {nwOnline ? 'Live' : 'Offline'}
+            </span>
           </div>
         </div>
 
-        <div className="mb-5 flex flex-wrap items-end gap-3">
-          <h1 className={`text-4xl font-bold tracking-tight sm:text-5xl ${isPositive ? 'text-profit' : 'text-loss'}`}>
-            {isPositive ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
+        <div className="mb-4 flex flex-wrap items-baseline gap-3">
+          <h1 className={`font-mono text-3xl font-bold tabular-nums sm:text-4xl ${isPos ? 'text-profit' : 'text-loss'}`}>
+            {isPos ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
           </h1>
-          <span className="mb-1 text-sm text-muted-foreground">combined P&L</span>
+          <span className="text-xs text-muted-foreground">combined P&L (paper)</span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 sm:gap-5">
-          <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/8 px-3 py-2 text-sm text-muted-foreground">
-            <Activity className="h-3.5 w-3.5 text-primary" />
-            <span>{totalTrades} total trades</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="stat-box rounded">
+            <p className="stat-box-label">Oracle P&L</p>
+            <p className={`stat-box-value ${oraclePnL >= 0 ? 'text-profit' : 'text-loss'}`}>${oraclePnL.toFixed(2)}</p>
           </div>
-
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-sm text-muted-foreground">
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-            <span>Oracle: <strong className={oracleOnline ? 'text-profit' : 'text-loss'}>{oracle?.status || 'unknown'}</strong></span>
+          <div className="stat-box rounded">
+            <p className="stat-box-label">Oracle WR</p>
+            <p className={`stat-box-value ${(oracle?.stats?.win_rate || 0) >= 50 ? 'text-profit' : 'text-loss'}`}>{oracle?.stats?.win_rate || 0}%</p>
           </div>
-
-          <div className="flex items-center gap-2 rounded-lg border border-blue-500/25 bg-blue-500/8 px-3 py-2 text-sm text-muted-foreground">
-            <Eye className="h-3.5 w-3.5 text-blue-500" />
-            <span>NightWatch: <strong className={nightwatchOnline ? 'text-profit' : 'text-loss'}>{nightwatch?.status || 'unknown'}</strong></span>
+          <div className="stat-box rounded">
+            <p className="stat-box-label">NightWatch P&L</p>
+            <p className={`stat-box-value ${nwPnL >= 0 ? 'text-profit' : 'text-loss'}`}>${nwPnL.toFixed(2)}</p>
+          </div>
+          <div className="stat-box rounded">
+            <p className="stat-box-label">NightWatch WR</p>
+            <p className={`stat-box-value ${(nightwatch?.stats?.winRate || 0) >= 50 ? 'text-profit' : 'text-loss'}`}>{nightwatch?.stats?.winRate || 0}%</p>
           </div>
         </div>
       </div>
@@ -144,18 +144,213 @@ function CombinedPnLHeader({ oracle, nightwatch }: { oracle: OracleResponse | nu
   );
 }
 
-function BetaNotice() {
+// ─── Oracle Signal Feed ───────────────────────────────────────────────────────
+
+function OracleFeed({ trades, loading }: { trades: OracleResponse['recentTrades']; loading: boolean }) {
   return (
-    <Card className="border-amber-500/30 bg-amber-500/5">
+    <Card>
+      <CardHeader className="border-b border-border pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Zap className="h-4 w-4 text-amber-500" />
+          Oracle Signals
+          <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-[9px]">BTC · ETH · SOL</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="space-y-px">
+            {[1,2,3].map(i => <div key={i} className="h-12 animate-pulse bg-muted/20 border-b border-border" />)}
+          </div>
+        ) : trades.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            <Activity className="mx-auto h-5 w-5 mb-2 opacity-40" />
+            No signals yet — Oracle scans every 15 min
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {trades.map((t, i) => {
+              const isUp = t.direction === 'UP';
+              const isWin = t.outcome === 'win';
+              const isPending = !t.outcome || t.outcome === 'pending';
+              return (
+                <div key={i} className="flex items-center justify-between px-4 py-2.5 hover:bg-secondary/40">
+                  <div className="flex items-center gap-2.5">
+                    {isUp
+                      ? <ArrowUpRight className="h-3.5 w-3.5 text-profit shrink-0" />
+                      : <ArrowDownRight className="h-3.5 w-3.5 text-loss shrink-0" />}
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-semibold uppercase">{t.asset}</span>
+                        <Badge variant="outline" className={`text-[9px] ${isUp ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}`}>
+                          {t.direction}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">edge {(t.edge * 100).toFixed(0)}%</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{fmtTime(t.timestamp)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {isPending ? (
+                      <Badge variant="outline" className="text-[9px] border-yellow-500/30 text-yellow-500">OPEN</Badge>
+                    ) : (
+                      <span className={`font-mono text-xs font-semibold ${isWin ? 'text-profit' : 'text-loss'}`}>
+                        {isWin ? '+' : ''}${t.profit?.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── NightWatch Signal Feed ───────────────────────────────────────────────────
+
+function NightWatchFeed({
+  trades, positions, loading
+}: {
+  trades: NightWatchResponse['recentTrades'];
+  positions: NightWatchResponse['openPositions'];
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="border-b border-border pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Eye className="h-4 w-4 text-blue-400" />
+          NightWatch Signals
+          <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 text-[9px]">MACRO · CORPORATE · TECH</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="space-y-px">
+            {[1,2,3].map(i => <div key={i} className="h-14 animate-pulse bg-muted/20 border-b border-border" />)}
+          </div>
+        ) : (
+          <>
+            {/* Open positions */}
+            {positions.length > 0 && (
+              <div className="border-b border-border">
+                <p className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Open ({positions.length})</p>
+                {positions.map((p, i) => {
+                  const isPos = (p.pnl || 0) >= 0;
+                  return (
+                    <div key={i} className="flex items-start justify-between px-4 py-2 hover:bg-secondary/40 border-t border-border/50">
+                      <div className="flex-1 min-w-0 pr-3">
+                        <p className="text-xs text-foreground truncate">{p.question}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className={`text-[9px] ${p.direction === 'YES' || p.direction === 'UP' ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}`}>
+                            {p.direction}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">@${p.entry_price?.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <span className={`font-mono text-xs font-semibold shrink-0 ${isPos ? 'text-profit' : 'text-loss'}`}>
+                        {isPos ? '+' : ''}${(p.pnl || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Resolved trades */}
+            {trades.length === 0 && positions.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                <Activity className="mx-auto h-5 w-5 mb-2 opacity-40" />
+                No signals yet — NightWatch scans every hour
+              </div>
+            ) : (
+              <>
+                {trades.length > 0 && (
+                  <p className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Resolved</p>
+                )}
+                <div className="divide-y divide-border">
+                  {trades.map((t, i) => {
+                    const isWin = (t.pnl || 0) > 0;
+                    return (
+                      <div key={i} className="flex items-start justify-between px-4 py-2.5 hover:bg-secondary/40">
+                        <div className="flex-1 min-w-0 pr-3">
+                          <p className="text-xs text-foreground truncate">{t.question}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Badge variant="outline" className="text-[9px] border-border text-muted-foreground">{t.category}</Badge>
+                            <Badge variant="outline" className={`text-[9px] ${t.confidence === 'MEDIUM' || t.confidence === 'HIGH' ? 'border-profit/30 text-profit' : 'border-border text-muted-foreground'}`}>
+                              {t.confidence}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground">edge {((t.edge_at_entry || 0) * 100).toFixed(0)}%</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{fmtTime(t.resolved_at)}</p>
+                        </div>
+                        <span className={`font-mono text-xs font-semibold shrink-0 ${isWin ? 'text-profit' : 'text-loss'}`}>
+                          {isWin ? '+' : ''}${(t.pnl || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Bot Status Cards ─────────────────────────────────────────────────────────
+
+function BotCard({
+  name, status, stats, variant
+}: {
+  name: string;
+  status: string;
+  stats: OracleResponse['stats'] | NightWatchResponse['stats'] | null;
+  variant: 'oracle' | 'nightwatch';
+}) {
+  const isOracle = variant === 'oracle';
+  const color = isOracle ? 'text-amber-400' : 'text-blue-400';
+  const borderColor = isOracle ? 'border-amber-500/20' : 'border-blue-500/20';
+
+  const trades = isOracle ? (stats as OracleResponse['stats'])?.total_trades : (stats as NightWatchResponse['stats'])?.totalTrades;
+  const wr = isOracle ? (stats as OracleResponse['stats'])?.win_rate : (stats as NightWatchResponse['stats'])?.winRate;
+  const pnl = isOracle ? (stats as OracleResponse['stats'])?.total_profit : (stats as NightWatchResponse['stats'])?.totalPnL;
+  const wrGood = (wr || 0) >= 50;
+  const pnlPos = (pnl || 0) >= 0;
+
+  return (
+    <Card className={cn('border', borderColor)}>
       <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-          <div>
-            <p className="text-sm font-semibold text-foreground">Beta Access — Limited to 3-4 Users</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Prediction market copy-trading is in active development. Oracle handles crypto predictions (BTC/ETH),
-              while NightWatch covers event markets (politics, sports, world events). Connect your Polymarket wallet
-              below to get started.
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {isOracle ? <Zap className={cn('h-4 w-4', color)} /> : <Eye className={cn('h-4 w-4', color)} />}
+            <span className="font-semibold text-sm">{name}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusDot status={status} />
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {status === 'online' ? 'Live' : status}
+            </span>
+            <Badge variant="outline" className="text-[9px] ml-1">PAPER</Badge>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="stat-box rounded text-center">
+            <p className="stat-box-label">Trades</p>
+            <p className="stat-box-value">{trades || 0}</p>
+          </div>
+          <div className="stat-box rounded text-center">
+            <p className="stat-box-label">Win Rate</p>
+            <p className={`stat-box-value ${wrGood ? 'text-profit' : 'text-loss'}`}>{wr || 0}%</p>
+          </div>
+          <div className="stat-box rounded text-center">
+            <p className="stat-box-label">P&L</p>
+            <p className={`stat-box-value ${pnlPos ? 'text-profit' : 'text-loss'}`}>
+              {pnlPos ? '+' : ''}${(pnl || 0).toFixed(2)}
             </p>
           </div>
         </div>
@@ -164,129 +359,70 @@ function BetaNotice() {
   );
 }
 
-function SecurityNote() {
-  return (
-    <Card className="border-border/50 bg-secondary/25">
-      <CardContent className="p-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-border/40 bg-background/60 p-4">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              How Copy-Trading Works
-            </h4>
-            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-              <li>• Oracle &amp; NightWatch generate signals from AI analysis</li>
-              <li>• Trades are executed on your Polymarket wallet</li>
-              <li>• Position sizing follows risk management rules</li>
-              <li>• All trades visible in the Signal Feed</li>
-            </ul>
-          </div>
-
-          <div className="rounded-xl border border-border/40 bg-background/60 p-4">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Bot Strategies
-            </h4>
-            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-              <li>• <strong className="text-amber-500">Oracle:</strong> Short-term crypto price predictions (5-60min)</li>
-              <li>• <strong className="text-blue-500">NightWatch:</strong> Event-driven markets (elections, sports, macro)</li>
-              <li>• Both bots run 24/7 with automated risk controls</li>
-              <li>• Paper trading mode available for testing</li>
-            </ul>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PredictionMarketsPage() {
   const { data: oracle, loading: oracleLoading } = useLiveData<OracleResponse>('/api/prediction-markets/oracle', 30_000);
   const { data: nightwatch, loading: nightwatchLoading } = useLiveData<NightWatchResponse>('/api/prediction-markets/nightwatch', 30_000);
 
-  const loading = oracleLoading || nightwatchLoading;
-
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
-      <div className="mx-auto max-w-[1600px] space-y-6">
+    <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-4">
+
         {/* Header */}
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Polymarket Integration</p>
-          <h1 className="text-3xl font-bold tracking-tight nebula-gradient-text">Prediction Markets</h1>
+        <header>
+          <p className="data-label">24/7 AI Signal Bots</p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Prediction Markets</h1>
         </header>
 
-        {/* Combined P&L Header */}
-        <CombinedPnLHeader oracle={oracle} nightwatch={nightwatch} />
+        {/* Combined P&L */}
+        <Header oracle={oracle} nightwatch={nightwatch} />
 
-        {/* Beta Notice */}
-        <BetaNotice />
-
-        {/* Bot Status Cards */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <PredictionMarketCard
-            name={oracle?.name || 'Oracle'}
-            description={oracle?.description || 'Crypto prediction bot'}
+        {/* Bot status */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <BotCard
+            name="Oracle"
             status={oracle?.status || 'unknown'}
             stats={oracle?.stats || null}
             variant="oracle"
-            loading={loading && !oracle}
           />
-          <PredictionMarketCard
-            name={nightwatch?.name || 'NightWatch'}
-            description={nightwatch?.description || 'Event prediction bot'}
+          <BotCard
+            name="NightWatch"
             status={nightwatch?.status || 'unknown'}
             stats={nightwatch?.stats || null}
             variant="nightwatch"
-            loading={loading && !nightwatch}
           />
         </div>
 
-        {/* Wallet Connection */}
-        <WalletConnection />
-
-        {/* User's Copy-Trade P&L */}
-        <UserPnLCard />
-
-        {/* Signal Feeds - Separate sections */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Oracle Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-amber-500" />
-              <h2 className="text-lg font-semibold">Oracle Signals</h2>
-              <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px]">CRYPTO</Badge>
-            </div>
-            <SignalFeed
-              oracleTrades={oracle?.recentTrades || []}
-              nightwatchTrades={[]}
-              nightwatchPositions={[]}
-              loading={loading && !oracle}
-              variant="oracle"
-            />
-          </div>
-
-          {/* NightWatch Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-blue-500" />
-              <h2 className="text-lg font-semibold">NightWatch Signals</h2>
-              <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30 text-[10px]">EVENTS</Badge>
-            </div>
-            <SignalFeed
-              oracleTrades={[]}
-              nightwatchTrades={nightwatch?.recentTrades || []}
-              nightwatchPositions={nightwatch?.openPositions || []}
-              loading={loading && !nightwatch}
-              variant="nightwatch"
-            />
-          </div>
+        {/* Signal feeds */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <OracleFeed
+            trades={oracle?.recentTrades || []}
+            loading={oracleLoading && !oracle}
+          />
+          <NightWatchFeed
+            trades={nightwatch?.recentTrades || []}
+            positions={nightwatch?.openPositions || []}
+            loading={nightwatchLoading && !nightwatch}
+          />
         </div>
 
-        {/* Setup Guide */}
-        <PolymarketSetupGuide />
+        {/* Coming soon notice */}
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Target className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-foreground">Kalshi Integration Coming Soon</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Once Oracle &amp; NightWatch hit consistent 60%+ win rates, we&apos;ll wire up auto-trading via Kalshi — 
+                  fully US-legal, no VPN, no wallet bans. Signal-only for now.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Security & Info */}
-        <SecurityNote />
       </div>
     </div>
   );
