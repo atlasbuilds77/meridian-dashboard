@@ -16,8 +16,8 @@ const BROKERS_WITH_OPTIONS = [
   { name: 'TD Ameritrade',        options: true  },
   { name: 'Charles Schwab',       options: true  },
   { name: 'Tradier',              options: true  },
+  { name: 'Webull',               options: true  },
   { name: 'Robinhood',            options: false },
-  { name: 'Webull',               options: false },
   { name: 'Fidelity',             options: false },
 ];
 
@@ -257,7 +257,7 @@ export default function HeliosSetupPage() {
       {/* Options support warning based on institution name */}
       {accounts.some(a => {
         const name = (a.institution_name || a.name || '').toLowerCase();
-        const noOptions = ['robinhood','webull','fidelity'];
+        const noOptions = ['robinhood','fidelity'];
         return a.id === selected && noOptions.some(n => name.includes(n));
       }) && (
         <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 max-w-sm mx-auto text-xs text-amber-300">
