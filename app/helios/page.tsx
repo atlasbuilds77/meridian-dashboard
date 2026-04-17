@@ -598,7 +598,7 @@ export default function HeliosPage() {
       <div className="mx-auto max-w-[1600px] space-y-4">
         {/* Header */}
         <header>
-          <p className="data-label">Signals</p>
+          <p className="data-label">Auto-Execute Dashboard</p>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Helios</h1>
         </header>
 

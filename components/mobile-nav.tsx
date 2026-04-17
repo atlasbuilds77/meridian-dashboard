@@ -15,7 +15,8 @@ const baseNavItems = [
 ];
 
 const heliosNavItems = [
-  { href: '/helios', label: 'Helios', icon: Radio },
+  { href: '/helios', label: 'Dashboard', icon: Home },
+  { href: '/helios/setup', label: 'Setup', icon: Zap },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

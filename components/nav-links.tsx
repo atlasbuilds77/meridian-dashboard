@@ -34,7 +34,8 @@ export function NavLinks() {
   if (isHeliosOnly) {
     return (
       <div className="hidden items-center gap-2 md:flex">
-        <Link href="/helios" className={navLinkClass(pathname === '/helios' || pathname.startsWith('/helios'))}>Helios</Link>
+        <Link href="/helios" className={navLinkClass(pathname === '/helios' && !pathname.startsWith('/helios/setup'))}>Dashboard</Link>
+        <Link href="/helios/setup" className={navLinkClass(pathname.startsWith('/helios/setup'))}>Setup</Link>
         <Link href="/settings" className={navLinkClass(pathname === '/settings')}>Settings</Link>
       </div>
     );
