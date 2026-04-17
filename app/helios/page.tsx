@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveData } from '@/hooks/use-live-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -461,6 +461,87 @@ function SummaryHeader({
   );
 }
 
+// ─── Auto-Execute Banner + Rotating Trades Ticker ──────────────────
+
+function AutoExecuteBanner({ weeklyTrades }: { weeklyTrades: HeliosWeeklyTrade[] }) {
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Rotate through trades every 3s with fade
+  useEffect(() => {
+    if (weeklyTrades.length <= 1) return;
+    timerRef.current = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx(i => (i + 1) % weeklyTrades.length);
+        setVisible(true);
+      }, 300);
+    }, 3000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [weeklyTrades.length]);
+
+  const trade = weeklyTrades[idx];
+  const totalPnL = weeklyTrades.reduce((s, t) => s + (t.pnl ?? 0), 0);
+  const wins = weeklyTrades.filter(t => (t.pnl ?? 0) > 0).length;
+  const winRate = weeklyTrades.length > 0 ? Math.round((wins / weeklyTrades.length) * 100) : 0;
+
+  return (
+    <Card className="border-orange-500/30 bg-orange-500/5">
+      <CardContent className="p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Left: status */}
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-xs font-semibold text-orange-400 uppercase tracking-wide">Auto-Execute Active</span>
+          </div>
+
+          {/* Divider */}
+          <div className="hidden sm:block h-4 w-px bg-border" />
+
+          {/* Weekly summary */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>This week:</span>
+            <span className={`font-mono font-semibold tabular-nums ${
+              totalPnL >= 0 ? 'text-profit' : 'text-loss'
+            }`}>{totalPnL >= 0 ? '+' : ''}{fmtCurrency(totalPnL)}</span>
+            <span className="text-muted-foreground/50">·</span>
+            <span>{weeklyTrades.length} trades</span>
+            <span className="text-muted-foreground/50">·</span>
+            <span className={winRate >= 50 ? 'text-profit' : 'text-loss'}>{winRate}% WR</span>
+          </div>
+
+          {/* Divider */}
+          {trade && <div className="hidden sm:block h-4 w-px bg-border" />}
+
+          {/* Rotating trade ticker */}
+          {trade && (
+            <div
+              className="flex items-center gap-2 text-xs transition-opacity duration-300"
+              style={{ opacity: visible ? 1 : 0 }}
+            >
+              <span className="text-muted-foreground">Latest:</span>
+              {isBullish(trade.direction ?? '')
+                ? <ArrowUpRight className="h-3 w-3 text-profit" />
+                : <ArrowDownRight className="h-3 w-3 text-loss" />}
+              <span className="font-mono font-semibold">{trade.symbol}</span>
+              <Badge variant="outline" className={`text-[9px] ${
+                isBullish(trade.direction ?? '') ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'
+              }`}>{(trade.direction ?? '').toUpperCase()}</Badge>
+              <span className={`font-mono font-semibold tabular-nums ${
+                (trade.pnl ?? 0) >= 0 ? 'text-profit' : 'text-loss'
+              }`}>{(trade.pnl ?? 0) >= 0 ? '+' : ''}{fmtCurrency(trade.pnl ?? 0)}</span>
+              {weeklyTrades.length > 1 && (
+                <span className="text-muted-foreground/40 text-[10px]">{idx + 1}/{weeklyTrades.length}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────
 
 export default function HeliosPage() {
@@ -517,20 +598,8 @@ export default function HeliosPage() {
         {/* Summary */}
         <SummaryHeader positions={positions} weeklyData={weeklyData} />
 
-        {/* Beta Notice */}
-        <Card className="border-amber-500/20">
-          <CardContent className="p-3">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <div>
-                <p className="text-xs font-semibold text-foreground">Live Feed</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Real-time data. Copy-trading via SnapTrade coming soon.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Auto-Execute Status Banner */}
+        <AutoExecuteBanner weeklyTrades={weeklyTrades} />
 
         {/* Open Positions */}
         <OpenPositions positions={positions} loading={loading && positions.length === 0} />
