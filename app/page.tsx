@@ -31,7 +31,107 @@ import {
   TableRowSkeleton 
 } from '@/components/skeletons';
 import { PullToRefresh } from '@/components/pull-to-refresh';
+import { Zap } from 'lucide-react';
 // NDA handled by NDAProvider in layout.tsx
+
+// ─── Helios types ────────────────────────────────────────────────────────────
+interface HeliosAccessResponse { hasAccess: boolean; }
+interface HeliosSummary {
+  total_trades?: number;
+  wins?: number;
+  losses?: number;
+  total_pnl?: number;
+  win_rate?: number;
+}
+interface HeliosWeeklyData {
+  trades?: Array<{ symbol: string; direction: string; pnl?: number; opened_at?: string; status?: string; }>;
+  weekly_trades?: Array<{ symbol: string; direction: string; pnl?: number; opened_at?: string; status?: string; }>;
+  summary?: HeliosSummary;
+  stats?: HeliosSummary;
+}
+
+function useHeliosAccess() {
+  return useLiveData<HeliosAccessResponse>('/api/helios/access', 300_000);
+}
+function useHeliosWeekly() {
+  return useLiveData<HeliosWeeklyData>('/api/helios/weekly', 60_000);
+}
+
+function HeliosDashboardCard() {
+  const { data: weekly, loading } = useHeliosWeekly();
+  const summary = weekly?.summary ?? weekly?.stats;
+  const trades = weekly?.trades ?? weekly?.weekly_trades ?? [];
+  const totalPnL = summary?.total_pnl ?? 0;
+  const winRate  = summary?.win_rate  ?? 0;
+  const isPos    = totalPnL >= 0;
+
+  return (
+    <Card className="border-orange-500/20">
+      <CardHeader className="pb-3 border-b border-border">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Zap className="h-4 w-4 text-orange-500" />
+            Helios Signals
+          </CardTitle>
+          <Link href="/helios" className="text-[10px] font-medium uppercase tracking-wide text-orange-400 hover:text-orange-300">View all →</Link>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        {loading ? (
+          <div className="space-y-2">
+            {[1,2,3].map(i => <div key={i} className="h-4 bg-muted/30 rounded animate-pulse" />)}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">P&L</p>
+                <p className={`font-mono text-base font-bold tabular-nums ${isPos ? 'text-profit' : 'text-loss'}`}>
+                  {isPos ? '+' : ''}{formatCurrency(totalPnL)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Win Rate</p>
+                <p className={`font-mono text-base font-bold tabular-nums ${winRate >= 50 ? 'text-profit' : 'text-loss'}`}>
+                  {winRate > 0 ? `${winRate.toFixed(0)}%` : '—'}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Trades</p>
+                <p className="font-mono text-base font-bold tabular-nums text-foreground">
+                  {summary?.total_trades ?? 0}
+                </p>
+              </div>
+            </div>
+            {trades.slice(0, 4).map((t, i) => {
+              const pnl = t.pnl ?? 0;
+              const bull = ['LONG','CALL','BUY'].includes((t.direction||'').toUpperCase());
+              return (
+                <div key={i} className="flex items-center justify-between py-1.5 border-t border-border/50 text-xs">
+                  <div className="flex items-center gap-2">
+                    {bull
+                      ? <ArrowUpRight className="h-3 w-3 text-profit" />
+                      : <ArrowDownRight className="h-3 w-3 text-loss" />}
+                    <span className="font-mono font-semibold">{t.symbol}</span>
+                    <Badge variant="outline" className={`text-[9px] ${bull ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}`}>{(t.direction||'').toUpperCase()}</Badge>
+                  </div>
+                  <span className={`font-mono font-semibold tabular-nums ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
+                  </span>
+                </div>
+              );
+            })}
+            {trades.length === 0 && (
+              <p className="text-center text-xs text-muted-foreground py-4">No signals this week</p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface TradierPnLData {
   totalPnL: number;
@@ -396,6 +496,13 @@ function RecentActivity() {
   );
 }
 
+// Only renders if user has Helios role
+function HeliosConditionalCard() {
+  const { data: access, loading } = useHeliosAccess();
+  if (loading || !access?.hasAccess) return null;
+  return <HeliosDashboardCard />;
+}
+
 export default function Dashboard() {
   const [userSession, setUserSession] = useState<{ username: string; avatar: string | null; discordId: string | null; userId: string | null } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -473,6 +580,8 @@ export default function Dashboard() {
         <TodayPnLCard />
         <PortfolioHeader />
         <StatsGrid />
+        {/* Show Helios card on dashboard if user has access */}
+        <HeliosConditionalCard />
         <RecentActivity />
 
         {/* Share Card Modal */}
