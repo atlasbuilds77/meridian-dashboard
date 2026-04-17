@@ -466,19 +466,23 @@ function SummaryHeader({
 function AutoExecuteBanner({ weeklyTrades }: { weeklyTrades: HeliosWeeklyTrade[] }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Rotate through trades every 3s with fade
   useEffect(() => {
     if (weeklyTrades.length <= 1) return;
-    timerRef.current = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setVisible(false);
-      setTimeout(() => {
+      fadeRef.current = setTimeout(() => {
         setIdx(i => (i + 1) % weeklyTrades.length);
         setVisible(true);
       }, 300);
     }, 3000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (fadeRef.current) clearTimeout(fadeRef.current);
+    };
   }, [weeklyTrades.length]);
 
   const trade = weeklyTrades[idx];

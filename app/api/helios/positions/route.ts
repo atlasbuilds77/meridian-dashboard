@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       headers['x-webhook-key'] = HELIOS_WEBHOOK_KEY;
     }
 
-    const res = await fetch(`${HELIOS_API}/positions`, {
+    const res = await fetch(`${HELIOS_API}/positions?send_discord=false`, {
       headers,
       signal: AbortSignal.timeout(15_000),
       cache: 'no-store',
