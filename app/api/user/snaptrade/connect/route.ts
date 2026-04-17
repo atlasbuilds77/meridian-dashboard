@@ -53,7 +53,7 @@ export async function POST() {
     }
 
     // Build callback URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001';
     const callbackUrl = `${baseUrl}/api/user/snaptrade/callback`;
 
     // Get connection portal URL
