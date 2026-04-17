@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       headers['x-webhook-key'] = HELIOS_WEBHOOK_KEY;
     }
 
-    const res = await fetch(`${HELIOS_API}/weekly`, {
+    const res = await fetch(`${HELIOS_API}/weekly?send_discord=false`, {
       headers,
       signal: AbortSignal.timeout(15_000),
       cache: 'no-store',
@@ -58,7 +58,29 @@ export async function GET(request: Request) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+
+    // Normalize Helios field names to dashboard interface
+    const rawTrades = data.trades ?? data.weekly_trades ?? [];
+    const normalized = rawTrades.map((t: Record<string, unknown>) => ({
+      symbol: t.contract_symbol ?? t.ticker ?? t.symbol ?? 'UNKNOWN',
+      direction: t.option_type ?? t.direction ?? '',
+      entry_price: t.entry_price ?? 0,
+      exit_price: t.exit_price ?? null,
+      pnl: t.realized_pnl ?? t.pnl ?? 0,
+      pnl_percent: t.realized_pct ?? t.pnl_percent ?? null,
+      quantity: t.quantity ?? t.contracts ?? null,
+      opened_at: t.timestamp ?? t.opened_at ?? null,
+      closed_at: t.closed_at ?? t.timestamp ?? null,
+      status: t.reason ?? t.status ?? 'CLOSED',
+      strike: t.strike ?? null,
+      expiry: t.exp_date ?? t.expiry ?? null,
+      asset_type: 'option',
+    }));
+
+    return NextResponse.json({
+      ...data,
+      trades: normalized,
+    });
   } catch (error) {
     console.error('[helios/weekly] fetch failed:', error);
     return NextResponse.json(
