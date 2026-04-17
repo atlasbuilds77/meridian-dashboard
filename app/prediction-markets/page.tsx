@@ -31,15 +31,16 @@ interface OracleResponse {
     win_rate: number;
   } | null;
   recentTrades: Array<{
-    id: number;
+    id: number | string;
     timestamp: string;
     asset: string;
     direction: string;
     cost: number;
-    edge: number;
-    model_prob: number;
+    edge?: number;
+    model_prob?: number;
     outcome: string;
-    profit: number;
+    profit: number | null;
+    reason?: string;
   }>;
 }
 
@@ -53,28 +54,43 @@ interface NightWatchResponse {
     winRate: number;
     totalPnL: number;
     openPositions: number;
-    openPnL: number;
+    openPnL?: number;
   } | null;
   recentTrades: Array<{
     question: string;
     category: string;
-    confidence: string;
-    edge_at_entry: number;
+    series?: string;
+    confidence?: string;
+    edge_at_entry?: number;
     stake_usd: number;
-    pnl: number;
-    resolved_at: string;
+    pnl: number | null;
+    resolved_at?: string;
+    timestamp?: string;
+    direction?: string;
+    reason?: string;
+    outcome?: string;
   }>;
   openPositions: Array<{
-    question: string;
+    question?: string;
+    ticker?: string;
     direction: string;
     entry_price: number;
-    current_price: number;
-    pnl: number;
+    current_price?: number;
+    pnl?: number;
     stake_usd: number;
+    opened_at?: string;
   }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Extract edge value from reason string like "...edge=0.730" */
+function parseEdge(reason?: string, edge?: number): number | null {
+  if (typeof edge === 'number' && !isNaN(edge)) return edge;
+  if (!reason) return null;
+  const m = reason.match(/edge=([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
 
 function fmtTime(ts: string) {
   try {
@@ -184,7 +200,9 @@ function OracleFeed({ trades, loading }: { trades: OracleResponse['recentTrades'
                         <Badge variant="outline" className={`text-[9px] ${isUp ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}`}>
                           {t.direction}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">edge {(t.edge * 100).toFixed(0)}%</span>
+                        {parseEdge(t.reason, t.edge) !== null && (
+                          <span className="text-[10px] text-muted-foreground">edge {((parseEdge(t.reason, t.edge) ?? 0) * 100).toFixed(0)}%</span>
+                        )}
                       </div>
                       <p className="text-[10px] text-muted-foreground">{fmtTime(t.timestamp)}</p>
                     </div>
@@ -242,7 +260,7 @@ function NightWatchFeed({
                   return (
                     <div key={i} className="flex items-start justify-between px-4 py-2 hover:bg-secondary/40 border-t border-border/50">
                       <div className="flex-1 min-w-0 pr-3">
-                        <p className="text-xs text-foreground truncate">{p.question}</p>
+                        <p className="text-xs text-foreground truncate">{p.question || p.ticker}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <Badge variant="outline" className={`text-[9px] ${p.direction === 'YES' || p.direction === 'UP' ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}`}>
                             {p.direction}
@@ -282,9 +300,11 @@ function NightWatchFeed({
                             <Badge variant="outline" className={`text-[9px] ${t.confidence === 'MEDIUM' || t.confidence === 'HIGH' ? 'border-profit/30 text-profit' : 'border-border text-muted-foreground'}`}>
                               {t.confidence}
                             </Badge>
-                            <span className="text-[10px] text-muted-foreground">edge {((t.edge_at_entry || 0) * 100).toFixed(0)}%</span>
+                            {parseEdge(t.reason, t.edge_at_entry) !== null && (
+                              <span className="text-[10px] text-muted-foreground">edge {((parseEdge(t.reason, t.edge_at_entry) ?? 0) * 100).toFixed(0)}%</span>
+                            )}
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{fmtTime(t.resolved_at)}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{fmtTime(t.resolved_at || t.timestamp || '')}</p>
                         </div>
                         <span className={`font-mono text-xs font-semibold shrink-0 ${isWin ? 'text-profit' : 'text-loss'}`}>
                           {isWin ? '+' : ''}${(t.pnl || 0).toFixed(2)}
@@ -413,10 +433,10 @@ export default function PredictionMarketsPage() {
             <div className="flex items-center gap-3">
               <Target className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-foreground">Kalshi Integration Coming Soon</p>
+                <p className="text-xs font-semibold text-foreground">Powered by Kalshi</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Once Oracle &amp; NightWatch hit consistent 60%+ win rates, we&apos;ll wire up auto-trading via Kalshi — 
-                  fully US-legal, no VPN, no wallet bans. Signal-only for now.
+                  Oracle &amp; NightWatch trade BTC/ETH direction and macro events on Kalshi — 
+                  fully US-legal, no VPN, no wallet bans. Paper trading until 60%+ win rate is proven.
                 </p>
               </div>
             </div>
