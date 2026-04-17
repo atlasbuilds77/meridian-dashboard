@@ -61,9 +61,31 @@ export async function GET(request: Request) {
   }
 
   try {
-    const tradeHistoryPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/oracle/trade-history.json');
-    const raw = await readFile(tradeHistoryPath, 'utf-8');
-    const data: OracleData = JSON.parse(raw);
+    // Read JSONL trade history (current format)
+    const jsonlPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/oracle/trade-history.jsonl');
+    let trades: OracleTrade[] = [];
+    try {
+      const raw = await readFile(jsonlPath, 'utf-8');
+      trades = raw.trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
+    } catch {
+      // fallback to legacy JSON
+      try {
+        const legacyPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/oracle/trade-history.json');
+        const raw = await readFile(legacyPath, 'utf-8');
+        const data: OracleData = JSON.parse(raw);
+        trades = data.trades || [];
+      } catch { /* no trades yet */ }
+    }
+
+    // Compute stats from trades
+    const resolved = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
+    const wins = resolved.filter(t => t.outcome === 'win').length;
+    const losses = resolved.filter(t => t.outcome === 'loss').length;
+    const pending = trades.filter(t => !t.outcome || t.outcome === 'pending').length;
+    const total_invested = trades.reduce((s, t) => s + (t.cost || 0), 0);
+    const total_returned = trades.reduce((s, t) => s + (t.payout || 0), 0);
+    const total_profit = total_returned - total_invested;
+    const win_rate = resolved.length > 0 ? Math.round((wins / resolved.length) * 100) : 0;
 
     // Get pm2 status
     let pm2Status: 'online' | 'stopped' | 'unknown' = 'unknown';
@@ -76,16 +98,16 @@ export async function GET(request: Request) {
       pm2Status = 'unknown';
     }
 
-    // Recent trades (last 20)
-    const recentTrades = (data.trades || [])
+    // Recent trades (last 20, newest first)
+    const recentTrades = [...trades]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 20);
 
     return NextResponse.json({
       status: pm2Status,
       name: 'Oracle',
-      description: 'Crypto prediction bot (BTC/ETH short-term)',
-      stats: data.stats,
+      description: 'BTC/ETH/SOL 15-min crypto prediction bot',
+      stats: { total_trades: trades.length, wins, losses, pending, total_invested, total_returned, total_profit, win_rate },
       recentTrades,
       timestamp: new Date().toISOString(),
     });
@@ -94,7 +116,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       status: 'offline',
       name: 'Oracle',
-      description: 'Crypto prediction bot (BTC/ETH short-term)',
+      description: 'BTC/ETH/SOL 15-min crypto prediction bot',
       stats: null,
       recentTrades: [],
       timestamp: new Date().toISOString(),

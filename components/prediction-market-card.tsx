@@ -23,10 +23,10 @@ interface BotStats {
   total_returned?: number;
   total_profit?: number;
   win_rate?: number;
-  // NightWatch stats
+  // NightWatch stats (unified naming)
   totalTrades?: number;
-  buyTrades?: number;
-  sellTrades?: number;
+  winRate?: number;
+  totalPnL?: number;
   totalStaked?: number;
   openPositions?: number;
   openPnL?: number;
@@ -158,9 +158,9 @@ export function PredictionMarketCard({ name, description, status, stats, variant
                 />
                 <StatItem
                   label="Win Rate"
-                  value={`${((stats.win_rate || 0) * 100).toFixed(0)}%`}
+                  value={`${(stats.win_rate || 0)}%`}
                   icon={Target}
-                  color={(stats.win_rate || 0) >= 0.5 ? 'profit' : 'loss'}
+                  color={(stats.win_rate || 0) >= 50 ? 'profit' : 'loss'}
                 />
                 <StatItem
                   label="Total Profit"
@@ -177,24 +177,26 @@ export function PredictionMarketCard({ name, description, status, stats, variant
             ) : (
               <>
                 <StatItem
-                  label="Total Trades"
+                  label="Resolved Trades"
                   value={String(stats.totalTrades || 0)}
                   icon={Activity}
                 />
                 <StatItem
-                  label="Open Positions"
-                  value={String(stats.openPositions || 0)}
+                  label="Win Rate"
+                  value={`${stats.winRate || 0}%`}
                   icon={Target}
+                  color={(stats.winRate || 0) >= 50 ? 'profit' : 'loss'}
                 />
                 <StatItem
-                  label="Total Staked"
-                  value={`$${(stats.totalStaked || 0).toFixed(0)}`}
-                  icon={DollarSign}
+                  label="Total P&L"
+                  value={`${(stats.totalPnL || 0) >= 0 ? '+' : ''}$${(stats.totalPnL || 0).toFixed(2)}`}
+                  icon={(stats.totalPnL || 0) >= 0 ? TrendingUp : TrendingDown}
+                  color={(stats.totalPnL || 0) >= 0 ? 'profit' : 'loss'}
                 />
                 <StatItem
                   label="Open P&L"
-                  value={`$${(stats.openPnL || 0).toFixed(2)}`}
-                  icon={stats.openPnL && stats.openPnL >= 0 ? TrendingUp : TrendingDown}
+                  value={`${(stats.openPnL || 0) >= 0 ? '+' : ''}$${(stats.openPnL || 0).toFixed(2)}`}
+                  icon={(stats.openPnL || 0) >= 0 ? TrendingUp : TrendingDown}
                   color={(stats.openPnL || 0) >= 0 ? 'profit' : 'loss'}
                 />
               </>

@@ -67,36 +67,40 @@ export async function GET(request: Request) {
       pm2Status = 'unknown';
     }
 
-    // Recent trades
-    const recentTrades = sqlite3Json(dbPath,
-      'SELECT id, order_id, market_id, token_id, side, price, size, stake_usd, status, dry_run, created_at FROM trades ORDER BY created_at DESC LIMIT 20'
+    // Resolved trade performance (from performance_log)
+    const perfRows = sqlite3Json(dbPath,
+      'SELECT question, category, forecast_prob, actual_outcome, edge_at_entry, confidence, stake_usd, entry_price, exit_price, pnl, holding_hours, resolved_at FROM performance_log WHERE pnl IS NOT NULL AND actual_outcome IS NOT NULL ORDER BY resolved_at DESC LIMIT 20'
     );
+    const allPerf = sqlite3Json(dbPath,
+      'SELECT pnl, stake_usd FROM performance_log WHERE pnl IS NOT NULL AND actual_outcome IS NOT NULL'
+    );
+    const totalResolved = allPerf.length;
+    const wins = allPerf.filter(r => (parseFloat(String(r.pnl)) || 0) > 0).length;
+    const totalPnL = allPerf.reduce((s, r) => s + (parseFloat(String(r.pnl)) || 0), 0);
+    const totalStaked = allPerf.reduce((s, r) => s + (parseFloat(String(r.stake_usd)) || 0), 0);
+    const winRate = totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
 
     // Open positions
     const openPositions = sqlite3Json(dbPath,
       'SELECT market_id, token_id, direction, entry_price, size, stake_usd, current_price, pnl, opened_at, question, market_type FROM positions'
     );
-
-    // Stats
-    const totalTrades = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM trades') || '0', 10);
-    const totalStaked = parseFloat(sqlite3Query(dbPath, 'SELECT COALESCE(SUM(stake_usd), 0) FROM trades') || '0');
-    const buyTrades = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM trades WHERE side LIKE '%BUY%'") || '0', 10);
-    const sellTrades = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM trades WHERE side LIKE '%SELL%'") || '0', 10);
     const openPnL = openPositions.reduce((sum, p) => sum + (parseFloat(String(p.pnl)) || 0), 0);
 
     return NextResponse.json({
       status: pm2Status,
       name: 'NightWatch',
-      description: 'Event prediction bot (politics, sports, world events)',
+      description: 'Event prediction bot (MACRO/CORPORATE/TECH markets)',
       stats: {
-        totalTrades,
-        buyTrades,
-        sellTrades,
+        totalTrades: totalResolved,
+        wins,
+        losses: totalResolved - wins,
+        winRate,
+        totalPnL: Math.round(totalPnL * 100) / 100,
         totalStaked: Math.round(totalStaked * 100) / 100,
         openPositions: openPositions.length,
         openPnL: Math.round(openPnL * 100) / 100,
       },
-      recentTrades,
+      recentTrades: perfRows,
       openPositions,
       timestamp: new Date().toISOString(),
     });
