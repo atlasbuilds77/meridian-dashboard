@@ -14,6 +14,8 @@ export interface SessionPayload {
   dbUserId: number;
   username: string;
   avatar: string | null;
+  /** True if user has the Singularity role (full Meridian access) */
+  hasSingularity?: boolean;
 }
 
 export interface CreateSessionOptions {
@@ -106,6 +108,7 @@ export async function getSession(): Promise<SessionPayload | null> {
       dbUserId: payload.dbUserId as number,
       username: payload.username as string,
       avatar: payload.avatar as string | null,
+      hasSingularity: (payload.hasSingularity as boolean | undefined) ?? false,
     };
   } catch {
     return null;

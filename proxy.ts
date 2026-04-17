@@ -7,6 +7,10 @@ import { isAdminDiscordId } from '@/lib/auth/admin';
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const PUBLIC_ROUTES = ['/login', '/legal', '/api/auth/discord/callback', '/api/auth/discord/login'];
 
+// Pages that require Singularity role (full Meridian access)
+// Helios-only users get redirected to /helios instead
+const MERIDIAN_ONLY_ROUTES = ['/', '/trades', '/prediction-markets', '/billing', '/analytics'];
+
 const DISCORD_ID_PATTERN = /^\d{17,19}$/;
 
 function isPublicRoute(pathname: string): boolean {
@@ -44,6 +48,12 @@ export async function proxy(request: NextRequest) {
   try {
     const secret = new TextEncoder().encode(SESSION_SECRET);
     const { payload } = await jwtVerify(session.value, secret);
+
+    // Helios-only users (no Singularity role) cannot access Meridian pages
+    const hasSingularity = payload.hasSingularity as boolean | undefined;
+    if (hasSingularity === false && MERIDIAN_ONLY_ROUTES.includes(pathname)) {
+      return withHeaders(NextResponse.redirect(new URL('/helios', request.url)));
+    }
 
     if (pathname.startsWith('/admin')) {
       const discordId = payload.discordId as string | undefined;

@@ -160,11 +160,14 @@ export async function GET(request: Request) {
 
     const dbUser = await getOrCreateUser(userData.id, fullUsername, avatarHash);
 
+    const hasSingularity = userRoles.includes(SINGULARITY_ROLE_ID);
+
     const token = await createSession({
       discordId: userData.id,
       dbUserId: dbUser.id,
       username: fullUsername,
       avatar: avatarHash || null,
+      hasSingularity,
     });
 
     // Use BASE_URL for redirect to ensure correct domain
