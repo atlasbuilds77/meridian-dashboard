@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useLiveData } from '@/hooks/use-live-data';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { PaymentMethodManager } from '@/components/payment-method-form';
 import { RiskSettingsCard } from '@/components/risk-settings';
 import { SnapTradeConnectionCard } from '@/components/snaptrade-connection';
-import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck } from 'lucide-react';
+import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck, Zap, ToggleRight, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCsrfToken, fetchWithCsrf } from '@/hooks/use-csrf-token';
 
@@ -69,6 +70,139 @@ function verificationBadgeClass(status: Platform['verification_status']): string
     default:
       return 'border-border/40 bg-secondary/60 text-muted-foreground';
   }
+}
+
+// ─── Helios Settings Section ────────────────────────────────────────────────
+
+function HeliosSettingsSection() {
+  const { data: access } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
+  const [snapData, setSnapData] = useState<{
+    connected: boolean;
+    heliosAccount: string | null;
+    heliosAutoExecute: boolean;
+    accounts: Array<{ id: string; name: string; number?: string; institution_name?: string }>;
+  } | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { token: csrfToken } = useCsrfToken();
+
+  const loadSnapData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/snaptrade/accounts');
+      const data = await res.json();
+      setSnapData(data);
+    } catch { /* noop */ }
+  }, []);
+
+  useEffect(() => {
+    if (access?.hasAccess) loadSnapData();
+  }, [access, loadSnapData]);
+
+  // Don't render if no Helios access
+  if (!access?.hasAccess) return null;
+
+  const isFullySetup = snapData?.connected && snapData?.heliosAccount && snapData?.heliosAutoExecute;
+  const selectedAccount = snapData?.accounts?.find(a => a.id === snapData?.heliosAccount);
+
+  const handleToggle = async () => {
+    if (!csrfToken) return;
+    setToggling(true);
+    setError(null);
+    try {
+      const newVal = !snapData?.heliosAutoExecute;
+      const res = await fetchWithCsrf('/api/user/settings/auto-execute', csrfToken, {
+        method: 'POST',
+        body: JSON.stringify({ system: 'helios', enabled: newVal }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      await loadSnapData();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to update');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  return (
+    <Card className="border-orange-500/20">
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Zap className="h-4 w-4 text-orange-500" />
+          Helios Auto-Execute
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Manage your Helios broker connection and auto-execution settings.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 space-y-4">
+        {/* Status row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {isFullySetup
+              ? <CheckCircle2 className="h-4 w-4 text-profit" />
+              : <XCircle className="h-4 w-4 text-loss" />}
+            <span className="text-sm font-medium">
+              {isFullySetup ? 'Active — trades executing automatically' : 'Setup incomplete'}
+            </span>
+          </div>
+          {!isFullySetup && (
+            <a href="/helios/setup" className="text-xs text-orange-400 hover:underline flex items-center gap-1">
+              Complete setup <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+
+        {/* Connected account */}
+        {snapData?.connected && selectedAccount && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Trading Account</p>
+              <p className="text-sm font-medium text-foreground">{selectedAccount.name || selectedAccount.institution_name}</p>
+              {selectedAccount.number && (
+                <p className="text-xs text-muted-foreground">&bull;&bull;&bull;&bull;{selectedAccount.number.slice(-4)}</p>
+              )}
+            </div>
+            <a href="/helios/setup" className="text-xs text-orange-400 hover:underline">Change</a>
+          </div>
+        )}
+
+        {/* Auto-execute toggle */}
+        {snapData?.connected && snapData?.heliosAccount && (
+          <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+            <div className="flex items-center gap-2">
+              <ToggleRight className="h-4 w-4 text-orange-400" />
+              <div>
+                <p className="text-sm font-medium">Auto-Execute</p>
+                <p className="text-xs text-muted-foreground">Automatically place orders when Helios fires</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant={snapData?.heliosAutoExecute ? 'default' : 'outline'}
+              onClick={handleToggle}
+              disabled={toggling}
+              className={snapData?.heliosAutoExecute ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
+            >
+              {toggling ? 'Updating...' : snapData?.heliosAutoExecute ? 'Enabled' : 'Disabled'}
+            </Button>
+          </div>
+        )}
+
+        {/* Not connected yet */}
+        {!snapData?.connected && (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground mb-3">No broker connected yet.</p>
+            <Button asChild size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+              <a href="/helios/setup">⚡ Connect Broker</a>
+            </Button>
+          </div>
+        )}
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function SettingsPage() {
@@ -438,6 +572,7 @@ export default function SettingsPage() {
           </Card>
         </div>
 
+        <HeliosSettingsSection />
         <SnapTradeConnectionCard />
 
         <PaymentMethodManager />
