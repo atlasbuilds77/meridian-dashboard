@@ -340,6 +340,10 @@ export default function SettingsPage() {
       .catch(() => {});
   }, []);
 
+  const { data: heliosAccess } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
+  const { data: singularityAccess } = useLiveData<{ hasAccess: boolean }>('/api/singularity/access', 300_000);
+  const isHeliosOnly = (heliosAccess?.hasAccess && !singularityAccess?.hasAccess) ?? false;
+
   return (
     <div className="min-h-screen bg-background px-3 py-4 sm:px-6 sm:py-6">
       <div className="mx-auto max-w-6xl space-y-4">
@@ -382,7 +386,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <RiskSettingsCard />
+        {!isHeliosOnly && <RiskSettingsCard />}
 
         {csrfError && (
           <div className="rounded border border-loss/30 p-2 text-xs text-loss">
@@ -402,7 +406,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-2">
+        {!isHeliosOnly && <div className="grid gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -570,12 +574,12 @@ export default function SettingsPage() {
               </form>
             </CardContent>
           </Card>
-        </div>
+        </div>}
 
         <HeliosSettingsSection />
-        <SnapTradeConnectionCard />
+        {!isHeliosOnly && <SnapTradeConnectionCard />}
 
-        <PaymentMethodManager />
+        {!isHeliosOnly && <PaymentMethodManager />}
 
         <Card className="border-border/50 bg-secondary/25">
           <CardContent className="p-6">
