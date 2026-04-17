@@ -14,16 +14,25 @@ const baseNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+const heliosNavItems = [
+  { href: '/helios', label: 'Helios', icon: Radio },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+
 const signalsItem = { href: '/helios', label: 'Helios', icon: Radio };
 
 export function MobileNav() {
   const pathname = usePathname();
   const { data: heliosAccess } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
-  const showHelios = heliosAccess?.hasAccess ?? false;
+  const { data: singularityAccess } = useLiveData<{ hasAccess: boolean }>('/api/singularity/access', 300_000);
 
-  const navItems = showHelios
-    ? [baseNavItems[0], baseNavItems[1], signalsItem, ...baseNavItems.slice(2)]
-    : baseNavItems;
+  const isHeliosOnly = (heliosAccess?.hasAccess && !singularityAccess?.hasAccess) ?? false;
+
+  const navItems = isHeliosOnly
+    ? heliosNavItems
+    : heliosAccess?.hasAccess
+      ? [baseNavItems[0], baseNavItems[1], signalsItem, ...baseNavItems.slice(2)]
+      : baseNavItems;
 
   return (
     <nav 
