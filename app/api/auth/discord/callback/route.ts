@@ -145,7 +145,12 @@ export async function GET(request: Request) {
     const memberData = (await memberResponse.json()) as { roles?: string[] };
     const userRoles = memberData.roles || [];
 
-    if (!userRoles.includes(SINGULARITY_ROLE_ID)) {
+    const heliosRoleId = process.env.HELIOS_ROLE_ID || '';
+    const hasAccess =
+      userRoles.includes(SINGULARITY_ROLE_ID) ||
+      (heliosRoleId && userRoles.includes(heliosRoleId));
+
+    if (!hasAccess) {
       return redirectWithError(request, 'no_singularity_role');
     }
 
