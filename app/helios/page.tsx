@@ -91,17 +91,19 @@ interface HeliosAccessResponse {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function fmtCurrency(v: number): string {
-  const formatted = Math.abs(v).toLocaleString('en-US', {
+function fmtCurrency(v: number | null | undefined): string {
+  const n = v ?? 0;
+  const formatted = Math.abs(n).toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return v < 0 ? `-${formatted}` : formatted;
+  return n < 0 ? `-${formatted}` : formatted;
 }
 
-function fmtPct(v: number): string {
+function fmtPct(v: number | null | undefined): string {
+  if (v == null) return '—';
   return `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
 }
 
@@ -337,7 +339,7 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
               {trades.map((trade, idx) => {
                 const pnl = trade.pnl ?? 0;
                 const isProfit = pnl >= 0;
-                const bull = isBullish(trade.direction);
+                const bull = isBullish(trade.direction ?? '');
 
                 return (
                   <TableRow key={`${trade.symbol}-${idx}`}>
@@ -363,7 +365,7 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
                         ) : (
                           <ArrowDownRight className="h-2.5 w-2.5" />
                         )}
-                        {trade.direction.toUpperCase()}
+                        {(trade.direction ?? '').toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
