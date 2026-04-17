@@ -7,40 +7,21 @@ import { join } from 'path';
 
 export const dynamic = 'force-dynamic';
 
-interface OracleTrade {
-  id: number;
+interface KalshiTrade {
   timestamp: string;
-  asset: string;
-  direction: string;
-  market_type: string;
-  shares: number;
-  entry_price: number;
-  cost: number;
-  edge: number;
-  model_prob: number;
-  outcome: string;
-  payout: number;
-  profit: number;
-  resolved_at?: string;
-  resolution_data?: {
-    open_price: number;
-    close_price: number;
-    price_change_pct: number;
-  };
-}
-
-interface OracleData {
-  trades: OracleTrade[];
-  stats: {
-    total_trades: number;
-    wins: number;
-    losses: number;
-    pending: number;
-    total_invested: number;
-    total_returned: number;
-    total_profit: number;
-    win_rate: number;
-  };
+  ticker: string;
+  side: 'yes' | 'no';
+  price_cents: number;
+  price_dollars: number;
+  contracts: number;
+  cost_dollars: number;
+  reason: string;
+  status: string;
+  live: boolean;
+  order_id: string | null;
+  result?: string;
+  won?: boolean | null;
+  pnl?: number | null;
 }
 
 export async function GET(request: Request) {
@@ -50,76 +31,88 @@ export async function GET(request: Request) {
     limit: 60,
     windowMs: 60_000,
   });
-
-  if (!limiterResult.allowed) {
-    return rateLimitExceededResponse(limiterResult, 'prediction_markets_oracle');
-  }
+  if (!limiterResult.allowed) return rateLimitExceededResponse(limiterResult, 'prediction_markets_oracle');
 
   const authResult = await requireUserId();
-  if (!authResult.ok) {
-    return authResult.response;
-  }
+  if (!authResult.ok) return authResult.response;
 
   try {
-    // Read JSONL trade history (current format)
-    const jsonlPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/oracle/trade-history.jsonl');
-    let trades: OracleTrade[] = [];
+    // Read Kalshi Oracle trades
+    const jsonlPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/kalshi/oracle_trades.jsonl');
+    let trades: KalshiTrade[] = [];
     try {
       const raw = await readFile(jsonlPath, 'utf-8');
-      trades = raw.trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
-    } catch {
-      // fallback to legacy JSON
-      try {
-        const legacyPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/oracle/trade-history.json');
-        const raw = await readFile(legacyPath, 'utf-8');
-        const data: OracleData = JSON.parse(raw);
-        trades = data.trades || [];
-      } catch { /* no trades yet */ }
-    }
+      trades = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    } catch { /* no trades yet */ }
 
-    // Compute stats from trades
-    const resolved = trades.filter(t => t.outcome === 'win' || t.outcome === 'loss');
-    const wins = resolved.filter(t => t.outcome === 'win').length;
-    const losses = resolved.filter(t => t.outcome === 'loss').length;
-    const pending = trades.filter(t => !t.outcome || t.outcome === 'pending').length;
-    const total_invested = trades.reduce((s, t) => s + (t.cost || 0), 0);
-    const total_returned = trades.reduce((s, t) => s + (t.payout || 0), 0);
-    const total_profit = total_returned - total_invested;
+    // Stats
+    const resolved  = trades.filter(t => t.status === 'settled' || t.status === 'resolved' || t.result);
+    const wins      = resolved.filter(t => t.won === true).length;
+    const losses    = resolved.filter(t => t.won === false).length;
+    const pending   = trades.filter(t => !t.result && t.status === 'open').length;
+    const skipped   = trades.filter(t => t.status === 'skipped_balance' || t.status === 'error').length;
+    const total_invested = trades.filter(t => t.status !== 'skipped_balance').reduce((s, t) => s + (t.cost_dollars || 0), 0);
+    const total_profit   = resolved.reduce((s, t) => s + (t.pnl || 0), 0);
     const win_rate = resolved.length > 0 ? Math.round((wins / resolved.length) * 100) : 0;
 
-    // Get pm2 status
+    // PM2 status
     let pm2Status: 'online' | 'stopped' | 'unknown' = 'unknown';
     try {
       const pm2Output = execSync('pm2 jlist 2>/dev/null', { encoding: 'utf-8', timeout: 5000 });
       const processes = JSON.parse(pm2Output);
-      const oracleProc = processes.find((p: { name: string }) => p.name === 'oracle');
-      pm2Status = oracleProc ? (oracleProc as { pm2_env: { status: string } }).pm2_env.status as 'online' | 'stopped' : 'stopped';
-    } catch {
-      pm2Status = 'unknown';
-    }
+      const proc = processes.find((p: { name: string }) => p.name === 'oracle');
+      pm2Status = proc ? (proc as { pm2_env: { status: string } }).pm2_env.status as 'online' | 'stopped' : 'stopped';
+    } catch { pm2Status = 'unknown'; }
 
-    // Recent trades (last 20, newest first)
+    // Shape trades for UI
     const recentTrades = [...trades]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 20);
+      .slice(0, 20)
+      .map(t => ({
+        id:          t.ticker + '_' + t.timestamp,
+        timestamp:   t.timestamp,
+        asset:       t.ticker.startsWith('KXBTCD') ? 'BTC' : t.ticker.startsWith('KXETHUSD') ? 'ETH' : t.ticker.split('-')[0],
+        direction:   t.side === 'yes' ? 'up' : 'down',
+        market_type: 'kalshi',
+        ticker:      t.ticker,
+        side:        t.side,
+        entry_price: t.price_dollars,
+        cost:        t.cost_dollars,
+        outcome:     t.won === true ? 'win' : t.won === false ? 'loss' : t.status === 'open' ? 'pending' : t.status,
+        profit:      t.pnl ?? null,
+        reason:      t.reason,
+        live:        t.live,
+        order_id:    t.order_id,
+      }));
 
     return NextResponse.json({
-      status: pm2Status,
-      name: 'Oracle',
-      description: 'BTC/ETH/SOL 15-min crypto prediction bot',
-      stats: { total_trades: trades.length, wins, losses, pending, total_invested, total_returned, total_profit, win_rate },
+      status:      pm2Status,
+      platform:    'kalshi',
+      name:        'Oracle',
+      description: 'BTC/ETH daily price direction bot (Kalshi)',
+      stats: {
+        total_trades:   trades.length,
+        wins,
+        losses,
+        pending,
+        skipped,
+        total_invested: Math.round(total_invested * 100) / 100,
+        total_profit:   Math.round(total_profit * 100) / 100,
+        win_rate,
+      },
       recentTrades,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Oracle data fetch error:', error);
     return NextResponse.json({
-      status: 'offline',
-      name: 'Oracle',
-      description: 'BTC/ETH/SOL 15-min crypto prediction bot',
-      stats: null,
+      status:      'error',
+      platform:    'kalshi',
+      name:        'Oracle',
+      description: 'BTC/ETH daily price direction bot (Kalshi)',
+      stats:       null,
       recentTrades: [],
-      timestamp: new Date().toISOString(),
+      timestamp:   new Date().toISOString(),
     });
   }
 }

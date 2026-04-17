@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
+import { readFile } from 'fs/promises';
 import { execSync } from 'child_process';
 import { join } from 'path';
-import { existsSync } from 'fs';
 
 export const dynamic = 'force-dynamic';
 
-function sqlite3Query(dbPath: string, query: string): string {
-  try {
-    return execSync(`sqlite3 "${dbPath}" "${query}"`, { encoding: 'utf-8', timeout: 5000 }).trim();
-  } catch {
-    return '';
-  }
-}
-
-function sqlite3Json(dbPath: string, query: string): Record<string, unknown>[] {
-  try {
-    const result = execSync(`sqlite3 -json "${dbPath}" "${query}"`, { encoding: 'utf-8', timeout: 5000 }).trim();
-    return result ? JSON.parse(result) : [];
-  } catch {
-    return [];
-  }
+interface KalshiTrade {
+  timestamp: string;
+  ticker: string;
+  side: 'yes' | 'no';
+  price_cents: number;
+  price_dollars: number;
+  contracts: number;
+  cost_dollars: number;
+  reason: string;
+  status: string;
+  live: boolean;
+  order_id: string | null;
+  result?: string;
+  won?: boolean | null;
+  pnl?: number | null;
 }
 
 export async function GET(request: Request) {
@@ -31,90 +31,106 @@ export async function GET(request: Request) {
     limit: 60,
     windowMs: 60_000,
   });
-
-  if (!limiterResult.allowed) {
-    return rateLimitExceededResponse(limiterResult, 'prediction_markets_nightwatch');
-  }
+  if (!limiterResult.allowed) return rateLimitExceededResponse(limiterResult, 'prediction_markets_nightwatch');
 
   const authResult = await requireUserId();
-  if (!authResult.ok) {
-    return authResult.response;
-  }
-
-  const dbPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/weekend-bots/polymarket-ai-bot/data/bot.db');
-
-  if (!existsSync(dbPath)) {
-    return NextResponse.json({
-      status: 'offline',
-      name: 'NightWatch',
-      description: 'Event prediction bot (politics, sports, world events)',
-      stats: null,
-      recentTrades: [],
-      openPositions: [],
-      timestamp: new Date().toISOString(),
-    });
-  }
+  if (!authResult.ok) return authResult.response;
 
   try {
-    // Get pm2 status
+    // Read Kalshi NightWatch trades
+    const jsonlPath = join(process.env.HOME || '/Users/atlasbuilds', 'clawd/kalshi/nightwatch_trades.jsonl');
+    let trades: KalshiTrade[] = [];
+    try {
+      const raw = await readFile(jsonlPath, 'utf-8');
+      trades = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    } catch { /* no trades yet */ }
+
+    // Stats
+    const resolved     = trades.filter(t => t.status === 'settled' || t.status === 'resolved' || t.result);
+    const wins         = resolved.filter(t => t.won === true).length;
+    const losses       = resolved.filter(t => t.won === false).length;
+    const pending      = trades.filter(t => !t.result && t.status === 'open').length;
+    const total_staked = trades.filter(t => t.status !== 'skipped_balance').reduce((s, t) => s + (t.cost_dollars || 0), 0);
+    const total_pnl    = resolved.reduce((s, t) => s + (t.pnl || 0), 0);
+    const win_rate     = resolved.length > 0 ? Math.round((wins / resolved.length) * 100) : 0;
+
+    // PM2 status
     let pm2Status: 'online' | 'stopped' | 'unknown' = 'unknown';
     try {
       const pm2Output = execSync('pm2 jlist 2>/dev/null', { encoding: 'utf-8', timeout: 5000 });
       const processes = JSON.parse(pm2Output);
-      const nwProc = processes.find((p: { name: string }) => p.name === 'nightwatch');
-      pm2Status = nwProc ? (nwProc as { pm2_env: { status: string } }).pm2_env.status as 'online' | 'stopped' : 'stopped';
-    } catch {
-      pm2Status = 'unknown';
-    }
+      const proc = processes.find((p: { name: string }) => p.name === 'nightwatch');
+      pm2Status = proc ? (proc as { pm2_env: { status: string } }).pm2_env.status as 'online' | 'stopped' : 'stopped';
+    } catch { pm2Status = 'unknown'; }
 
-    // Resolved trade performance (from performance_log)
-    const perfRows = sqlite3Json(dbPath,
-      'SELECT question, category, forecast_prob, actual_outcome, edge_at_entry, confidence, stake_usd, entry_price, exit_price, pnl, holding_hours, resolved_at FROM performance_log WHERE pnl IS NOT NULL AND actual_outcome IS NOT NULL ORDER BY resolved_at DESC LIMIT 20'
-    );
-    const allPerf = sqlite3Json(dbPath,
-      'SELECT pnl, stake_usd FROM performance_log WHERE pnl IS NOT NULL AND actual_outcome IS NOT NULL'
-    );
-    const totalResolved = allPerf.length;
-    const wins = allPerf.filter(r => (parseFloat(String(r.pnl)) || 0) > 0).length;
-    const totalPnL = allPerf.reduce((s, r) => s + (parseFloat(String(r.pnl)) || 0), 0);
-    const totalStaked = allPerf.reduce((s, r) => s + (parseFloat(String(r.stake_usd)) || 0), 0);
-    const winRate = totalResolved > 0 ? Math.round((wins / totalResolved) * 100) : 0;
+    // Extract series from ticker (e.g. KXFEDDECISION-28JAN-H26 → KXFEDDECISION)
+    const seriesFromTicker = (ticker: string) => ticker.split('-')[0];
 
-    // Open positions
-    const openPositions = sqlite3Json(dbPath,
-      'SELECT market_id, token_id, direction, entry_price, size, stake_usd, current_price, pnl, opened_at, question, market_type FROM positions'
-    );
-    const openPnL = openPositions.reduce((sum, p) => sum + (parseFloat(String(p.pnl)) || 0), 0);
+    // Shape trades for UI
+    const recentTrades = [...trades]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 20)
+      .map(t => ({
+        id:           t.ticker + '_' + t.timestamp,
+        timestamp:    t.timestamp,
+        question:     t.ticker,
+        series:       seriesFromTicker(t.ticker),
+        category:     seriesFromTicker(t.ticker).replace('KX', ''),
+        direction:    t.side,
+        side:         t.side,
+        ticker:       t.ticker,
+        entry_price:  t.price_dollars,
+        stake_usd:    t.cost_dollars,
+        outcome:      t.won === true ? 'win' : t.won === false ? 'loss' : t.status === 'open' ? 'pending' : t.status,
+        pnl:          t.pnl ?? null,
+        reason:       t.reason,
+        live:         t.live,
+        order_id:     t.order_id,
+      }));
+
+    // Open positions = pending trades
+    const openPositions = trades
+      .filter(t => !t.result && t.status === 'open')
+      .map(t => ({
+        ticker:      t.ticker,
+        series:      seriesFromTicker(t.ticker),
+        direction:   t.side,
+        entry_price: t.price_dollars,
+        stake_usd:   t.cost_dollars,
+        opened_at:   t.timestamp,
+        live:        t.live,
+      }));
 
     return NextResponse.json({
-      status: pm2Status,
-      name: 'NightWatch',
-      description: 'Event prediction bot (MACRO/CORPORATE/TECH markets)',
+      status:      pm2Status,
+      platform:    'kalshi',
+      name:        'NightWatch',
+      description: 'Macro event prediction bot — Fed, CPI, Tariffs (Kalshi)',
       stats: {
-        totalTrades: totalResolved,
+        totalTrades:   trades.length,
         wins,
-        losses: totalResolved - wins,
-        winRate,
-        totalPnL: Math.round(totalPnL * 100) / 100,
-        totalStaked: Math.round(totalStaked * 100) / 100,
+        losses,
+        winRate:       win_rate,
+        pending,
+        totalPnL:      Math.round(total_pnl * 100) / 100,
+        totalStaked:   Math.round(total_staked * 100) / 100,
         openPositions: openPositions.length,
-        openPnL: Math.round(openPnL * 100) / 100,
       },
-      recentTrades: perfRows,
+      recentTrades,
       openPositions,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('NightWatch data fetch error:', error);
     return NextResponse.json({
-      status: 'error',
-      name: 'NightWatch',
-      description: 'Event prediction bot (politics, sports, world events)',
-      stats: null,
-      recentTrades: [],
+      status:        'error',
+      platform:      'kalshi',
+      name:          'NightWatch',
+      description:   'Macro event prediction bot — Fed, CPI, Tariffs (Kalshi)',
+      stats:         null,
+      recentTrades:  [],
       openPositions: [],
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString(),
+      timestamp:     new Date().toISOString(),
     });
   }
 }
