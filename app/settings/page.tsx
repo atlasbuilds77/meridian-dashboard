@@ -191,6 +191,7 @@ function verificationBadgeClass(status: Platform['verification_status']): string
 
 function HeliosSettingsSection() {
   const { data: access } = useLiveData<{ hasAccess: boolean }>('/api/helios/access', 300_000);
+  const { data: singularityAccess } = useLiveData<{ hasAccess: boolean }>('/api/singularity/access', 300_000);
   const [snapData, setSnapData] = useState<{
     connected: boolean;
     heliosAccount: string | null;
