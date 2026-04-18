@@ -381,9 +381,142 @@ function BotCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+interface ZeusResponse {
+  status: 'online' | 'offline' | 'unknown';
+  name: string;
+  stats: {
+    total_trades: number;
+    wins: number;
+    losses: number;
+    open: number;
+    total_pnl: number;
+    win_rate: number;
+  } | null;
+  recentTrades: Array<{
+    id: number;
+    timestamp: string;
+    asset: string;
+    direction: string;
+    entry_price: number;
+    exit_price: number | null;
+    pnl_usd: number | null;
+    pnl_pct: number | null;
+    outcome: string;
+    exit_reason: string | null;
+    paper: boolean;
+  }>;
+}
+
+interface KronosResponse {
+  status: 'online' | 'offline' | 'unknown';
+  name: string;
+  stats: {
+    total_fills: number;
+    btc_fills: number;
+    eth_fills: number;
+    total_pnl: number;
+  } | null;
+  recentFills: Array<{
+    id: number;
+    timestamp: string;
+    asset: string;
+    buy_level: number;
+    sell_level: number | null;
+    grid_profit: number | null;
+    paper: boolean;
+  }>;
+}
+
+function ZeusFeed({ trades, loading }: { trades: ZeusResponse['recentTrades']; loading: boolean }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Zap className="h-4 w-4 text-yellow-500" />
+          Zeus — Swing Trades
+          <Badge variant="outline" className="ml-auto text-xs">Kraken 2x</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">Loading...</div>
+        ) : trades.length === 0 ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">No trades yet — waiting for 1h/4h confluence signal</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {trades.map(t => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                  t.outcome === 'win' ? 'bg-profit/15 text-profit' : t.outcome === 'loss' ? 'bg-loss/15 text-loss' : 'bg-muted text-muted-foreground'
+                )}>
+                  {t.outcome === 'open' ? '⏳' : t.outcome === 'win' ? '✓' : '✗'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium">
+                    {t.direction?.toUpperCase()} {t.asset} @ ${t.entry_price?.toLocaleString()}
+                    {t.exit_reason && <span className="text-muted-foreground ml-1">→ {t.exit_reason}</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{new Date(t.timestamp).toLocaleString()}</p>
+                </div>
+                {t.pnl_usd !== null && (
+                  <span className={cn('text-xs font-semibold shrink-0', t.pnl_usd >= 0 ? 'text-profit' : 'text-loss')}>
+                    {t.pnl_usd >= 0 ? '+' : ''}${t.pnl_usd.toFixed(2)}
+                  </span>
+                )}
+                {t.paper && <Badge variant="outline" className="text-xs shrink-0">paper</Badge>}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function KronosFeed({ fills, loading }: { fills: KronosResponse['recentFills']; loading: boolean }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Activity className="h-4 w-4 text-blue-500" />
+          Kronos — Grid Fills
+          <Badge variant="outline" className="ml-auto text-xs">Kraken ±6%</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">Loading...</div>
+        ) : fills.length === 0 ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">No fills yet — grid orders placed, waiting for price bounces</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {fills.map(f => (
+              <div key={f.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-profit/15 text-xs font-bold text-profit">↕</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium">
+                    {f.asset} grid fill: ${f.buy_level?.toLocaleString()} → ${f.sell_level?.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{new Date(f.timestamp).toLocaleString()}</p>
+                </div>
+                {f.grid_profit !== null && (
+                  <span className="text-xs font-semibold text-profit shrink-0">+${f.grid_profit.toFixed(4)}</span>
+                )}
+                {f.paper && <Badge variant="outline" className="text-xs shrink-0">paper</Badge>}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PredictionMarketsPage() {
   const { data: oracle, loading: oracleLoading } = useLiveData<OracleResponse>('/api/prediction-markets/oracle', 30_000);
   const { data: nightwatch, loading: nightwatchLoading } = useLiveData<NightWatchResponse>('/api/prediction-markets/nightwatch', 30_000);
+  const { data: zeus, loading: zeusLoading } = useLiveData<ZeusResponse>('/api/prediction-markets/zeus', 30_000);
+  const { data: kronos, loading: kronosLoading } = useLiveData<KronosResponse>('/api/prediction-markets/kronos', 30_000);
 
   return (
     <div className="min-h-screen px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -392,56 +525,91 @@ export default function PredictionMarketsPage() {
         {/* Header */}
         <header>
           <p className="data-label">24/7 AI Signal Bots</p>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Prediction Markets</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Trading Bots</h1>
         </header>
 
         {/* Combined P&L */}
         <Header oracle={oracle} nightwatch={nightwatch} />
 
-        {/* Bot status */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BotCard
-            name="Oracle"
-            status={oracle?.status || 'unknown'}
-            stats={oracle?.stats || null}
-            variant="oracle"
-          />
-          <BotCard
-            name="NightWatch"
-            status={nightwatch?.status || 'unknown'}
-            stats={nightwatch?.stats || null}
-            variant="nightwatch"
-          />
+        {/* ── Kalshi Bots ── */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Kalshi — Prediction Markets</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <BotCard name="NightWatch" status={nightwatch?.status || 'unknown'} stats={nightwatch?.stats || null} variant="nightwatch" />
+          </div>
         </div>
 
-        {/* Signal feeds */}
+        {/* ── Kraken Bots ── */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Kraken — Crypto Trading</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <BotCard
+              name="Zeus"
+              status={zeus?.status || 'unknown'}
+              stats={zeus?.stats ? {
+                total_trades: zeus.stats.total_trades,
+                wins: zeus.stats.wins,
+                losses: zeus.stats.losses,
+                pending: zeus.stats.open,
+                total_profit: zeus.stats.total_pnl,
+                win_rate: zeus.stats.win_rate,
+              } : null}
+              variant="oracle"
+            />
+            <BotCard
+              name="Kronos"
+              status={kronos?.status || 'unknown'}
+              stats={kronos?.stats ? {
+                total_trades: kronos.stats.total_fills,
+                wins: kronos.stats.total_fills,
+                losses: 0,
+                pending: 0,
+                total_profit: kronos.stats.total_pnl,
+                win_rate: kronos.stats.total_fills > 0 ? 100 : 0,
+              } : null}
+              variant="oracle"
+            />
+          </div>
+        </div>
+
+        {/* ── Signal Feeds ── */}
         <div className="grid gap-4 lg:grid-cols-2">
-          <OracleFeed
-            trades={oracle?.recentTrades || []}
-            loading={oracleLoading && !oracle}
-          />
           <NightWatchFeed
             trades={nightwatch?.recentTrades || []}
             positions={nightwatch?.openPositions || []}
             loading={nightwatchLoading && !nightwatch}
           />
+          <ZeusFeed trades={zeus?.recentTrades || []} loading={zeusLoading && !zeus} />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-1">
+          <KronosFeed fills={kronos?.recentFills || []} loading={kronosLoading && !kronos} />
         </div>
 
-        {/* Coming soon notice */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Target className="h-4 w-4 text-primary shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-foreground">Powered by Kalshi</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Oracle &amp; NightWatch trade BTC/ETH direction and macro events on Kalshi — 
-                  fully US-legal, no VPN, no wallet bans. Paper trading until 60%+ win rate is proven.
-                </p>
+        {/* Platform info */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Target className="h-4 w-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">NightWatch — Kalshi</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Macro event prediction: Fed, CPI, Tariffs. US-legal, no wallet. Paper until 60%+ WR.</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          <Card className="border-yellow-500/20 bg-yellow-500/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Zap className="h-4 w-4 text-yellow-500 shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Zeus + Kronos — Kraken</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Zeus: swing trades (1h/4h TA, 2x leverage). Kronos: grid bot (±6%, auto-rebalance). 24/7 including weekends.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
       </div>
     </div>
