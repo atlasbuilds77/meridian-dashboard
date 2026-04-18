@@ -292,6 +292,22 @@ export default function HeliosSetupPage() {
   );
 
   // ── Step 3: Enable Auto-Execute ───────────────────────────────────────────
+  const [preferSpy, setPreferSpy] = useState(false);
+  const [savingPref, setSavingPref] = useState(false);
+
+  const handleSpyToggle = async (val: boolean) => {
+    setSavingPref(true);
+    try {
+      await fetchWithCsrf('/api/user/settings/prefer-spy', {
+        method: 'POST',
+        body: JSON.stringify({ prefer_spy: val }),
+      }, csrfToken);
+      setPreferSpy(val);
+    } catch { /* noop */ } finally {
+      setSavingPref(false);
+    }
+  };
+
   const handleEnable = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -328,6 +344,34 @@ export default function HeliosSetupPage() {
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500 flex-shrink-0" /> 1 contract per signal (default)</div>
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500 flex-shrink-0" /> All trades logged in your dashboard</div>
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500 flex-shrink-0" /> Disable anytime in Settings</div>
+      </div>
+
+      {/* SPX vs SPY preference */}
+      <div className="max-w-sm mx-auto w-full">
+        <p className="text-zinc-400 text-xs mb-2 text-left">Which instrument should Helios trade?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => handleSpyToggle(false)}
+            disabled={savingPref}
+            className={`p-3 rounded-lg border text-left transition-all ${
+              !preferSpy ? 'border-orange-500 bg-orange-500/10' : 'border-zinc-700 bg-zinc-900 hover:border-zinc-600'
+            }`}
+          >
+            <p className="text-sm font-bold text-white">SPX</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Index options. Higher premium per contract. Webull uses SPXW (identical).</p>
+          </button>
+          <button
+            onClick={() => handleSpyToggle(true)}
+            disabled={savingPref}
+            className={`p-3 rounded-lg border text-left transition-all ${
+              preferSpy ? 'border-orange-500 bg-orange-500/10' : 'border-zinc-700 bg-zinc-900 hover:border-zinc-600'
+            }`}
+          >
+            <p className="text-sm font-bold text-white">SPY</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Same signal, 1/10 strike. Lower premium. Works on all brokers including Robinhood-style platforms.</p>
+          </button>
+        </div>
+        <p className="text-zinc-600 text-[10px] mt-1.5 text-left">You can change this anytime in Settings.</p>
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <Button onClick={handleEnable} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white px-8">
