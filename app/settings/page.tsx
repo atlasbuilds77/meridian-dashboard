@@ -19,10 +19,12 @@ function HeliosSubscriptionSection({
   autoExecuteEnabled,
   onToggle,
   toggling,
+  isSingularity,
 }: {
   autoExecuteEnabled: boolean;
   onToggle: () => void;
   toggling: boolean;
+  isSingularity: boolean;
 }) {
   const [subscribing, setSubscribing] = useState(false);
   const [subError, setSubError] = useState('');
@@ -50,7 +52,25 @@ function HeliosSubscriptionSection({
   };
 
   if (!autoExecuteEnabled) {
-    // Not subscribed — show upgrade card
+    // Check if Singularity member — they get it free
+    if (isSingularity) {
+      return (
+        <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-orange-400" />
+            <div>
+              <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">✓ Singularity</span></p>
+              <p className="text-xs text-muted-foreground">Included with your Singularity membership</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={onToggle} disabled={toggling} className="ml-auto">
+              {toggling ? 'Updating...' : 'Enable'}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // Not Singularity, not subscribed — show upgrade card
     return (
       <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg space-y-3">
         <div className="flex items-center gap-2">
@@ -268,6 +288,7 @@ function HeliosSettingsSection() {
             autoExecuteEnabled={snapData?.heliosAutoExecute ?? false}
             onToggle={handleToggle}
             toggling={toggling}
+            isSingularity={singularityAccess?.hasAccess ?? false}
           />
         )}
 
