@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Meridian',
+    title: 'ZeroG Dashboard',
   },
   icons: {
     icon: '/icons/icon-192.png',
@@ -50,7 +50,7 @@ function Navigation() {
                 className="object-contain drop-shadow-[0_0_16px_rgba(217,70,239,0.45)]"
               />
             </div>
-            <span className="hidden text-lg font-extrabold tracking-tight sm:block nebula-gradient-text">MERIDIAN</span>
+            <span className="hidden text-lg font-extrabold tracking-tight sm:block nebula-gradient-text">ZEROG</span>
           </Link>
 
           <NavLinks />

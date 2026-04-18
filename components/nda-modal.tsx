@@ -62,7 +62,7 @@ export function NdaModal({ onAccept }: NdaModalProps) {
             </DialogTitle>
           </div>
           <DialogDescription className="text-base text-muted-foreground">
-            Please read and accept the following terms to continue using Meridian Dashboard
+            Please read and accept the following terms to continue using ZeroG Dashboard
           </DialogDescription>
         </DialogHeader>
 
@@ -89,7 +89,7 @@ export function NdaModal({ onAccept }: NdaModalProps) {
                 <p className="mb-3">
                   You acknowledge that the trading system, signals, strategies, algorithms, performance
                   data, and all related intellectual property of <strong>Orion Solana LLC dba ZeroG Trading</strong> 
-                  (operating as "Meridian") (collectively, "Confidential Information") are
+                  (operating as "ZeroG") (collectively, "Confidential Information") are
                   proprietary and confidential.
                 </p>
                 <p>
@@ -106,13 +106,13 @@ export function NdaModal({ onAccept }: NdaModalProps) {
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li>
                     Develop, operate, or contribute to any competing algorithmic trading system that uses similar
-                    methodologies to Meridian
+                    methodologies to ZeroG
                   </li>
                   <li>
-                    Reverse engineer, decompile, or attempt to derive Meridian's trading logic or algorithms
+                    Reverse engineer, decompile, or attempt to derive ZeroG's trading logic or algorithms
                   </li>
                   <li>
-                    Share Meridian's trade signals, entry/exit logic, or performance data with any competing service
+                    Share ZeroG's trade signals, entry/exit logic, or performance data with any competing service
                   </li>
                   <li>Use Confidential Information to create derivative works or competing products</li>
                 </ul>
@@ -122,8 +122,8 @@ export function NdaModal({ onAccept }: NdaModalProps) {
                 <h3 className="text-base font-semibold text-foreground mb-3">3. Usage Restrictions</h3>
                 <p className="mb-3">You agree to:</p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
-                  <li>Use Meridian signals exclusively for your personal trading accounts</li>
-                  <li>Not redistribute, resell, or sublicense access to Meridian's signals or data</li>
+                  <li>Use ZeroG signals exclusively for your personal trading accounts</li>
+                  <li>Not redistribute, resell, or sublicense access to ZeroG's signals or data</li>
                   <li>Not screenshot, record, or publicly share trade signals or system performance</li>
                   <li>Keep your account credentials secure and not share access with others</li>
                 </ul>
@@ -132,8 +132,8 @@ export function NdaModal({ onAccept }: NdaModalProps) {
               <section>
                 <h3 className="text-base font-semibold text-foreground mb-3">4. Intellectual Property</h3>
                 <p>
-                  All rights, title, and interest in Meridian's system, including but not limited to algorithms,
-                  code, documentation, and performance data, remain the exclusive property of Meridian. This
+                  All rights, title, and interest in ZeroG's system, including but not limited to algorithms,
+                  code, documentation, and performance data, remain the exclusive property of ZeroG. This
                   agreement does not grant you any intellectual property rights.
                 </p>
               </section>

@@ -232,7 +232,7 @@ function PortfolioHeader() {
   const totalValue = accountBalance;
   const totalReturn = accountBalance > 0 ? (totalPnL / accountBalance) * 100 : 0;
   const isPositive = totalPnL >= 0;
-  const shareText = `Meridian P&L update: ${formatCurrency(totalPnL)} on ${formatCurrency(totalValue)} portfolio value (${formatPercent(totalReturn)}).`;
+  const shareText = `ZeroG P&L update: ${formatCurrency(totalPnL)} on ${formatCurrency(totalValue)} portfolio value (${formatPercent(totalReturn)}).`;
 
   // Extract sparkline data from Tradier daily P&L (cumulative, last 14 days)
   const sparklineData = tradierPnL?.dailyPnL
@@ -246,7 +246,7 @@ function PortfolioHeader() {
           <p className="data-label">Portfolio Value</p>
           <div className="flex flex-wrap items-center gap-3">
             <LiveIndicator lastUpdate={lastUpdate} />
-            <PnLShareButton title="Meridian P&L" text={shareText} />
+            <PnLShareButton title="ZeroG P&L" text={shareText} />
           </div>
         </div>
 
@@ -559,7 +559,7 @@ export default function Dashboard() {
             )}
             <div>
               <p className="data-label">
-                {userSession ? userSession.username : 'Meridian'}
+                {userSession ? userSession.username : 'ZeroG'}
               </p>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">Dashboard</h1>
             </div>
