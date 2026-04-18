@@ -37,9 +37,9 @@ const sections: TermsSection[] = [
   {
     title: 'Fees and Billing',
     paragraphs: [
-      'Monthly Membership: $1,200 per month + 10% of weekly profits.',
-      'Lifetime Membership: One-time purchase + 10% of weekly profits (no recurring monthly fee).',
-      'The 10% service fee is calculated on net weekly profits (Monday through Friday), charged Friday after market close only when profitable.',
+      'Monthly Membership: $1,999/month. Flat rate, no performance fee.',
+      'Lifetime Membership: One-time purchase price + 10% of net weekly profits (Monday through Friday). Performance fee charged Friday after market close only on profitable weeks.',
+      'Singularity Membership: Auto-execute included at no additional charge.',
     ],
     callout: 'All sales are final. No refunds.',
   },
