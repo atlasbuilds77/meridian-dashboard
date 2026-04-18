@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getOrCreateUser } from '@/lib/db/users';
+import pool from '@/lib/db/pool';
 import { createSession } from '@/lib/auth/session';
 import {
   OAUTH_STATE_COOKIE,
@@ -170,9 +171,17 @@ export async function GET(request: Request) {
       hasSingularity,
     });
 
+    // Check if user has completed onboarding
+    const onboardingResult = await pool.query(
+      `SELECT id FROM onboarding_sessions WHERE user_id = $1 AND status = 'completed' LIMIT 1`,
+      [dbUser.id]
+    );
+    const hasCompletedOnboarding = onboardingResult.rows.length > 0;
+
     // Use BASE_URL for redirect to ensure correct domain
     const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || origin;
-    const response = NextResponse.redirect(new URL('/', baseUrl));
+    const redirectPath = hasCompletedOnboarding ? '/' : '/onboarding';
+    const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
 
     // IMPORTANT: set cookies on the response (not via cookies()) so they are reliably
     // included even on redirects.
