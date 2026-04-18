@@ -185,9 +185,20 @@ export async function POST(request: NextRequest) {
         }
 
         // Use contract_symbol for options, ticker for equities
-        const tradingSymbol = isOption && body.contract_symbol
+        // SnapTrade requires exactly 21-character OCC format: TTTTTTYYMMDDXSSSSSSSS
+        // where T=ticker padded to 6 chars, YYMMDD=expiry, X=C/P, S=strike*1000 padded to 8 digits
+        let tradingSymbol = isOption && body.contract_symbol
           ? body.contract_symbol
           : body.ticker;
+        if (isOption && tradingSymbol && tradingSymbol.length < 21) {
+          // Extract parts and rebuild with proper padding
+          // Try to pad ticker portion to 6 chars (OCC standard)
+          const match = tradingSymbol.match(/^([A-Z]{1,6})(\d{6}[CP]\d{8})$/);
+          if (match) {
+            const ticker = match[1].padEnd(6, ' ');
+            tradingSymbol = ticker + match[2];
+          }
+        }
 
         // Calculate user-specific quantity (apply size_pct)
         const baseQty = body.qty || 1;
