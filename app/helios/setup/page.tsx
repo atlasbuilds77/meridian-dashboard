@@ -9,16 +9,19 @@ import { fetchWithCsrf, useCsrfToken } from '@/hooks/use-csrf-token';
 
 // ─── Broker capability map ───────────────────────────────────────────────────
 // Source: SnapTrade brokerage support matrix (options trading column)
-const BROKERS_WITH_OPTIONS = [
-  { name: 'Tastytrade',           options: true  },
-  { name: 'Interactive Brokers',  options: true  },
-  { name: 'Alpaca',               options: true  },
-  { name: 'TD Ameritrade',        options: true  },
-  { name: 'Charles Schwab',       options: true  },
-  { name: 'Tradier',              options: true  },
-  { name: 'Webull',               options: true  },
-  { name: 'Robinhood',            options: false },
-  { name: 'Fidelity',             options: false },
+// status: 'full' = SPX/SPXW execution supported
+//         'spy'  = SPY proxy used (SPX ÷ 10 strike)
+//         'none' = read-only via SnapTrade API, cannot execute
+const BROKERS_WITH_OPTIONS: { name: string; status: 'full' | 'spy' | 'none'; note?: string }[] = [
+  { name: 'Tastytrade',           status: 'full' },
+  { name: 'Interactive Brokers',  status: 'full' },
+  { name: 'TD Ameritrade',        status: 'full' },
+  { name: 'Charles Schwab',       status: 'full' },
+  { name: 'Tradier',              status: 'full' },
+  { name: 'Alpaca',               status: 'full' },
+  { name: 'Webull',               status: 'full', note: 'Uses SPXW (identical SPX weekly contracts)' },
+  { name: 'Fidelity',             status: 'spy',  note: 'SPY proxy used (same signal, 1/10 strike)' },
+  { name: 'Robinhood',            status: 'none', note: 'Requires unofficial API integration — coming soon' },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -166,16 +169,19 @@ export default function HeliosSetupPage() {
       <div className="max-w-sm mx-auto space-y-2 text-xs">
         <p className="text-zinc-500 uppercase tracking-wide text-[10px] text-left mb-1">Options execution supported:</p>
         {BROKERS_WITH_OPTIONS.map(b => (
-          <div key={b.name} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded px-3 py-2">
-            <span className="font-medium text-zinc-200">{b.name}</span>
-            <div className="flex items-center gap-1.5">
-              {b.options
-                ? <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /><span className="text-green-400">Full execution</span></>
-                : <><span className="text-zinc-600">Data only</span></>}
+          <div key={b.name} className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-zinc-200">{b.name}</span>
+              <div className="flex items-center gap-1.5">
+                {b.status === 'full' && <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /><span className="text-green-400">Full execution</span></>}
+                {b.status === 'spy'  && <><span className="text-yellow-400">SPY proxy</span></>}
+                {b.status === 'none' && <><span className="text-zinc-500">Not supported</span></>}
+              </div>
             </div>
+            {b.note && <p className="text-zinc-500 text-[10px] mt-0.5">{b.note}</p>}
           </div>
         ))}
-        <p className="text-zinc-600 text-[10px] text-left pt-1">Other brokers may connect for data only. Options execution requires broker support.</p>
+        <p className="text-zinc-600 text-[10px] text-left pt-1">Robinhood requires a custom integration not yet available. Switch to a supported broker to enable auto-execute.</p>
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <Button onClick={handleConnect} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white px-8">

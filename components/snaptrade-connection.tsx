@@ -280,6 +280,16 @@ export function SnapTradeConnectionCard() {
               </Button>
             </div>
 
+            {/* Robinhood warning — read-only, can't execute */}
+            {state.accounts.some(a => a.institution_name?.toLowerCase().includes('robinhood')) && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-400">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <strong>Robinhood is read-only via SnapTrade</strong> — auto-execute is not supported. Robinhood blocks third-party trade execution through their official API. Full support requires a custom integration (coming soon). Switch to Webull, IBKR, Tastytrade, or Schwab to enable auto-execute.
+                </span>
+              </div>
+            )}
+
             {/* Same account warning */}
             {sameAccountWarning && (
               <div className="flex items-start gap-2 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-400">
