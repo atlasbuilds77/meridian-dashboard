@@ -6,12 +6,17 @@ import { placeOrder, isConfigured } from '@/lib/snaptrade/client';
 /**
  * Brokers that support SPX index options natively via API
  */
-const SPX_NATIVE_BROKERS = ['Interactive Brokers', 'TD Ameritrade', 'Tastytrade', 'Schwab', 'Tradier', 'Firstrade'];
+const SPX_NATIVE_BROKERS = ['Interactive Brokers', 'TD Ameritrade', 'Tastytrade', 'Schwab', 'Tradier', 'Firstrade', 'Alpaca'];
 
 /**
  * Brokers that need SPXW instead of SPX (weekly SPX, same contracts)
  */
 const SPXW_BROKERS = ['Webull'];
+
+/**
+ * Brokers that are read-only via SnapTrade — skip execution entirely
+ */
+const READ_ONLY_BROKERS = ['Robinhood'];
 
 /**
  * Transform the contract symbol based on the user's brokerage.
@@ -255,6 +260,13 @@ export async function POST(request: NextRequest) {
 
     for (const user of eligibleUsers) {
       try {
+        // Skip read-only brokers — they can't execute trades via SnapTrade API
+        if (READ_ONLY_BROKERS.some(b => user.brokerage_name?.toLowerCase().includes(b.toLowerCase()))) {
+          console.log(`[HeliosWebhook] Skipping ${user.username} — ${user.brokerage_name} is read-only via SnapTrade`);
+          results.push({ userId: user.id, username: user.username, status: 'skipped', error: `${user.brokerage_name} does not support trade execution via SnapTrade` });
+          continue;
+        }
+
         // Determine SnapTrade action
         const isOption = !!(body.contract_symbol || body.option_type);
         let snapAction: 'BUY' | 'SELL' | 'BUY_TO_OPEN' | 'SELL_TO_CLOSE';
