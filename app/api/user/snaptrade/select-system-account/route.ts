@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
 import { setSystemAccount, type TradingSystem } from '@/lib/db/snaptrade-users';
 import { validateCsrfFromRequest } from '@/lib/security/csrf';
+import { listAccounts } from '@/lib/snaptrade/client';
+import { getSnapTradeData } from '@/lib/db/snaptrade-users';
+import pool from '@/lib/db/pool';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +42,22 @@ export async function POST(request: NextRequest) {
     }
 
     await setSystemAccount(authResult.userId, system as TradingSystem, accountId);
+
+    // Save brokerage_name so the webhook can route symbols correctly per broker
+    try {
+      const snapData = await getSnapTradeData(authResult.userId);
+      if (snapData?.snaptrade_user_id && snapData?.snaptrade_user_secret) {
+        const accounts = await listAccounts(snapData.snaptrade_user_id, snapData.snaptrade_user_secret);
+        const selected = accounts.find((a: { id: string }) => a.id === accountId);
+        const brokerageName = (selected as { institution_name?: string })?.institution_name || null;
+        if (brokerageName) {
+          await pool.query('UPDATE users SET brokerage_name = $1 WHERE id = $2', [brokerageName, authResult.userId]);
+          console.log(`[SelectAccount] Saved brokerage_name=${brokerageName} for user ${authResult.userId}`);
+        }
+      }
+    } catch (brokerErr) {
+      console.warn('[SelectAccount] Could not save brokerage_name:', brokerErr);
+    }
 
     return NextResponse.json({
       success: true,

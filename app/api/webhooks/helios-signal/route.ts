@@ -3,6 +3,85 @@ import { timingSafeEqual } from 'crypto';
 import pool from '@/lib/db/pool';
 import { placeOrder, isConfigured } from '@/lib/snaptrade/client';
 
+/**
+ * Brokers that support SPX index options natively via API
+ */
+const SPX_NATIVE_BROKERS = ['Interactive Brokers', 'TD Ameritrade', 'Tastytrade', 'Schwab', 'Tradier', 'Firstrade'];
+
+/**
+ * Brokers that need SPXW instead of SPX (weekly SPX, same contracts)
+ */
+const SPXW_BROKERS = ['Webull'];
+
+/**
+ * Transform the contract symbol based on the user's brokerage.
+ * - Native brokers: SPX as-is
+ * - Webull: SPX → SPXW (same contract, different ticker accepted by Webull API)
+ * - Everything else: SPX → SPY proxy (strike ÷ 10, ~equivalent signal)
+ */
+function transformSymbolForBroker({
+  ticker,
+  contractSymbol,
+  strike,
+  expiration,
+  optionType,
+  brokerage,
+}: {
+  ticker: string;
+  contractSymbol?: string | null;
+  strike?: number | null;
+  expiration?: string | null;
+  optionType?: string | null;
+  brokerage: string;
+}): { symbol: string; ticker: string } {
+  const isSpx = ticker?.toUpperCase() === 'SPX';
+  const brokerageName = brokerage || '';
+
+  // Non-SPX signals — just pad to OCC and return as-is
+  if (!isSpx || !contractSymbol) {
+    const padded = padOCC(contractSymbol || ticker);
+    return { symbol: padded, ticker };
+  }
+
+  // SPX native brokers — use as-is
+  if (SPX_NATIVE_BROKERS.some(b => brokerageName.toLowerCase().includes(b.toLowerCase()))) {
+    return { symbol: padOCC(contractSymbol), ticker: 'SPX' };
+  }
+
+  // Webull — swap SPX → SPXW (same weekly contracts)
+  if (SPXW_BROKERS.some(b => brokerageName.toLowerCase().includes(b.toLowerCase()))) {
+    const spxwSymbol = contractSymbol.replace(/^SPX\s*/, 'SPXW  ');
+    return { symbol: padOCC(spxwSymbol), ticker: 'SPXW' };
+  }
+
+  // Fallback: convert SPX → SPY proxy
+  // SPY ≈ SPX / 10, so strike ÷ 10
+  if (strike && expiration && optionType) {
+    const spyStrike = Math.round(strike / 10);
+    const exp = expiration.replace(/-/g, '').slice(2); // YYMMDD
+    const side = optionType.toUpperCase().startsWith('P') ? 'P' : 'C';
+    const strikeStr = String(spyStrike * 1000).padStart(8, '0');
+    const spySymbol = `SPY   ${exp}${side}${strikeStr}`;
+    return { symbol: spySymbol, ticker: 'SPY' };
+  }
+
+  // Last resort — try SPX as-is
+  return { symbol: padOCC(contractSymbol), ticker: 'SPX' };
+}
+
+/**
+ * Pad a contract symbol to exactly 21 chars (OCC standard).
+ * Format: TTTTTTYYMMDDXSSSSSSSS
+ */
+function padOCC(symbol: string): string {
+  if (!symbol || symbol.length === 21) return symbol;
+  const match = symbol.match(/^([A-Z]{1,6})\s*(\d{6}[CP]\d{8})$/);
+  if (match) {
+    return match[1].padEnd(6, ' ') + match[2];
+  }
+  return symbol;
+}
+
 export const dynamic = 'force-dynamic';
 
 // Rate limiter: max 10 requests per 60 seconds
@@ -133,6 +212,7 @@ export async function POST(request: NextRequest) {
          u.snaptrade_user_id,
          u.snaptrade_user_secret,
          u.helios_snaptrade_account as snaptrade_selected_account,
+         COALESCE(u.brokerage_name, 'unknown') as brokerage_name,
          COALESCE(uts.size_pct, 1.0) as size_pct
        FROM users u
        LEFT JOIN user_trading_settings uts ON uts.user_id = u.id
@@ -184,21 +264,21 @@ export async function POST(request: NextRequest) {
           snapAction = body.action.toUpperCase() as 'BUY' | 'SELL';
         }
 
-        // Use contract_symbol for options, ticker for equities
-        // SnapTrade requires exactly 21-character OCC format: TTTTTTYYMMDDXSSSSSSSS
-        // where T=ticker padded to 6 chars, YYMMDD=expiry, X=C/P, S=strike*1000 padded to 8 digits
-        let tradingSymbol = isOption && body.contract_symbol
-          ? body.contract_symbol
-          : body.ticker;
-        if (isOption && tradingSymbol && tradingSymbol.length < 21) {
-          // Extract parts and rebuild with proper padding
-          // Try to pad ticker portion to 6 chars (OCC standard)
-          const match = tradingSymbol.match(/^([A-Z]{1,6})(\d{6}[CP]\d{8})$/);
-          if (match) {
-            const ticker = match[1].padEnd(6, ' ');
-            tradingSymbol = ticker + match[2];
-          }
-        }
+        // Transform symbol based on user's brokerage
+        // Handles SPX → SPXW (Webull), SPX → SPY proxy (unsupported brokers), native (IBKR etc)
+        const transformed = isOption
+          ? transformSymbolForBroker({
+              ticker: body.ticker,
+              contractSymbol: body.contract_symbol,
+              strike: body.strike,
+              expiration: body.expiration,
+              optionType: body.option_type,
+              brokerage: user.brokerage_name,
+            })
+          : { symbol: body.ticker, ticker: body.ticker };
+        const tradingSymbol = transformed.symbol;
+        console.log(`[HeliosWebhook] ${user.username} (${user.brokerage_name}): ${body.ticker} → ${tradingSymbol}`);
+        const effectiveTicker = transformed.ticker;
 
         // Calculate user-specific quantity (apply size_pct)
         const baseQty = body.qty || 1;
@@ -233,7 +313,7 @@ export async function POST(request: NextRequest) {
            VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, 'open', $7)`,
           [
             user.id,
-            body.ticker,
+            effectiveTicker,
             isOption
               ? body.action.toLowerCase() === 'buy'
                 ? 'CALL'
