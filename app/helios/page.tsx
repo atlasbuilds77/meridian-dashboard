@@ -20,6 +20,7 @@ import {
   ArrowUpRight,
   Radio,
   ShieldCheck,
+  Zap,
   TrendingUp,
 } from 'lucide-react';
 
@@ -468,7 +469,25 @@ function SummaryHeader({
 function AutoExecuteBanner({ weeklyTrades }: { weeklyTrades: HeliosWeeklyTrade[] }) {
   const router = useRouter();
   const { data: snapData } = useLiveData<{ connected: boolean; heliosAccount: string | null; heliosAutoExecute: boolean }>('/api/user/snaptrade/accounts', 60_000);
+  const { data: singularityAccess } = useLiveData<{ hasAccess: boolean }>('/api/singularity/access', 300_000);
   const isSetUp = snapData?.connected && snapData?.heliosAccount && snapData?.heliosAutoExecute;
+  const isSingularity = singularityAccess?.hasAccess ?? false;
+  const [subscribing, setSubscribing] = useState(false);
+
+  const handleSubscribe = async () => {
+    setSubscribing(true);
+    try {
+      const res = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval: 'monthly' }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -499,21 +518,63 @@ function AutoExecuteBanner({ weeklyTrades }: { weeklyTrades: HeliosWeeklyTrade[]
   if (!snapData) return null; // still loading
 
   if (!isSetUp) {
+    // Broker not connected at all
+    if (!snapData?.connected || !snapData?.heliosAccount) {
+      return (
+        <Card className="border-yellow-500/30 bg-yellow-500/5">
+          <CardContent className="p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wide">Broker Not Connected</span>
+                <span className="text-xs text-muted-foreground">Connect your broker to auto-trade Helios signals</span>
+              </div>
+              <button
+                onClick={() => router.push('/helios/setup')}
+                className="shrink-0 rounded px-3 py-1.5 text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors"
+              >
+                Connect Broker →
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Broker connected but auto-execute not enabled — need subscription
     return (
-      <Card className="border-yellow-500/30 bg-yellow-500/5">
+      <Card className="border-orange-500/30 bg-orange-500/5">
         <CardContent className="p-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
-              <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wide">Auto-Execute Not Connected</span>
-              <span className="text-xs text-muted-foreground">Connect your broker to auto-trade Helios signals</span>
+              <Zap className="h-4 w-4 text-orange-400" />
+              <div>
+                <span className="text-xs font-semibold text-orange-400 uppercase tracking-wide">
+                  {isSingularity ? 'Enable Auto-Execute' : 'Unlock Auto-Execute — $99/mo'}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {isSingularity
+                    ? 'Included with your Singularity membership — enable it in Settings'
+                    : 'Helios signals execute automatically into your account. Cancel anytime.'}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => router.push('/helios/setup')}
-              className="shrink-0 rounded px-3 py-1.5 text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors"
-            >
-              Connect Broker →
-            </button>
+            {isSingularity ? (
+              <button
+                onClick={() => router.push('/settings')}
+                className="shrink-0 rounded px-3 py-1.5 text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors"
+              >
+                Enable in Settings →
+              </button>
+            ) : (
+              <button
+                onClick={handleSubscribe}
+                disabled={subscribing}
+                className="shrink-0 rounded px-3 py-1.5 text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors disabled:opacity-50"
+              >
+                {subscribing ? 'Redirecting...' : '⚡ Subscribe $99/mo'}
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
