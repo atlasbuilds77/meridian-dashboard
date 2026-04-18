@@ -206,6 +206,8 @@ function HeliosSettingsSection() {
   } | null>(null);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preferSpy, setPreferSpy] = useState(false);
+  const [spyToggling, setSpyToggling] = useState(false);
   const { token: csrfToken } = useCsrfToken();
 
   const loadSnapData = useCallback(async () => {
@@ -217,7 +219,10 @@ function HeliosSettingsSection() {
   }, []);
 
   useEffect(() => {
-    if (access?.hasAccess) loadSnapData();
+    if (access?.hasAccess) {
+      loadSnapData();
+      fetch('/api/user/settings/prefer-spy').then(r => r.json()).then(d => setPreferSpy(d.prefer_spy ?? false)).catch(() => {});
+    }
   }, [access, loadSnapData]);
 
   // Don't render if no Helios access
@@ -243,6 +248,21 @@ function HeliosSettingsSection() {
       setError(e instanceof Error ? e.message : 'Failed to update');
     } finally {
       setToggling(false);
+    }
+  };
+
+  const handleSpyToggle = async () => {
+    if (!csrfToken) return;
+    setSpyToggling(true);
+    try {
+      const newVal = !preferSpy;
+      const res = await fetchWithCsrf('/api/user/settings/prefer-spy', {
+        method: 'POST',
+        body: JSON.stringify({ prefer_spy: newVal }),
+      }, csrfToken);
+      if (res.ok) setPreferSpy(newVal);
+    } catch { /* noop */ } finally {
+      setSpyToggling(false);
     }
   };
 
@@ -297,6 +317,27 @@ function HeliosSettingsSection() {
           isSingularity={singularityAccess?.hasAccess ?? false}
           brokerConnected={!!(snapData?.connected && snapData?.heliosAccount)}
         />
+
+        {/* SPY preference toggle */}
+        {snapData?.connected && snapData?.heliosAccount && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-foreground">Trade as SPY instead of SPX</p>
+                <p className="text-xs text-muted-foreground mt-0.5">SPY options are 1/10 the premium — same signal, lower cost per contract. Best for smaller accounts or brokers without SPX access.</p>
+              </div>
+              <Button
+                size="sm"
+                variant={preferSpy ? 'default' : 'outline'}
+                onClick={handleSpyToggle}
+                disabled={spyToggling}
+                className={preferSpy ? 'bg-orange-500 hover:bg-orange-600 text-white ml-4 shrink-0' : 'ml-4 shrink-0'}
+              >
+                {spyToggling ? 'Saving...' : preferSpy ? 'SPY ✓' : 'SPX (default)'}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Not connected yet */}
         {!snapData?.connected && (

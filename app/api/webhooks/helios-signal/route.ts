@@ -75,6 +75,32 @@ function transformSymbolForBroker({
 }
 
 /**
+ * Build a SPY proxy symbol from an SPX signal.
+ * SPY ≈ SPX / 10, strike ÷ 10.
+ */
+function buildSpyProxy({
+  ticker,
+  strike,
+  expiration,
+  optionType,
+}: {
+  ticker: string;
+  strike?: number | null;
+  expiration?: string | null;
+  optionType?: string | null;
+}): { symbol: string; ticker: string } {
+  if (ticker?.toUpperCase() === 'SPX' && strike && expiration && optionType) {
+    const spyStrike = Math.round(strike / 10);
+    const exp = expiration.replace(/-/g, '').slice(2); // YYMMDD
+    const side = optionType.toUpperCase().startsWith('P') ? 'P' : 'C';
+    const strikeStr = String(spyStrike * 1000).padStart(8, '0');
+    return { symbol: `SPY   ${exp}${side}${strikeStr}`, ticker: 'SPY' };
+  }
+  // Non-SPX or missing fields — pass through as-is
+  return { symbol: padOCC(ticker), ticker };
+}
+
+/**
  * Pad a contract symbol to exactly 21 chars (OCC standard).
  * Format: TTTTTTYYMMDDXSSSSSSSS
  */
@@ -218,6 +244,7 @@ export async function POST(request: NextRequest) {
          u.snaptrade_user_secret,
          u.helios_snaptrade_account as snaptrade_selected_account,
          COALESCE(u.brokerage_name, 'unknown') as brokerage_name,
+         COALESCE(u.prefer_spy, false) as prefer_spy,
          COALESCE(uts.size_pct, 1.0) as size_pct
        FROM users u
        LEFT JOIN user_trading_settings uts ON uts.user_id = u.id
@@ -276,17 +303,20 @@ export async function POST(request: NextRequest) {
           snapAction = body.action.toUpperCase() as 'BUY' | 'SELL';
         }
 
-        // Transform symbol based on user's brokerage
-        // Handles SPX → SPXW (Webull), SPX → SPY proxy (unsupported brokers), native (IBKR etc)
+        // Transform symbol based on user preference + brokerage
+        // prefer_spy = true → always use SPY proxy regardless of broker
+        // Otherwise: broker routing (SPXW for Webull, native for IBKR etc)
         const transformed = isOption
-          ? transformSymbolForBroker({
-              ticker: body.ticker,
-              contractSymbol: body.contract_symbol,
-              strike: body.strike,
-              expiration: body.expiration,
-              optionType: body.option_type,
-              brokerage: user.brokerage_name,
-            })
+          ? (user.prefer_spy
+              ? buildSpyProxy({ ticker: body.ticker, strike: body.strike, expiration: body.expiration, optionType: body.option_type })
+              : transformSymbolForBroker({
+                  ticker: body.ticker,
+                  contractSymbol: body.contract_symbol,
+                  strike: body.strike,
+                  expiration: body.expiration,
+                  optionType: body.option_type,
+                  brokerage: user.brokerage_name,
+                }))
           : { symbol: body.ticker, ticker: body.ticker };
         const tradingSymbol = transformed.symbol;
         console.log(`[HeliosWebhook] ${user.username} (${user.brokerage_name}): ${body.ticker} → ${tradingSymbol}`);
