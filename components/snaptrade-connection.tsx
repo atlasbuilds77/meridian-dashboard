@@ -149,7 +149,7 @@ export function SnapTradeConnectionCard() {
           ...prev,
           [system === 'helios' ? 'heliosAccount' : 'meridianAccount']: accountId,
         }));
-        const label = system === 'helios' ? 'Helios' : 'Meridian';
+        const label = system === 'helios' ? 'Helios' : 'ZeroG';
         setSuccess(`${label} account updated.`);
       } else {
         const data = await res.json();
@@ -184,7 +184,7 @@ export function SnapTradeConnectionCard() {
           ...prev,
           [system === 'helios' ? 'heliosAutoExecute' : 'meridianAutoExecute']: newValue,
         }));
-        const label = system === 'helios' ? 'Helios' : 'Meridian';
+        const label = system === 'helios' ? 'Helios' : 'ZeroG';
         setSuccess(newValue ? `${label} auto-execute enabled.` : `${label} auto-execute disabled.`);
       } else {
         setError(data.error || 'Failed to toggle auto-execute');
@@ -307,7 +307,7 @@ export function SnapTradeConnectionCard() {
 
             <SystemAccountSelector
               system="meridian"
-              label="Meridian Account"
+              label="ZeroG Account"
               description="0DTE / intraday options — same-day expiry"
               accounts={state.accounts}
               selectedAccountId={state.meridianAccount}

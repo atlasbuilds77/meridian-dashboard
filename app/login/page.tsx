@@ -44,7 +44,7 @@ function LoginContent() {
             <div className="relative mb-4 h-24 w-24">
               <Image
                 src="/meridian-logo.png"
-                alt="Meridian"
+                alt="ZeroG"
                 fill
                 className="object-contain drop-shadow-[0_0_20px_rgba(217,70,239,0.45)]"
               />

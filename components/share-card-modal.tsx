@@ -46,7 +46,7 @@ const editionInfo: Record<Edition, { name: string; color: string; description: s
   black: {
     name: 'Limited Edition',
     color: 'text-white',
-    description: 'Welcome to Meridian',
+    description: 'Welcome to ZeroG',
   },
   ruby: {
     name: 'Ruby Edition',
@@ -131,7 +131,7 @@ export function ShareCardModal({ open, onOpenChange, userId, mode = 'user' }: Sh
         if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: 'Meridian P&L Card',
+            title: 'ZeroG P&L Card',
             text: 'Save this card to your photos',
           });
           return;
@@ -171,7 +171,7 @@ export function ShareCardModal({ open, onOpenChange, userId, mode = 'user' }: Sh
   const handleShareTwitter = () => {
     if (!cardData) return;
 
-    const text = `Just hit ${cardData.stats.totalProfit >= 0 ? '+' : ''}$${cardData.stats.totalProfit.toFixed(0)} P&L with a ${cardData.stats.winRate}% win rate on Meridian! 🚀\n\nAutomated options trading at meridian.zerogtrading.com`;
+    const text = `Just hit ${cardData.stats.totalProfit >= 0 ? '+' : ''}$${cardData.stats.totalProfit.toFixed(0)} P&L with a ${cardData.stats.winRate}% win rate on ZeroG! 🚀\n\nAutomated options trading at meridian.zerogtrading.com`;
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };

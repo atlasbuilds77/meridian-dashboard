@@ -145,7 +145,7 @@ export function RiskSettingsCard() {
           <div className="space-y-0.5">
             <Label className="text-base font-medium">Auto-Trading Enabled</Label>
             <div className="text-sm text-muted-foreground">
-              Allow Meridian to execute trades on your account
+              Allow ZeroG to execute trades on your account
             </div>
           </div>
           <Switch
@@ -185,7 +185,7 @@ export function RiskSettingsCard() {
 
             <div className="rounded-md bg-secondary/40 p-3 text-xs text-muted-foreground">
               <strong>Example:</strong> With $10,000 account balance and {(settings.size_pct * 100).toFixed(0)}%
-              risk, Meridian will use ${(10000 * settings.size_pct).toFixed(0)} per trade (80% in 0DTE, 20%
+              risk, ZeroG will use ${(10000 * settings.size_pct).toFixed(0)} per trade (80% in 0DTE, 20%
               in 1DTE).
             </div>
           </div>
@@ -239,7 +239,7 @@ export function RiskSettingsCard() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Optional daily loss limit. Meridian should stop trading for the day if this limit is hit.
+            Optional daily loss limit. ZeroG should stop trading for the day if this limit is hit.
           </p>
         </div>
 

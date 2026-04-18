@@ -11,7 +11,7 @@ const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
 const sections: TermsSection[] = [
   {
     title: 'Agreement',
-    paragraphs: [`These Terms of Service ("Terms") constitute a legally binding agreement between you and ${COMPANY_NAME} (operating as "Meridian"). By accessing or using the Services, you agree to be bound by these Terms. If you do not agree, do not use the Services.`],
+    paragraphs: [`These Terms of Service ("Terms") constitute a legally binding agreement between you and ${COMPANY_NAME} (operating as "ZeroG"). By accessing or using the Services, you agree to be bound by these Terms. If you do not agree, do not use the Services.`],
   },
   {
     title: 'Nature of Services',

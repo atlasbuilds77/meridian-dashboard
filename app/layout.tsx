@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Meridian Dashboard',
+  title: "ZeroG Dashboard",
   description: 'Professional trading analytics dashboard',
   manifest: '/manifest.json',
   appleWebApp: {
@@ -45,7 +45,7 @@ function Navigation() {
             <div className="relative h-11 w-11 transition-transform duration-300 group-hover:scale-105">
               <Image
                 src="/meridian-logo.png"
-                alt="Meridian"
+                alt="ZeroG"
                 fill
                 className="object-contain drop-shadow-[0_0_16px_rgba(217,70,239,0.45)]"
               />

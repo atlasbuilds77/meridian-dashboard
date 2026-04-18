@@ -12,7 +12,7 @@ const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
 
 const RISK_TYPES = [
   { id: 'options_trading_risk', label: 'I understand options trading involves substantial risk, including total loss of capital' },
-  { id: 'no_investment_advice', label: `I understand ${COMPANY_NAME} (Meridian) is an automated technology platform, NOT an investment adviser` },
+  { id: 'no_investment_advice', label: `I understand ${COMPANY_NAME} (ZeroG) is an automated technology platform, NOT an investment adviser` },
   { id: 'user_sole_responsibility', label: 'I am solely responsible for all investment decisions and outcomes' },
   { id: 'past_performance_disclaimer', label: 'I understand past performance does not guarantee future results' },
   { id: 'system_downtime_risk', label: 'I accept that system failures, bugs, or API outages may occur' },
@@ -133,7 +133,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-3xl font-bold">Welcome to Meridian</h2>
+              <h2 className="text-3xl font-bold">Welcome to ZeroG</h2>
               <p className="text-sm text-muted-foreground mb-2">
                 Operated by {COMPANY_NAME}
               </p>

@@ -67,7 +67,7 @@ const sections: RiskSection[] = [
   {
     title: 'No Investment Advice',
     paragraphs: [
-      `${COMPANY_NAME} (operating as "Meridian") is a technology platform, not a registered investment adviser, broker-dealer, or financial planner. We do not recommend specific trades, evaluate suitability, or guarantee outcomes. You are solely responsible for your trading decisions.`,
+      `${COMPANY_NAME} (operating as "ZeroG") is a technology platform, not a registered investment adviser, broker-dealer, or financial planner. We do not recommend specific trades, evaluate suitability, or guarantee outcomes. You are solely responsible for your trading decisions.`,
     ],
   },
   {
