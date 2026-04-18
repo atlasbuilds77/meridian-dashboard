@@ -318,24 +318,33 @@ function HeliosSettingsSection() {
           brokerConnected={!!(snapData?.connected && snapData?.heliosAccount)}
         />
 
-        {/* SPY preference toggle */}
+        {/* SPY conversion toggle */}
         {snapData?.connected && snapData?.heliosAccount && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-foreground">Trade as SPY instead of SPX</p>
-                <p className="text-xs text-muted-foreground mt-0.5">SPY options are 1/10 the premium — same signal, lower cost per contract. Best for smaller accounts or brokers without SPX access.</p>
+                <p className="text-sm font-medium text-foreground">Convert SPX signals to SPY</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When Helios fires an SPX signal, automatically trade the equivalent SPY contract instead. Same direction, 1/10 the strike, lower premium per contract.
+                </p>
               </div>
-              <Button
-                size="sm"
-                variant={preferSpy ? 'default' : 'outline'}
+              <button
                 onClick={handleSpyToggle}
                 disabled={spyToggling}
-                className={preferSpy ? 'bg-orange-500 hover:bg-orange-600 text-white ml-4 shrink-0' : 'ml-4 shrink-0'}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  preferSpy ? 'bg-orange-500' : 'bg-zinc-700'
+                } ${spyToggling ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {spyToggling ? 'Saving...' : preferSpy ? 'SPY ✓' : 'SPX (default)'}
-              </Button>
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    preferSpy ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
+            {preferSpy && (
+              <p className="text-xs text-orange-400 mt-2">✓ SPX signals will be converted to SPY automatically</p>
+            )}
           </div>
         )}
 

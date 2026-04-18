@@ -346,9 +346,9 @@ export default function HeliosSetupPage() {
         <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500 flex-shrink-0" /> Disable anytime in Settings</div>
       </div>
 
-      {/* SPX vs SPY preference */}
+      {/* SPX vs SPY conversion preference */}
       <div className="max-w-sm mx-auto w-full">
-        <p className="text-zinc-400 text-xs mb-2 text-left">Which instrument should Helios trade?</p>
+        <p className="text-zinc-400 text-xs mb-2 text-left font-medium">Convert SPX signals to SPY?</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => handleSpyToggle(false)}
@@ -357,8 +357,8 @@ export default function HeliosSetupPage() {
               !preferSpy ? 'border-orange-500 bg-orange-500/10' : 'border-zinc-700 bg-zinc-900 hover:border-zinc-600'
             }`}
           >
-            <p className="text-sm font-bold text-white">SPX</p>
-            <p className="text-[10px] text-zinc-400 mt-0.5">Index options. Higher premium per contract. Webull uses SPXW (identical).</p>
+            <p className="text-sm font-bold text-white">No — trade SPX</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">Trade SPX directly. Higher premium, index-level. Webull users automatically get SPXW (identical contracts).</p>
           </button>
           <button
             onClick={() => handleSpyToggle(true)}
@@ -367,11 +367,11 @@ export default function HeliosSetupPage() {
               preferSpy ? 'border-orange-500 bg-orange-500/10' : 'border-zinc-700 bg-zinc-900 hover:border-zinc-600'
             }`}
           >
-            <p className="text-sm font-bold text-white">SPY</p>
-            <p className="text-[10px] text-zinc-400 mt-0.5">Same signal, 1/10 strike. Lower premium. Works on all brokers including Robinhood-style platforms.</p>
+            <p className="text-sm font-bold text-white">Yes — convert to SPY</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">SPX signals automatically converted to equivalent SPY contracts. Same direction, 1/10 the strike, lower premium.</p>
           </button>
         </div>
-        <p className="text-zinc-600 text-[10px] mt-1.5 text-left">You can change this anytime in Settings.</p>
+        <p className="text-zinc-600 text-[10px] mt-1.5 text-left">You can change this anytime in Settings → Helios Auto-Execute.</p>
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <Button onClick={handleEnable} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white px-8">
