@@ -20,11 +20,13 @@ function HeliosSubscriptionSection({
   onToggle,
   toggling,
   isSingularity,
+  brokerConnected = false,
 }: {
   autoExecuteEnabled: boolean;
   onToggle: () => void;
   toggling: boolean;
   isSingularity: boolean;
+  brokerConnected?: boolean;
 }) {
   const [subscribing, setSubscribing] = useState(false);
   const [subError, setSubError] = useState('');
@@ -79,9 +81,13 @@ function HeliosSubscriptionSection({
           <span className="ml-auto text-xs font-bold text-orange-400">$99/mo</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Helios signals execute directly into your brokerage — no manual trades. 
-          Cancel anytime.
+          Helios signals execute directly into your brokerage — no manual trades. Cancel anytime.
         </p>
+        {!brokerConnected && (
+          <p className="text-xs text-yellow-400/80">
+            ⚠ You&apos;ll also need to <a href="/helios/setup" className="underline hover:text-yellow-300">connect a broker</a> to activate execution.
+          </p>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -283,15 +289,14 @@ function HeliosSettingsSection() {
           </div>
         )}
 
-        {/* Auto-execute — subscription gate */}
-        {snapData?.connected && snapData?.heliosAccount && (
-          <HeliosSubscriptionSection
-            autoExecuteEnabled={snapData?.heliosAutoExecute ?? false}
-            onToggle={handleToggle}
-            toggling={toggling}
-            isSingularity={singularityAccess?.hasAccess ?? false}
-          />
-        )}
+        {/* Auto-execute — subscription gate (always visible) */}
+        <HeliosSubscriptionSection
+          autoExecuteEnabled={snapData?.heliosAutoExecute ?? false}
+          onToggle={handleToggle}
+          toggling={toggling}
+          isSingularity={singularityAccess?.hasAccess ?? false}
+          brokerConnected={!!(snapData?.connected && snapData?.heliosAccount)}
+        />
 
         {/* Not connected yet */}
         {!snapData?.connected && (
