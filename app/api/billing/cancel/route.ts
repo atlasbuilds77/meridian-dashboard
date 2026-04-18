@@ -50,6 +50,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     message: 'Subscription will cancel at end of billing period',
-    cancel_at: new Date((heliosSub as { current_period_end: number }).current_period_end * 1000).toISOString(),
+    cancel_at: new Date(((heliosSub as unknown) as { current_period_end: number }).current_period_end * 1000).toISOString(),
   });
 }
