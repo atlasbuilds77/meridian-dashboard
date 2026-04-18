@@ -175,6 +175,98 @@ async function handleChargeRefunded(event: Stripe.Event, charge: Stripe.Charge):
   });
 }
 
+// ── Helios Auto-Execute Product IDs ──
+const HELIOS_AUTO_EXECUTE_PRODUCT = 'prod_UM8HXulGovpL3S';
+
+async function getUserByStripeCustomer(customerId: string): Promise<{ id: number; email: string } | null> {
+  const result = await pool.query(
+    'SELECT id, email FROM users WHERE stripe_customer_id = $1 LIMIT 1',
+    [customerId]
+  );
+  return result.rows[0] || null;
+}
+
+async function isHeliosAutoExecuteSubscription(subscription: Stripe.Subscription): Promise<boolean> {
+  // Check if any line item is for the Helios Auto-Execute product
+  return subscription.items.data.some(item => {
+    const price = item.price as Stripe.Price & { product: string | Stripe.Product };
+    const productId = typeof price.product === 'string' ? price.product : price.product?.id;
+    return productId === HELIOS_AUTO_EXECUTE_PRODUCT;
+  });
+}
+
+async function setHeliosAutoExecute(userId: number, enabled: boolean, reason: string): Promise<void> {
+  await pool.query(
+    `UPDATE users SET helios_auto_execute_enabled = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+    [enabled, userId]
+  );
+  // Also log it
+  await pool.query(
+    `INSERT INTO auto_execute_audit_log (user_id, action, reason, performed_by, created_at)
+     VALUES ($1, $2, $3, 'stripe_webhook', CURRENT_TIMESTAMP)
+     ON CONFLICT DO NOTHING`,
+    [userId, enabled ? 'enabled' : 'disabled', reason]
+  ).catch(() => {
+    // Audit log table may not exist yet — non-fatal
+  });
+  console.log(`[HeliosAutoExecute] user=${userId} enabled=${enabled} reason=${reason}`);
+}
+
+async function handleSubscriptionActive(
+  event: Stripe.Event,
+  subscription: Stripe.Subscription
+): Promise<void> {
+  if (!await isHeliosAutoExecuteSubscription(subscription)) return;
+
+  const customerId = typeof subscription.customer === 'string'
+    ? subscription.customer
+    : subscription.customer?.id;
+  if (!customerId) return;
+
+  const user = await getUserByStripeCustomer(customerId);
+  if (!user) {
+    console.warn(`[HeliosAutoExecute] No user found for customer ${customerId}`);
+    return;
+  }
+
+  // Only enable if subscription is active or trialing
+  const isActive = ['active', 'trialing'].includes(subscription.status);
+  if (isActive) {
+    await setHeliosAutoExecute(user.id, true, `subscription_${subscription.status}: ${subscription.id}`);
+  }
+}
+
+async function handleSubscriptionCancelled(
+  event: Stripe.Event,
+  subscription: Stripe.Subscription
+): Promise<void> {
+  if (!await isHeliosAutoExecuteSubscription(subscription)) return;
+
+  const customerId = typeof subscription.customer === 'string'
+    ? subscription.customer
+    : subscription.customer?.id;
+  if (!customerId) return;
+
+  const user = await getUserByStripeCustomer(customerId);
+  if (!user) return;
+
+  await setHeliosAutoExecute(user.id, false, `subscription_cancelled: ${subscription.id}`);
+}
+
+async function handleInvoicePaymentFailed(
+  event: Stripe.Event,
+  invoice: Stripe.Invoice
+): Promise<void> {
+  // After 3 failed attempts Stripe cancels the sub — we disable on cancel above.
+  // But log a warning here so we know payment is failing.
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+  if (!customerId) return;
+  const user = await getUserByStripeCustomer(customerId);
+  if (user) {
+    console.warn(`[HeliosAutoExecute] Invoice payment failed for user=${user.id} email=${user.email}`);
+  }
+}
+
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
@@ -217,6 +309,20 @@ export async function POST(request: Request) {
       case 'charge.refunded':
         await handleChargeRefunded(event, event.data.object as Stripe.Charge);
         break;
+
+      // ── Helios Auto-Execute Subscription Events ──
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await handleSubscriptionActive(event, event.data.object as Stripe.Subscription);
+        break;
+      case 'customer.subscription.deleted':
+      case 'customer.subscription.paused':
+        await handleSubscriptionCancelled(event, event.data.object as Stripe.Subscription);
+        break;
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event, event.data.object as Stripe.Invoice);
+        break;
+
       default:
         break;
     }

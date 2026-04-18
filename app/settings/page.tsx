@@ -14,6 +14,101 @@ import { BadgeCheck, CircleAlert, KeyRound, Link2, Lock, ShieldCheck, Zap, Toggl
 import { cn } from '@/lib/utils';
 import { useCsrfToken, fetchWithCsrf } from '@/hooks/use-csrf-token';
 
+// ── Helios Subscription Section ──
+function HeliosSubscriptionSection({
+  autoExecuteEnabled,
+  onToggle,
+  toggling,
+}: {
+  autoExecuteEnabled: boolean;
+  onToggle: () => void;
+  toggling: boolean;
+}) {
+  const [subscribing, setSubscribing] = useState(false);
+  const [subError, setSubError] = useState('');
+
+  const handleSubscribe = async (interval: 'monthly' | 'annual' = 'monthly') => {
+    setSubscribing(true);
+    setSubError('');
+    try {
+      const res = await fetch('/api/billing/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;  // redirect to Stripe Checkout
+      } else {
+        setSubError(data.error || 'Failed to start checkout');
+      }
+    } catch {
+      setSubError('Network error — try again');
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  if (!autoExecuteEnabled) {
+    // Not subscribed — show upgrade card
+    return (
+      <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg space-y-3">
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-orange-400" />
+          <p className="text-sm font-semibold text-foreground">Helios Auto-Execute</p>
+          <span className="ml-auto text-xs font-bold text-orange-400">$99/mo</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Helios signals execute directly into your brokerage — no manual trades. 
+          Cancel anytime.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-white flex-1"
+            onClick={() => handleSubscribe('monthly')}
+            disabled={subscribing}
+          >
+            {subscribing ? 'Redirecting...' : '⚡ Subscribe $99/mo'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleSubscribe('annual')}
+            disabled={subscribing}
+            className="text-xs"
+          >
+            $990/yr
+          </Button>
+        </div>
+        {subError && <p className="text-xs text-red-400">{subError}</p>}
+      </div>
+    );
+  }
+
+  // Subscribed and active — show toggle
+  return (
+    <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+      <div className="flex items-center gap-2">
+        <ToggleRight className="h-4 w-4 text-orange-400" />
+        <div>
+          <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">✓ Active</span></p>
+          <p className="text-xs text-muted-foreground">Helios fires directly into your account</p>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant="default"
+        onClick={onToggle}
+        disabled={toggling}
+        className="bg-orange-500 hover:bg-orange-600 text-white"
+      >
+        {toggling ? 'Updating...' : 'Enabled'}
+      </Button>
+    </div>
+  );
+}
+
 interface Platform {
   id: number;
   platform: string;
@@ -167,26 +262,13 @@ function HeliosSettingsSection() {
           </div>
         )}
 
-        {/* Auto-execute toggle */}
+        {/* Auto-execute — subscription gate */}
         {snapData?.connected && snapData?.heliosAccount && (
-          <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
-            <div className="flex items-center gap-2">
-              <ToggleRight className="h-4 w-4 text-orange-400" />
-              <div>
-                <p className="text-sm font-medium">Auto-Execute</p>
-                <p className="text-xs text-muted-foreground">Automatically place orders when Helios fires</p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant={snapData?.heliosAutoExecute ? 'default' : 'outline'}
-              onClick={handleToggle}
-              disabled={toggling}
-              className={snapData?.heliosAutoExecute ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
-            >
-              {toggling ? 'Updating...' : snapData?.heliosAutoExecute ? 'Enabled' : 'Disabled'}
-            </Button>
-          </div>
+          <HeliosSubscriptionSection
+            autoExecuteEnabled={snapData?.heliosAutoExecute ?? false}
+            onToggle={handleToggle}
+            toggling={toggling}
+          />
         )}
 
         {/* Not connected yet */}
