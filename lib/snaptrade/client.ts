@@ -109,18 +109,26 @@ export type PlaceOrderParams = {
 
 export async function placeOrder(params: PlaceOrderParams) {
   const client = getClient();
-  const response = await client.trading.placeForceOrder({
-    userId: params.userId,
-    userSecret: params.userSecret,
-    account_id: params.accountId,
-    symbol: params.symbol,
-    action: params.action,
-    order_type: (params.orderType || 'Market') as 'Market' | 'Limit' | 'Stop' | 'StopLimit',
-    time_in_force: (params.timeInForce || 'Day') as 'Day' | 'GTC' | 'FOK' | 'IOC',
-    units: params.quantity,
-    ...(params.price != null ? { price: params.price } : {}),
-  });
-  return response.data; // AccountOrderRecord
+  try {
+    const response = await client.trading.placeForceOrder({
+      userId: params.userId,
+      userSecret: params.userSecret,
+      account_id: params.accountId,
+      symbol: params.symbol,
+      action: params.action,
+      order_type: (params.orderType || 'Market') as 'Market' | 'Limit' | 'Stop' | 'StopLimit',
+      time_in_force: (params.timeInForce || 'Day') as 'Day' | 'GTC' | 'FOK' | 'IOC',
+      units: params.quantity,
+      ...(params.price != null ? { price: params.price } : {}),
+    });
+    return response.data; // AccountOrderRecord
+  } catch (err: unknown) {
+    // Log full SnapTrade error body so we can debug
+    const anyErr = err as Record<string, unknown>;
+    const body = anyErr?.responseBody ?? anyErr?.response ?? anyErr?.message ?? String(err);
+    console.error('[SnapTrade] placeForceOrder error:', JSON.stringify(body).slice(0, 500));
+    throw err;
+  }
 }
 
 // ─── Healthcheck ────────────────────────────────────────────────────
