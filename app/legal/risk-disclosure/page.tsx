@@ -8,72 +8,72 @@ const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
 
 const sections: RiskSection[] = [
   {
-    title: 'Options Trading Risks',
+    title: 'Trading Is High-Risk (Options, Futures, and 0DTE)',
+    paragraphs: ['Trading is highly speculative and involves a substantial risk of loss, including the possible loss of all funds in an account. Options trading — especially 0DTE options — can be extremely volatile and may result in rapid and significant losses. Futures trading also involves leverage and may result in losses that exceed initial margin. You are solely responsible for determining whether these strategies are appropriate for you.'],
     bullets: [
-      'Total loss potential: options can expire worthless, resulting in 100% loss of premium paid.',
-      'Complexity: options strategies include strike, expiration, and volatility dynamics.',
-      'Time decay: options may lose value even when underlying price is stable.',
-      'Volatility risk: implied volatility shifts can produce sharp repricing.',
-      'Assignment risk: short options can be assigned before expiration.',
-      '0DTE risk: same-day expiration contracts are extremely volatile.',
-    ],
-  },
-  {
-    title: 'Automated Trading Risks',
-    bullets: [
-      'Technical failures (software bugs, outages, connectivity failures).',
-      'Lack of discretionary human oversight at execution time.',
-      'Configuration mistakes can trigger unintended orders.',
-      'Algorithms may fail under unprecedented market regimes.',
-    ],
-  },
-  {
-    title: 'Past Performance Disclaimer',
-    paragraphs: [
-      'Past performance is not indicative of future results.',
-      'Backtests and hypothetical performance have inherent limitations and may diverge from live execution outcomes.',
-    ],
-  },
-  {
-    title: 'No FDIC Insurance',
-    paragraphs: [
-      'Trading accounts are not protected by FDIC insurance. SIPC protections at your broker do not cover trading losses.',
-    ],
-  },
-  {
-    title: 'Market Volatility and Liquidity',
-    bullets: [
-      'Flash crashes and rapid repricing can exceed expected risk limits.',
-      'Gap risk can bypass stop levels.',
-      'Low-liquidity contracts can widen spreads and increase slippage.',
-    ],
-  },
-  {
-    title: 'Leverage and Margin Risks',
-    bullets: [
-      'Leverage amplifies both gains and losses.',
+      'Options can expire worthless, resulting in 100% loss of premium paid.',
+      '0DTE (zero days to expiration) contracts are extremely volatile with rapid time decay.',
+      'Leverage amplifies both gains and losses beyond the initial investment.',
       'Margin calls may force liquidation at unfavorable prices.',
-      'You may lose more than your initial investment.',
+      'You may lose more than your initial investment in futures trading.',
     ],
   },
   {
-    title: 'System Downtime and Third-Party APIs',
-    bullets: [
-      'Platform or cloud outages can occur during market hours.',
-      'Broker API disruptions may delay or reject orders.',
-      'Third-party policy changes may affect service continuity.',
-    ],
-  },
-  {
-    title: 'No Investment Advice',
+    title: 'No Guarantee of Profit; Past Performance Not Indicative',
     paragraphs: [
-      `${COMPANY_NAME} (operating as "ZeroG") is a technology platform, not a registered investment adviser, broker-dealer, or financial planner. We do not recommend specific trades, evaluate suitability, or guarantee outcomes. You are solely responsible for your trading decisions.`,
+      'There is no guarantee that you will achieve profits or avoid losses by using the Services. Any performance statements, examples, leaderboard placements, or "verified" results are provided for informational purposes only and do not guarantee that you will achieve similar results.',
+      'Past performance is not indicative of future results. Backtests and hypothetical performance have inherent limitations and may diverge materially from live execution outcomes.',
+    ],
+  },
+  {
+    title: 'Automated Trading and System / Execution Risks',
+    paragraphs: ['Automated trading can place trades quickly and at scale. You acknowledge risks including, without limitation:'],
+    bullets: [
+      'Slippage, partial fills, delayed fills, and poor liquidity.',
+      'Market gaps, exchange halts, volatility spikes, and flash conditions.',
+      'Errors caused by external systems outside ZeroG\'s control.',
+      'Outages or degraded performance due to third-party brokerages, prop firms, clearing firms, exchanges, internet connectivity, and API providers.',
+      'Configuration mistakes can trigger unintended orders.',
+    ],
+  },
+  {
+    title: '"Black Box" AI Acknowledgment (Cortex, Nebula, Helios, Meridian Engine)',
+    paragraphs: ['You acknowledge and agree that the Services use complex models, including machine learning and multi-agent systems, that can be difficult or impossible to interpret in a simple, human-readable explanation. You understand that:'],
+    bullets: [
+      'Outputs may be generated based on complex data dependencies and changing market regimes.',
+      'Model behavior may change over time due to updates, data, and market conditions.',
+      'Results may vary materially from one user to another based on latency, broker execution, account constraints, prop firm rules, and configuration.',
+    ],
+  },
+  {
+    title: 'No FDIC / SIPC Coverage',
+    paragraphs: [
+      'ZeroG does not hold or custody your funds. Your brokerage account may have SIPC protection up to applicable limits, but SIPC does not cover trading losses. ZeroG is not a broker-dealer and your use of ZeroG Services is not covered by FDIC insurance.',
+    ],
+  },
+  {
+    title: 'System Downtime and Third-Party API Failures',
+    bullets: [
+      'ZeroG depends on third-party APIs including brokerages, data providers, and cloud services.',
+      'Outages, API rate limits, or failures of these third parties are outside ZeroG\'s control.',
+      'ZeroG is not liable for missed trades or losses due to third-party failures.',
+      'Broker API disruptions may delay or reject orders.',
+    ],
+  },
+  {
+    title: 'Prop Firm Compliance Risk',
+    paragraphs: ['If you use ZeroG Services with a prop firm account (e.g., TopstepX), you are solely responsible for ensuring your trading activity complies with the prop firm\'s rules, including drawdown limits, position limits, prohibited instruments, and daily loss limits. ZeroG is not responsible for account violations, resets, or terminations caused by algorithmic trading on prop firm accounts.'],
+  },
+  {
+    title: 'Not Financial Advice',
+    paragraphs: [
+      `${COMPANY_NAME} (operating as "ZeroG") is a technology provider. The Services are provided for informational and/or automation purposes and do not constitute personalized investment advice, financial planning, legal advice, or tax advice. You are solely responsible for your trading and investment decisions.`,
     ],
   },
   {
     title: 'Acknowledgment',
     paragraphs: [
-      `By using the Services provided by ${COMPANY_NAME}, you acknowledge that you have read, understood, and agree to accept all risks described in this disclosure. You confirm that you are trading with capital you can afford to lose and that you have consulted with appropriate financial, legal, and tax professionals as needed.`,
+      `BY USING THE SERVICES PROVIDED BY ${COMPANY_NAME}, YOU ACKNOWLEDGE THAT YOU HAVE READ AND UNDERSTOOD THIS RISK DISCLOSURE, YOU UNDERSTAND THE RISKS INVOLVED IN ALGORITHMIC AND OPTIONS TRADING, YOU ARE TRADING WITH CAPITAL YOU CAN AFFORD TO LOSE, AND YOU ARE NOT RELYING ON ZEROG FOR INVESTMENT ADVICE.`,
     ],
   },
 ];

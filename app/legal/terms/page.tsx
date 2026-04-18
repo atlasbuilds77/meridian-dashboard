@@ -5,70 +5,123 @@ type TermsSection = {
   callout?: string;
 };
 
-const LAST_UPDATED = 'March 10, 2026';
+const LAST_UPDATED = 'April 17, 2026';
 const COMPANY_NAME = 'Orion Solana LLC dba ZeroG Trading';
 
 const sections: TermsSection[] = [
   {
-    title: 'Agreement',
-    paragraphs: [`These Terms of Service ("Terms") constitute a legally binding agreement between you and ${COMPANY_NAME} (operating as "ZeroG"). By accessing or using the Services, you agree to be bound by these Terms. If you do not agree, do not use the Services.`],
+    title: 'Agreement to Terms',
+    paragraphs: [`This Unified Master Services Agreement ("Agreement") is entered into by and between ${COMPANY_NAME} ("ZeroG," "Company," "we," "us," or "our") and you ("User," "you," or "your"). By accessing the ZeroG platform, purchasing or using any subscription or lifetime plan, integrating any brokerage or prop firm account, connecting via API, receiving or using any signals, or otherwise using the Services, you agree to be bound by this Agreement. If you do not agree, do not access or use the Services.`],
   },
   {
-    title: 'Nature of Services',
-    paragraphs: ['Meridian is a technology platform that:'],
+    title: 'Services Description',
+    paragraphs: ['ZeroG provides proprietary automated trading infrastructure and related tools. The Services include, without limitation:'],
     bullets: [
-      'Connects to supported third-party brokerage accounts via API.',
-      'Transmits trade instructions to your broker.',
-      'Provides analytics, alerts, and tracking tools.',
-      'Does not provide investment, legal, tax, or financial advice.',
-      'Does not custody or hold customer funds.',
+      'Nebula: A fully automated Nasdaq (NQ) futures algorithm optimized for prop firm funded accounts (e.g., TopstepX).',
+      'Helios: Real-time options signals for SPX, QQQ, and IWM, encompassing day trades and swing setups.',
+      'Meridian Engine: A fully automated 0DTE QQQ scalping engine integrated via Tradier for high-velocity execution.',
+      'Cortex Capital: An AI-driven portfolio management system utilizing eleven (11) autonomous agents analyzing macro data, sector momentum, and earnings catalysts.',
+      'The Services may involve automated trade execution through third-party brokerages and/or API aggregators, signal delivery and trade alerts, and dashboard and account tools.',
+      'ZeroG does NOT provide investment advice, financial planning, or brokerage services, and does NOT custody or hold customer funds at any time.',
     ],
   },
   {
-    title: 'User Responsibility',
-    paragraphs: ['You are solely responsible for:'],
-    bullets: [
-      'All investment decisions and outcomes.',
-      'Determining whether the Services are appropriate for you.',
-      'Compliance with all applicable laws and regulations.',
-      'Maintaining the security of your account and API credentials.',
-    ],
+    title: 'Eligibility',
+    paragraphs: ['You represent and warrant that: (a) you are at least 18 years old and have legal capacity to enter into this Agreement; (b) you are not prohibited from using the Services under applicable law; and (c) you will use the Services only in compliance with this Agreement, all applicable laws, and the terms of any brokerage, exchange, data provider, or prop firm you use.'],
   },
   {
-    title: 'Fees and Billing',
-    paragraphs: [
-      'Monthly Membership: $1,999/month. Flat rate, no performance fee.',
-      'Lifetime Membership: One-time purchase price + 10% of net weekly profits (Monday through Friday). Performance fee charged Friday after market close only on profitable weeks.',
+    title: 'Billing & Refund Policy',
+    paragraphs: ['Access to ZeroG Services is subject to the plan you purchase:'],
+    bullets: [
+      'Monthly Membership: $1,999/month. Flat rate. No performance fee.',
+      'Lifetime Membership: One-time purchase price + 10% of net weekly profits (Monday–Friday). Performance fee charged Friday after market close only on profitable weeks.',
       'Singularity Membership: Auto-execute included at no additional charge.',
+      'By purchasing, you authorize ZeroG and its payment processors to charge your payment method for all applicable fees, taxes, and charges.',
     ],
-    callout: 'All sales are final. No refunds.',
+    callout: 'ALL SALES ARE FINAL. NO REFUNDS. Due to the proprietary nature of the Services, including immediate access to protected intellectual property, signals, and automation logic, ZeroG does not offer refunds, chargebacks, or credits under any circumstances, including dissatisfaction, performance, account resets, prop firm rule violations, broker/API outages, or inability to use the Services.',
   },
   {
-    title: 'Arbitration Agreement',
+    title: 'Arbitration; Class Action Waiver; Venue',
     paragraphs: [
-      'Any dispute arising from these Terms shall be resolved through binding arbitration administered by the American Arbitration Association (AAA).',
-      'You may opt out of arbitration within 30 days by emailing support@meridian.com.',
+      'Any dispute, claim, or controversy arising out of or relating to this Agreement or the Services shall be resolved exclusively by binding arbitration administered by the American Arbitration Association (AAA) under its applicable rules. The arbitration shall take place in Los Angeles County, California.',
     ],
-    bullets: ['Waiver of class action participation.', 'Waiver of jury trial.', 'Waiver of court litigation (except small claims).'],
-  },
-  {
-    title: 'Limitation of Liability',
-    paragraphs: [
-      `The maximum aggregate liability of ${COMPANY_NAME} to you for any claims arising from or related to these Terms or your use of the Services is limited to the lesser of $1,200 or the total fees you have paid to us.`,
-      `${COMPANY_NAME} shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to lost profits, trading losses, data loss, platform outages, missed trading opportunities, or third-party broker failures.`,
+    bullets: [
+      'Class Action Waiver: You agree to bring claims only in your individual capacity and not as a plaintiff or class member in any purported class, collective, consolidated, or representative proceeding.',
+      'Jury Trial Waiver: You expressly waive your right to a jury trial.',
+      'Court Litigation Waiver: You expressly waive your right to litigate in court (except small claims court).',
+      'Governing Law: This Agreement is governed by the laws of the State of California, without regard to conflict-of-laws principles.',
     ],
   },
   {
-    title: 'Disclaimers',
+    title: 'Limitation of Liability & Indemnification',
     paragraphs: [
-      'Services are provided “AS IS” without warranties of any kind, including merchantability, fitness for a particular purpose, accuracy, reliability, uninterrupted availability, or error-free operation.',
+      `To the maximum extent permitted by law, ZeroG's total cumulative liability for any and all claims arising out of or relating to this Agreement or the Services will not exceed the lesser of (i) $1,200 or (ii) the total fees paid by you in the twelve (12) months preceding the event giving rise to the claim.`,
+      `ZeroG will not be liable for any indirect, incidental, consequential, special, exemplary, or punitive damages, or any loss of profits, revenues, data, goodwill, or business opportunities arising out of or related to the Services.`,
+      'User agrees to indemnify and hold Orion Solana LLC harmless from any claims, losses, or damages arising from User\'s breach of this Agreement, violation of prop firm rules, or trading losses incurred through the platform.',
     ],
   },
   {
-    title: 'Governing Law',
+    title: 'Proprietary Rights & No Reverse Engineering',
+    paragraphs: ['All technology, including source code, trade secrets, signal logic, weighting parameters, AI agent architectures, AI model weights, and the "Nebula," "Helios," "Meridian Engine," and "Cortex Capital" marks, are the exclusive property of Orion Solana LLC. You expressly agree that you will NOT:'],
+    bullets: [
+      'Decompile, disassemble, or reverse engineer any software, model, infrastructure, or services provided by ZeroG.',
+      'Attempt to derive the source code, underlying ideas, algorithms, model weights, prompts, system instructions, agent logic, or trading logic of the Services.',
+      'Use automated tools, bots, scripts, scraping, logging, or systematic observation to probe, fingerprint, benchmark, or otherwise analyze the API or software to reconstruct trading logic.',
+      'Surrogate Model Ban: Extract, aggregate, record, republish, or otherwise use outputs (including signals, alerts, execution timing, order parameters, or position data) to train, fine-tune, evaluate, build, or inform any competing AI system, strategy, algorithm, or surrogate model.',
+      'Utilize ZeroG outputs to develop a derivative product or competing service. This restriction survives termination for five (5) years.',
+    ],
+    callout: 'Violation constitutes Trade Secret Theft and entitles ZeroG to immediate injunctive relief and all available legal remedies.',
+  },
+  {
+    title: 'Non-Disclosure & Confidentiality (NDA)',
+    paragraphs: ['"Confidential Information" means any non-public information related to ZeroG or the Services, including: signals and trade outputs; entry/exit logic and strategy parameters; model/agent logic, weights, prompts, and architecture; platform infrastructure; product roadmaps and business methods; and AES-256 encrypted credentials and integration details.'],
+    bullets: [
+      'You will keep all Confidential Information strictly confidential.',
+      'You will use it only as necessary to access and use the Services.',
+      'You will not disclose it to any third party without ZeroG\'s prior written consent.',
+      'Confidentiality obligations survive termination. Trade secret obligations continue in perpetuity.',
+      'Breach of this NDA entitles ZeroG to seek injunctive relief without requirement to post bond.',
+    ],
+  },
+  {
+    title: 'No Resale / Redistribution',
+    paragraphs: ['Your license to access ZeroG is strictly personal, non-transferable, and non-sublicensable. You must not:'],
+    bullets: [
+      'Share, sell, sublicense, rent, lease, transfer, or distribute access to the Services.',
+      'Share credentials, API keys, or account access (including via seat sharing).',
+      'Operate mirror sites, copy endpoints, rebroadcasting tools, or any relay designed to redistribute signals.',
+      'Forward or republish signals or outputs to any third-party community or channel, including Discord, Telegram, Slack, or similar platforms.',
+      'Manage funds on behalf of other people or operate a copy-trading service using ZeroG signals without explicit written consent.',
+    ],
+    callout: 'Violation is a material breach and may constitute misappropriation of trade secrets. ZeroG reserves the right to seek disgorgement of profits derived from unauthorized use.',
+  },
+  {
+    title: 'Security & API Integration',
+    paragraphs: ['ZeroG utilizes industry-standard AES-256 encryption for user credentials. Our infrastructure is designed so that even Company developers cannot access your encrypted brokerage keys.'],
+    bullets: [
+      'You are solely responsible for maintaining the security of your ZeroG dashboard and brokerage API keys.',
+      'Sharing credentials or bypassing security measures is considered theft of trade secrets.',
+      'While our infrastructure supports concurrent scaling (e.g., up to 5 TopstepX accounts), you are responsible for ensuring compliance with the specific terms of any third-party prop firm or brokerage.',
+    ],
+  },
+  {
+    title: 'Privacy & Data',
+    paragraphs: ['ZeroG may collect and process account, usage, and transactional information to provide the Services. Third-party providers may include SnapTrade (brokerage connectivity), Stripe (payments), brokerages, prop firms, and other infrastructure providers you connect.'],
+    bullets: [
+      'You agree that ZeroG may use aggregated and/or anonymized data derived from your usage to maintain, improve, and develop the Services.',
+      'ZeroG will not sell your brokerage credentials and does not require developers to access unencrypted credentials.',
+      'Upon termination, ZeroG will retain your data for five (5) years for legal and compliance purposes, then delete or anonymize it.',
+    ],
+  },
+  {
+    title: 'Termination',
+    paragraphs: ['ZeroG reserves the right to terminate User access immediately, without notice or refund, if we suspect a violation of the Anti-Reverse Engineering, No-Resale, or Confidentiality provisions of this Agreement. Upon termination, all licenses granted to the User expire immediately.'],
+  },
+  {
+    title: 'Disclaimers & Acknowledgment',
     paragraphs: [
-      'These Terms are governed by the laws of the State of California, United States, without regard to conflict of law principles.',
-      'Any disputes not subject to arbitration shall be resolved exclusively in the state or federal courts located in Los Angeles County, California.',
+      'The Services are provided "AS IS" and "AS AVAILABLE" without warranties of any kind, express or implied.',
+      'BY ACCESSING THE SERVICES, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS AGREEMENT, UNDERSTAND THE RISKS OF ALGORITHMIC TRADING, AND AGREE TO BE BOUND BY ALL TERMS, SPECIFICALLY THE PROHIBITIONS AGAINST REVERSE ENGINEERING AND THE NO-REFUND POLICY.',
     ],
   },
   {
@@ -99,9 +152,9 @@ export default function TermsPage() {
         <article className="nebula-panel rounded-2xl p-6 sm:p-10">
           <header className="border-b border-primary/20 pb-8">
             <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Essential Terms of Service</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Meridian Terms</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">ZeroG Unified Master Services Agreement</h2>
             <p className="mt-3 text-sm text-muted-foreground">
-              Read these terms carefully before enabling brokerage connections, automation, or billing in Meridian.
+              Read this Agreement carefully before enabling brokerage connections, automation, or billing on ZeroG.
             </p>
           </header>
 
