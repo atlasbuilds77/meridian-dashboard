@@ -33,7 +33,7 @@ const sections: TermsSection[] = [
     title: 'Billing & Refund Policy',
     paragraphs: ['Access to ZeroG Services is subject to the plan you purchase:'],
     bullets: [
-      'Monthly Membership: $1,999/month. Flat rate. No performance fee.',
+      'Monthly Membership: $1,999/month (flat rate). No performance fee unless otherwise stated at checkout or in a written order form.',
       'Lifetime Membership: One-time purchase price + 10% of net weekly profits (Monday–Friday). Performance fee charged Friday after market close only on profitable weeks.',
       'Singularity Membership: Auto-execute included at no additional charge.',
       'By purchasing, you authorize ZeroG and its payment processors to charge your payment method for all applicable fees, taxes, and charges.',
@@ -110,7 +110,8 @@ const sections: TermsSection[] = [
     bullets: [
       'You agree that ZeroG may use aggregated and/or anonymized data derived from your usage to maintain, improve, and develop the Services.',
       'ZeroG will not sell your brokerage credentials and does not require developers to access unencrypted credentials.',
-      'Upon termination, ZeroG will retain your data for five (5) years for legal and compliance purposes, then delete or anonymize it.',
+      'Upon termination, ZeroG will archive or delete personal identifying data within five (5) years, as required for compliance, tax/audit needs, fraud prevention, and dispute resolution.',
+      'You grant ZeroG a perpetual, irrevocable, worldwide, royalty-free license to retain and use any anonymized and aggregated trade data and derived analytics from your use of the Services for the purpose of maintaining, improving, and refining ZeroG\'s AI models, algorithms, and trading infrastructure.',
     ],
   },
   {
