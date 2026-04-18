@@ -329,8 +329,8 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
                 <TableHead>Symbol</TableHead>
                 <TableHead>Dir</TableHead>
                 <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Entry</TableHead>
-                <TableHead className="text-right">Exit</TableHead>
+                <TableHead className="text-right">Strike</TableHead>
+                <TableHead className="text-right">Expiry</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Closed</TableHead>
@@ -373,10 +373,10 @@ function WeeklyHistory({ trades, loading }: { trades: HeliosWeeklyTrade[]; loadi
                       {trade.quantity ?? '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {fmtCurrency(trade.entry_price)}
+                      {trade.strike ? `$${Number(trade.strike).toLocaleString()}` : '—'}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {trade.exit_price != null ? fmtCurrency(trade.exit_price) : '—'}
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {trade.expiry ? new Date(trade.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                     </TableCell>
                     <TableCell className={`text-right font-semibold ${isProfit ? 'text-profit' : 'text-loss'}`}>
                       {isProfit ? '+' : ''}{fmtCurrency(pnl)}
