@@ -212,7 +212,7 @@ function OracleFeed({ trades, loading }: { trades: OracleResponse['recentTrades'
                       <Badge variant="outline" className="text-[9px] border-yellow-500/30 text-yellow-500">OPEN</Badge>
                     ) : (
                       <span className={`font-mono text-xs font-semibold ${isWin ? 'text-profit' : 'text-loss'}`}>
-                        {isWin ? '+' : ''}${t.profit?.toFixed(2)}
+                        {isWin ? '+' : ''}${(t.profit ?? 0).toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -458,9 +458,9 @@ function ZeusFeed({ trades, loading }: { trades: ZeusResponse['recentTrades']; l
                   </p>
                   <p className="text-xs text-muted-foreground">{new Date(t.timestamp).toLocaleString()}</p>
                 </div>
-                {t.pnl_usd !== null && (
+                {t.pnl_usd != null && (
                   <span className={cn('text-xs font-semibold shrink-0', t.pnl_usd >= 0 ? 'text-profit' : 'text-loss')}>
-                    {t.pnl_usd >= 0 ? '+' : ''}${t.pnl_usd.toFixed(2)}
+                    {t.pnl_usd >= 0 ? '+' : ''}${Number(t.pnl_usd).toFixed(2)}
                   </span>
                 )}
                 {t.paper && <Badge variant="outline" className="text-xs shrink-0">paper</Badge>}
@@ -500,7 +500,7 @@ function KronosFeed({ fills, loading }: { fills: KronosResponse['recentFills']; 
                   <p className="text-xs text-muted-foreground">{new Date(f.timestamp).toLocaleString()}</p>
                 </div>
                 {f.grid_profit !== null && (
-                  <span className="text-xs font-semibold text-profit shrink-0">+${f.grid_profit.toFixed(4)}</span>
+                  <span className="text-xs font-semibold text-profit shrink-0">+${Number(f.grid_profit).toFixed(4)}</span>
                 )}
                 {f.paper && <Badge variant="outline" className="text-xs shrink-0">paper</Badge>}
               </div>
