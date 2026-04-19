@@ -245,7 +245,8 @@ export async function POST(request: NextRequest) {
          u.helios_snaptrade_account as snaptrade_selected_account,
          COALESCE(u.brokerage_name, 'unknown') as brokerage_name,
          COALESCE(u.prefer_spy, false) as prefer_spy,
-         COALESCE(uts.size_pct, 1.0) as size_pct
+         COALESCE(uts.size_pct, 1.0) as size_pct,
+         COALESCE(uts.contracts_per_trade, 1) as contracts_per_trade
        FROM users u
        LEFT JOIN user_trading_settings uts ON uts.user_id = u.id
        WHERE COALESCE(u.helios_auto_execute_enabled, u.auto_execute_enabled) = true
@@ -322,9 +323,10 @@ export async function POST(request: NextRequest) {
         console.log(`[HeliosWebhook] ${user.username} (${user.brokerage_name}): ${body.ticker} → ${tradingSymbol}`);
         const effectiveTicker = transformed.ticker;
 
-        // Calculate user-specific quantity (apply size_pct)
-        const baseQty = body.qty || 1;
-        const userQty = Math.max(1, Math.round(baseQty * parseFloat(user.size_pct)));
+        // Use user's contracts_per_trade setting (overrides signal qty)
+        // size_pct scales it further if set below 1.0
+        const contractsPerTrade = parseInt(user.contracts_per_trade) || 1;
+        const userQty = Math.max(1, Math.round(contractsPerTrade * parseFloat(user.size_pct)));
 
         const orderResult = await placeOrder({
           userId: user.snaptrade_user_id,

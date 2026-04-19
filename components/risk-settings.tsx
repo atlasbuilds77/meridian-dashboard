@@ -16,6 +16,8 @@ interface RiskSettings {
   size_pct: number;
   max_position_size: number | null;
   max_daily_loss: number | null;
+  contracts_per_trade: number;
+  max_risk_pct: number;
 }
 
 export function RiskSettingsCard() {
@@ -24,6 +26,8 @@ export function RiskSettingsCard() {
     size_pct: 1.0,
     max_position_size: null,
     max_daily_loss: null,
+    contracts_per_trade: 1,
+    max_risk_pct: 2.0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,6 +49,8 @@ export function RiskSettingsCard() {
           size_pct: data.size_pct,
           max_position_size: data.max_position_size,
           max_daily_loss: data.max_daily_loss ?? null,
+          contracts_per_trade: data.contracts_per_trade ?? 1,
+          max_risk_pct: data.max_risk_pct ?? 2.0,
         });
       }
     } catch (err) {
@@ -256,6 +262,56 @@ export function RiskSettingsCard() {
             </div>
           </div>
         )}
+
+        {/* Contracts Per Trade */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-medium">Contracts Per Trade</Label>
+            <span className="font-mono text-base font-semibold text-orange-400">{settings.contracts_per_trade} contract{settings.contracts_per_trade !== 1 ? 's' : ''}</span>
+          </div>
+          <Slider
+            value={[settings.contracts_per_trade]}
+            onValueChange={([value]) =>
+              setSettings((prev) => ({ ...prev, contracts_per_trade: value }))
+            }
+            min={1}
+            max={20}
+            step={1}
+            className="py-4"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>1 contract (conservative)</span>
+            <span>20 contracts (aggressive)</span>
+          </div>
+          <div className="rounded-md bg-secondary/40 p-3 text-xs text-muted-foreground">
+            Every Helios signal will place <strong>{settings.contracts_per_trade} contract{settings.contracts_per_trade !== 1 ? 's' : ''}</strong> per trade. Start with 1 until you&apos;ve verified execution is working correctly.
+          </div>
+        </div>
+
+        {/* Max Risk Per Trade */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-medium">Max Risk Per Trade</Label>
+            <span className="font-mono text-base font-semibold text-orange-400">{settings.max_risk_pct.toFixed(1)}% of account</span>
+          </div>
+          <Slider
+            value={[settings.max_risk_pct]}
+            onValueChange={([value]) =>
+              setSettings((prev) => ({ ...prev, max_risk_pct: value }))
+            }
+            min={0.5}
+            max={10}
+            step={0.5}
+            className="py-4"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>0.5% (very conservative)</span>
+            <span>10% (aggressive)</span>
+          </div>
+          <div className="rounded-md bg-secondary/40 p-3 text-xs text-muted-foreground">
+            <strong>Example:</strong> $10,000 account at {settings.max_risk_pct.toFixed(1)}% = <strong>${(10000 * settings.max_risk_pct / 100).toFixed(0)} max loss per trade.</strong> This is informational — use stop-losses in your broker to enforce it.
+          </div>
+        </div>
 
         {/* Error/Success Messages */}
         {error && (

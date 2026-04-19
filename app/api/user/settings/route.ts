@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     // Get user trading settings
     const result = await client.query(
-      `SELECT trading_enabled, size_pct, max_position_size, max_daily_loss, updated_at
+      `SELECT trading_enabled, size_pct, max_position_size, max_daily_loss, contracts_per_trade, max_risk_pct, updated_at
        FROM user_trading_settings
        WHERE user_id = $1`,
       [userId]
@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
       size_pct: parseFloat(settings.size_pct),
       max_position_size: settings.max_position_size ? parseFloat(settings.max_position_size) : null,
       max_daily_loss: settings.max_daily_loss ? parseFloat(settings.max_daily_loss) : null,
+      contracts_per_trade: settings.contracts_per_trade ? parseInt(settings.contracts_per_trade) : 1,
+      max_risk_pct: settings.max_risk_pct ? parseFloat(settings.max_risk_pct) : 2.0,
       updated_at: settings.updated_at,
     });
   } catch (error: unknown) {
@@ -67,7 +69,7 @@ export async function PATCH(req: NextRequest) {
 
   const bodyText = await req.text();
   const body = JSON.parse(bodyText);
-  const { trading_enabled, size_pct, max_position_size, max_daily_loss } = body;
+  const { trading_enabled, size_pct, max_position_size, max_daily_loss, contracts_per_trade, max_risk_pct } = body;
 
   // Request deduplication - Prevent rapid-fire duplicate setting changes
   const isDuplicate = await isDuplicateRequest(
@@ -145,6 +147,22 @@ export async function PATCH(req: NextRequest) {
     if (max_daily_loss !== undefined) {
       updates.push(`max_daily_loss = $${paramIndex++}`);
       values.push(max_daily_loss);
+    }
+
+    if (contracts_per_trade !== undefined) {
+      if (typeof contracts_per_trade !== 'number' || contracts_per_trade < 1 || contracts_per_trade > 100 || !Number.isInteger(contracts_per_trade)) {
+        return NextResponse.json({ error: 'contracts_per_trade must be an integer between 1 and 100' }, { status: 400 });
+      }
+      updates.push(`contracts_per_trade = $${paramIndex++}`);
+      values.push(contracts_per_trade);
+    }
+
+    if (max_risk_pct !== undefined) {
+      if (typeof max_risk_pct !== 'number' || max_risk_pct < 0.1 || max_risk_pct > 100) {
+        return NextResponse.json({ error: 'max_risk_pct must be between 0.1 and 100' }, { status: 400 });
+      }
+      updates.push(`max_risk_pct = $${paramIndex++}`);
+      values.push(max_risk_pct);
     }
 
     updates.push(`updated_at = NOW()`);
