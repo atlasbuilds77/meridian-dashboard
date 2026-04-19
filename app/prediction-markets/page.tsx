@@ -115,7 +115,9 @@ function Header({
 }) {
   const oraclePnL = oracle?.stats?.total_profit || 0;
   const nwPnL = nightwatch?.stats?.totalPnL || 0;
-  const zeusPnL = zeus?.stats?.total_pnl || 0;
+  const zeusClosedPnL = zeus?.stats?.total_pnl || 0;
+  const zeusOpenPnL = zeus?.stats?.open_pnl || 0;
+  const zeusPnL = zeus?.stats ? zeusClosedPnL + zeusOpenPnL : 0;
   const kronosPnL = kronos?.stats?.total_pnl || 0;
   const totalPnL = oraclePnL + nwPnL + zeusPnL + kronosPnL;
   const isPos = totalPnL >= 0;
@@ -141,7 +143,7 @@ function Header({
           <h1 className={`font-mono text-3xl font-bold tabular-nums sm:text-4xl ${isPos ? 'text-profit' : 'text-loss'}`}>
             {isPos ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
           </h1>
-          <span className="text-xs text-muted-foreground">combined P&L (all bots, paper)</span>
+          <span className="text-xs text-muted-foreground">combined P&L (all bots, paper, includes Zeus live open P&L)</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -154,7 +156,7 @@ function Header({
             <p className={`stat-box-value ${oraclePnL >= 0 ? 'text-profit' : 'text-loss'}`}>{oraclePnL >= 0 ? '+' : ''}${oraclePnL.toFixed(2)}</p>
           </div>
           <div className="stat-box rounded">
-            <p className="stat-box-label">Zeus P&L</p>
+            <p className="stat-box-label">Zeus Live P&L</p>
             <p className={`stat-box-value ${zeusPnL >= 0 ? 'text-profit' : 'text-loss'}`}>{zeusPnL >= 0 ? '+' : ''}${zeusPnL.toFixed(2)}</p>
           </div>
           <div className="stat-box rounded">
@@ -397,6 +399,8 @@ interface ZeusResponse {
     losses: number;
     open: number;
     total_pnl: number;
+    open_pnl?: number;
+    total_with_open_pnl?: number;
     win_rate: number;
   } | null;
   recentTrades: Array<{
