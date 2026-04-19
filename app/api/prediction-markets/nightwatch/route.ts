@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/api/require-auth';
 import { enforceRateLimit, rateLimitExceededResponse } from '@/lib/security/rate-limit';
-import { Pool } from 'pg';
+import pool from '@/lib/db/pool';
+
 
 export const dynamic = 'force-dynamic';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 export async function GET(request: Request) {
   const limiterResult = await enforceRateLimit({ request, name: 'prediction_markets_nightwatch', limit: 60, windowMs: 60_000 });
