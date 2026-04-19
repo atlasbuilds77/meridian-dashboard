@@ -105,28 +105,35 @@ function StatusDot({ status }: { status: string }) {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-function Header({ oracle, nightwatch }: { oracle: OracleResponse | null; nightwatch: NightWatchResponse | null }) {
+function Header({
+  oracle, nightwatch, zeus, kronos
+}: {
+  oracle: OracleResponse | null;
+  nightwatch: NightWatchResponse | null;
+  zeus: ZeusResponse | null;
+  kronos: KronosResponse | null;
+}) {
   const oraclePnL = oracle?.stats?.total_profit || 0;
   const nwPnL = nightwatch?.stats?.totalPnL || 0;
-  const totalPnL = oraclePnL + nwPnL;
+  const zeusPnL = zeus?.stats?.total_pnl || 0;
+  const kronosPnL = kronos?.stats?.total_pnl || 0;
+  const totalPnL = oraclePnL + nwPnL + zeusPnL + kronosPnL;
   const isPos = totalPnL >= 0;
   const oracleOnline = oracle?.status === 'online';
   const nwOnline = nightwatch?.status === 'online';
+  const zeusOnline = zeus?.status === 'online';
+  const kronosOnline = kronos?.status === 'online';
 
   return (
     <section className="hero-section rounded border border-border">
       <div className="relative z-10">
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-          <p className="data-label">Prediction Markets</p>
-          <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-            <span className="flex items-center gap-1.5">
-              <StatusDot status={oracle?.status || 'unknown'} />
-              Oracle {oracleOnline ? 'Live' : 'Offline'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <StatusDot status={nightwatch?.status || 'unknown'} />
-              NightWatch {nwOnline ? 'Live' : 'Offline'}
-            </span>
+          <p className="data-label">All Bots</p>
+          <div className="flex flex-wrap items-center gap-3 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="flex items-center gap-1.5"><StatusDot status={oracle?.status || 'unknown'} />Oracle</span>
+            <span className="flex items-center gap-1.5"><StatusDot status={nightwatch?.status || 'unknown'} />NightWatch</span>
+            <span className="flex items-center gap-1.5"><StatusDot status={zeus?.status || 'unknown'} />Zeus</span>
+            <span className="flex items-center gap-1.5"><StatusDot status={kronos?.status || 'unknown'} />Kronos</span>
           </div>
         </div>
 
@@ -134,25 +141,25 @@ function Header({ oracle, nightwatch }: { oracle: OracleResponse | null; nightwa
           <h1 className={`font-mono text-3xl font-bold tabular-nums sm:text-4xl ${isPos ? 'text-profit' : 'text-loss'}`}>
             {isPos ? '+' : ''}${Math.abs(totalPnL).toFixed(2)}
           </h1>
-          <span className="text-xs text-muted-foreground">combined P&L (paper)</span>
+          <span className="text-xs text-muted-foreground">combined P&L (all bots, paper)</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="stat-box rounded">
-            <p className="stat-box-label">Oracle P&L</p>
-            <p className={`stat-box-value ${oraclePnL >= 0 ? 'text-profit' : 'text-loss'}`}>${oraclePnL.toFixed(2)}</p>
-          </div>
-          <div className="stat-box rounded">
-            <p className="stat-box-label">Oracle WR</p>
-            <p className={`stat-box-value ${(oracle?.stats?.win_rate || 0) >= 50 ? 'text-profit' : 'text-loss'}`}>{oracle?.stats?.win_rate || 0}%</p>
-          </div>
-          <div className="stat-box rounded">
             <p className="stat-box-label">NightWatch P&L</p>
-            <p className={`stat-box-value ${nwPnL >= 0 ? 'text-profit' : 'text-loss'}`}>${nwPnL.toFixed(2)}</p>
+            <p className={`stat-box-value ${nwPnL >= 0 ? 'text-profit' : 'text-loss'}`}>{nwPnL >= 0 ? '+' : ''}${nwPnL.toFixed(2)}</p>
           </div>
           <div className="stat-box rounded">
-            <p className="stat-box-label">NightWatch WR</p>
-            <p className={`stat-box-value ${(nightwatch?.stats?.winRate || 0) >= 50 ? 'text-profit' : 'text-loss'}`}>{nightwatch?.stats?.winRate || 0}%</p>
+            <p className="stat-box-label">Oracle P&L</p>
+            <p className={`stat-box-value ${oraclePnL >= 0 ? 'text-profit' : 'text-loss'}`}>{oraclePnL >= 0 ? '+' : ''}${oraclePnL.toFixed(2)}</p>
+          </div>
+          <div className="stat-box rounded">
+            <p className="stat-box-label">Zeus P&L</p>
+            <p className={`stat-box-value ${zeusPnL >= 0 ? 'text-profit' : 'text-loss'}`}>{zeusPnL >= 0 ? '+' : ''}${zeusPnL.toFixed(2)}</p>
+          </div>
+          <div className="stat-box rounded">
+            <p className="stat-box-label">Kronos P&L</p>
+            <p className={`stat-box-value ${kronosPnL >= 0 ? 'text-profit' : 'text-loss'}`}>{kronosPnL >= 0 ? '+' : ''}${kronosPnL.toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -529,7 +536,7 @@ export default function PredictionMarketsPage() {
         </header>
 
         {/* Combined P&L */}
-        <Header oracle={oracle} nightwatch={nightwatch} />
+        <Header oracle={oracle} nightwatch={nightwatch} zeus={zeus} kronos={kronos} />
 
         {/* ── Kalshi Bots ── */}
         <div>
