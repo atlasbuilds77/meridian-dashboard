@@ -453,10 +453,10 @@ function ZeusFeed({ trades, loading }: { trades: ZeusResponse['recentTrades']; l
           <div className="divide-y divide-border">
             {trades.map(t => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
-                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                <div className={cn('flex h-6 min-w-[42px] px-2 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
                   t.outcome === 'win' ? 'bg-profit/15 text-profit' : t.outcome === 'loss' ? 'bg-loss/15 text-loss' : 'bg-muted text-muted-foreground'
                 )}>
-                  {t.outcome === 'open' ? '⏳' : t.outcome === 'win' ? '✓' : '✗'}
+                  {t.outcome === 'open' ? 'OPEN' : t.outcome === 'win' ? 'WIN' : 'LOSS'}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium">
@@ -499,7 +499,7 @@ function KronosFeed({ fills, loading }: { fills: KronosResponse['recentFills']; 
           <div className="divide-y divide-border">
             {fills.map(f => (
               <div key={f.id} className="flex items-center gap-3 px-4 py-2.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-profit/15 text-xs font-bold text-profit">↕</div>
+                <div className="flex h-6 min-w-[30px] px-1 shrink-0 items-center justify-center rounded bg-profit/15 text-[10px] font-semibold text-profit">GF</div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium">
                     {f.asset} grid fill: ${f.buy_level?.toLocaleString()} → ${f.sell_level?.toLocaleString()}

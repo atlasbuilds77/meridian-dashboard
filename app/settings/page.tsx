@@ -61,7 +61,7 @@ function HeliosSubscriptionSection({
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-orange-400" />
             <div>
-              <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">✓ Singularity</span></p>
+            <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">Singularity Access</span></p>
               <p className="text-xs text-muted-foreground">Included with your Singularity membership</p>
             </div>
             <Button size="sm" variant="outline" onClick={onToggle} disabled={toggling} className="ml-auto">
@@ -84,9 +84,9 @@ function HeliosSubscriptionSection({
           Helios signals execute directly into your brokerage — no manual trades. Cancel anytime.
         </p>
         {!brokerConnected && (
-          <p className="text-xs text-yellow-400/80">
-            ⚠ You&apos;ll also need to <a href="/helios/setup" className="underline hover:text-yellow-300">connect a broker</a> to activate execution.
-          </p>
+            <p className="text-xs text-yellow-400/80">
+              You&apos;ll also need to <a href="/helios/setup" className="underline hover:text-yellow-300">connect a broker</a> to activate execution.
+            </p>
         )}
         <div className="flex gap-2">
           <Button
@@ -95,7 +95,7 @@ function HeliosSubscriptionSection({
             onClick={() => handleSubscribe('monthly')}
             disabled={subscribing}
           >
-            {subscribing ? 'Redirecting...' : '⚡ Subscribe $99/mo'}
+            {subscribing ? 'Redirecting...' : 'Subscribe ($99/mo)'}
           </Button>
           <Button
             size="sm"
@@ -118,7 +118,7 @@ function HeliosSubscriptionSection({
       <div className="flex items-center gap-2">
         <ToggleRight className="h-4 w-4 text-orange-400" />
         <div>
-          <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">✓ Active</span></p>
+          <p className="text-sm font-medium">Auto-Execute <span className="text-xs text-orange-400 ml-1">Active</span></p>
           <p className="text-xs text-muted-foreground">Helios fires directly into your account</p>
         </div>
       </div>
@@ -343,7 +343,7 @@ function HeliosSettingsSection() {
               </button>
             </div>
             {preferSpy && (
-              <p className="text-xs text-orange-400 mt-2">✓ SPX signals will be converted to SPY automatically</p>
+              <p className="text-xs text-orange-400 mt-2">SPX signals will be converted to SPY automatically.</p>
             )}
           </div>
         )}
@@ -353,7 +353,7 @@ function HeliosSettingsSection() {
           <div className="text-center py-4">
             <p className="text-sm text-muted-foreground mb-3">No broker connected yet.</p>
             <Button asChild size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
-              <a href="/helios/setup">⚡ Connect Broker</a>
+              <a href="/helios/setup">Connect Broker Account</a>
             </Button>
           </div>
         )}

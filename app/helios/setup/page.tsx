@@ -375,7 +375,7 @@ export default function HeliosSetupPage() {
       </div>
       {error && <p className="text-red-400 text-sm">{error}</p>}
       <Button onClick={handleEnable} disabled={loading} className="bg-orange-500 hover:bg-orange-600 text-white px-8">
-        {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enabling…</> : '⚡ Enable Helios Auto-Execute'}
+        {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enabling…</> : 'Enable Helios Auto-Execute'}
       </Button>
     </div>
   );
@@ -389,7 +389,7 @@ export default function HeliosSetupPage() {
         </div>
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">You&apos;re Live! ⚡</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">Setup Complete</h2>
         <p className="text-zinc-400 text-sm max-w-sm mx-auto">
           Helios will now auto-execute trades in your connected account. You&apos;ll see all activity in your dashboard.
         </p>
