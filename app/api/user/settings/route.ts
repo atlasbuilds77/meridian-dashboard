@@ -150,16 +150,16 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (contracts_per_trade !== undefined) {
-      if (typeof contracts_per_trade !== 'number' || contracts_per_trade < 1 || contracts_per_trade > 100 || !Number.isInteger(contracts_per_trade)) {
-        return NextResponse.json({ error: 'contracts_per_trade must be an integer between 1 and 100' }, { status: 400 });
+      if (typeof contracts_per_trade !== 'number' || contracts_per_trade < 1 || contracts_per_trade > 9999 || !Number.isInteger(contracts_per_trade)) {
+        return NextResponse.json({ error: 'contracts_per_trade must be an integer between 1 and 9999' }, { status: 400 });
       }
       updates.push(`contracts_per_trade = $${paramIndex++}`);
       values.push(contracts_per_trade);
     }
 
     if (max_risk_pct !== undefined) {
-      if (typeof max_risk_pct !== 'number' || max_risk_pct < 0.1 || max_risk_pct > 100) {
-        return NextResponse.json({ error: 'max_risk_pct must be between 0.1 and 100' }, { status: 400 });
+      if (typeof max_risk_pct !== 'number' || max_risk_pct < 1 || max_risk_pct > 100) {
+        return NextResponse.json({ error: 'max_risk_pct must be between 1 and 100' }, { status: 400 });
       }
       updates.push(`max_risk_pct = $${paramIndex++}`);
       values.push(max_risk_pct);

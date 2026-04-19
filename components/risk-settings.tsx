@@ -143,7 +143,7 @@ export function RiskSettingsCard() {
           <Shield className="size-5 text-primary" />
           Risk Management
         </CardTitle>
-        <CardDescription>Control how much of your account is risked per trade</CardDescription>
+        <CardDescription>Control how Helios executes trades on your connected broker account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Trading Enabled Toggle */}
@@ -151,7 +151,7 @@ export function RiskSettingsCard() {
           <div className="space-y-0.5">
             <Label className="text-base font-medium">Auto-Trading Enabled</Label>
             <div className="text-sm text-muted-foreground">
-              Allow ZeroG to execute trades on your account
+              When enabled, Helios signals will automatically place orders in your connected broker account
             </div>
           </div>
           <Switch
@@ -265,51 +265,52 @@ export function RiskSettingsCard() {
 
         {/* Contracts Per Trade */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-base font-medium">Contracts Per Trade</Label>
-            <span className="font-mono text-base font-semibold text-orange-400">{settings.contracts_per_trade} contract{settings.contracts_per_trade !== 1 ? 's' : ''}</span>
-          </div>
-          <Slider
-            value={[settings.contracts_per_trade]}
-            onValueChange={([value]) =>
-              setSettings((prev) => ({ ...prev, contracts_per_trade: value }))
-            }
-            min={1}
-            max={20}
-            step={1}
-            className="py-4"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>1 contract (conservative)</span>
-            <span>20 contracts (aggressive)</span>
+          <Label className="text-base font-medium">Contracts Per Trade</Label>
+          <p className="text-xs text-muted-foreground">How many option contracts to buy on each Helios signal. Helios always fires 1 — this overrides it for your account.</p>
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={1}
+              max={9999}
+              step={1}
+              value={settings.contracts_per_trade}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                if (!isNaN(v) && v >= 1) setSettings((prev) => ({ ...prev, contracts_per_trade: v }));
+              }}
+              className="w-28 font-mono text-lg"
+            />
+            <span className="text-sm text-muted-foreground">contract{settings.contracts_per_trade !== 1 ? 's' : ''} per signal</span>
           </div>
           <div className="rounded-md bg-secondary/40 p-3 text-xs text-muted-foreground">
-            Every Helios signal will place <strong>{settings.contracts_per_trade} contract{settings.contracts_per_trade !== 1 ? 's' : ''}</strong> per trade. Start with 1 until you&apos;ve verified execution is working correctly.
+            💡 Start with <strong>1</strong> to verify execution works, then scale up. Full port = however many contracts your account can afford.
           </div>
         </div>
 
-        {/* Max Risk Per Trade */}
+        {/* Max Allocation Per Trade */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-base font-medium">Max Risk Per Trade</Label>
-            <span className="font-mono text-base font-semibold text-orange-400">{settings.max_risk_pct.toFixed(1)}% of account</span>
+            <Label className="text-base font-medium">Max Allocation Per Trade</Label>
+            <span className="font-mono text-base font-semibold text-orange-400">{settings.max_risk_pct.toFixed(0)}% of account</span>
           </div>
+          <p className="text-xs text-muted-foreground">How much of your broker account balance to allocate per trade. 100% = full port every signal.</p>
           <Slider
             value={[settings.max_risk_pct]}
             onValueChange={([value]) =>
               setSettings((prev) => ({ ...prev, max_risk_pct: value }))
             }
-            min={0.5}
-            max={10}
-            step={0.5}
+            min={1}
+            max={100}
+            step={1}
             className="py-4"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>0.5% (very conservative)</span>
-            <span>10% (aggressive)</span>
+            <span>1% (tiny)</span>
+            <span>25% (moderate)</span>
+            <span>100% (full port)</span>
           </div>
           <div className="rounded-md bg-secondary/40 p-3 text-xs text-muted-foreground">
-            <strong>Example:</strong> $10,000 account at {settings.max_risk_pct.toFixed(1)}% = <strong>${(10000 * settings.max_risk_pct / 100).toFixed(0)} max loss per trade.</strong> This is informational — use stop-losses in your broker to enforce it.
+            <strong>Informational only</strong> — your broker enforces the actual limit. Use this as a personal reminder of your target allocation per trade.
           </div>
         </div>
 
