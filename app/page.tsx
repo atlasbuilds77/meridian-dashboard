@@ -55,7 +55,7 @@ function useHeliosAccess() {
   return useLiveData<HeliosAccessResponse>('/api/helios/access', 300_000);
 }
 function usePredictionAccess() {
-  return useLiveData<HeliosAccessResponse>('/api/prediction-markets/access', 300_000);
+  return useLiveData<HeliosAccessResponse>('/api/singularity/access', 300_000);
 }
 function useHeliosWeekly() {
   return useLiveData<HeliosWeeklyData>('/api/helios/weekly', 60_000);
@@ -747,16 +747,21 @@ function SystemAccessCard() {
   );
 }
 
-function BillingPlaceholderCard() {
+function BillingCard() {
   return (
     <Card>
       <CardHeader className="pb-3 border-b border-border">
         <CardTitle className="text-sm">Billing</CardTitle>
       </CardHeader>
       <CardContent className="p-4">
-        <p className="text-sm text-muted-foreground">
-          Billing is intentionally in planning mode. Current focus is system access, role gating, and unified activity.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Manage your plan, active subscriptions, and payment methods.
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/billing">Open Billing</Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -841,7 +846,7 @@ export default function Dashboard() {
         <StatsGrid />
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SystemAccessCard />
-          <BillingPlaceholderCard />
+          <BillingCard />
         </section>
         {/* Show Helios card on dashboard if user has access */}
         <HeliosConditionalCard />
