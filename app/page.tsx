@@ -17,6 +17,7 @@ import {
   RefreshCw,
   AlertCircle,
   Share2,
+  Lock,
 } from 'lucide-react';
 import { useTradeData, useMarketData, useAccountData, useSystemStatus, useLiveData } from '@/hooks/use-live-data';
 import { formatCurrency, formatPercent, formatDate } from '@/lib/utils-client';
@@ -52,6 +53,9 @@ interface HeliosWeeklyData {
 
 function useHeliosAccess() {
   return useLiveData<HeliosAccessResponse>('/api/helios/access', 300_000);
+}
+function usePredictionAccess() {
+  return useLiveData<HeliosAccessResponse>('/api/prediction-markets/access', 300_000);
 }
 function useHeliosWeekly() {
   return useLiveData<HeliosWeeklyData>('/api/helios/weekly', 60_000);
@@ -469,6 +473,7 @@ function StatsGrid() {
 function UnifiedActivityHub() {
   const { data: meridian, loading: meridianLoading } = useTradeData();
   const { data: heliosAccess, loading: heliosAccessLoading } = useHeliosAccess();
+  const { data: predictionAccess, loading: predictionAccessLoading } = usePredictionAccess();
   const { data: heliosWeekly, loading: heliosLoading } = useHeliosWeekly();
 
   const { data: oracle, loading: oracleLoading } = useLiveData<OracleFeedResponse>('/api/prediction-markets/oracle', 30_000);
@@ -513,74 +518,74 @@ function UnifiedActivityHub() {
       });
     }
 
-    (oracle?.recentTrades ?? []).forEach((trade, index) => {
-      if (!trade.timestamp) return;
-      merged.push({
-        key: `oracle-${trade.id ?? index}-${trade.timestamp}`,
-        system: 'Oracle',
-        symbol: trade.asset || 'Market',
-        direction: (trade.direction || 'UNKNOWN').toUpperCase(),
-        status: (trade.outcome || 'open').toUpperCase(),
-        pnl: parseNumber(trade.profit),
-        timestamp: trade.timestamp,
+    if (predictionAccess?.hasAccess) {
+      (oracle?.recentTrades ?? []).forEach((trade, index) => {
+        if (!trade.timestamp) return;
+        merged.push({
+          key: `oracle-${trade.id ?? index}-${trade.timestamp}`,
+          system: 'Oracle',
+          symbol: trade.asset || 'Market',
+          direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+          status: (trade.outcome || 'open').toUpperCase(),
+          pnl: parseNumber(trade.profit),
+          timestamp: trade.timestamp,
+        });
       });
-    });
 
-    (nightwatch?.recentTrades ?? []).forEach((trade, index) => {
-      const timestamp = trade.timestamp || trade.resolved_at;
-      if (!timestamp) return;
-      const label = (trade.question || 'Prediction Market Trade').slice(0, 56);
+      (nightwatch?.recentTrades ?? []).forEach((trade, index) => {
+        const timestamp = trade.timestamp || trade.resolved_at;
+        if (!timestamp) return;
+        const label = (trade.question || 'Prediction Market Trade').slice(0, 56);
 
-      merged.push({
-        key: `nightwatch-${index}-${timestamp}`,
-        system: 'NightWatch',
-        symbol: label,
-        direction: (trade.direction || 'POSITION').toUpperCase(),
-        status: (trade.outcome || 'open').toUpperCase(),
-        pnl: parseNumber(trade.pnl),
-        timestamp,
+        merged.push({
+          key: `nightwatch-${index}-${timestamp}`,
+          system: 'NightWatch',
+          symbol: label,
+          direction: (trade.direction || 'POSITION').toUpperCase(),
+          status: (trade.outcome || 'open').toUpperCase(),
+          pnl: parseNumber(trade.pnl),
+          timestamp,
+        });
       });
-    });
 
-    (zeus?.recentTrades ?? []).forEach((trade, index) => {
-      if (!trade.timestamp) return;
-      merged.push({
-        key: `zeus-${trade.id ?? index}-${trade.timestamp}`,
-        system: 'Zeus',
-        symbol: trade.asset || 'BTC',
-        direction: (trade.direction || 'UNKNOWN').toUpperCase(),
-        status: (trade.outcome || 'open').toUpperCase(),
-        pnl: parseNumber(trade.pnl_usd),
-        timestamp: trade.timestamp,
+      (zeus?.recentTrades ?? []).forEach((trade, index) => {
+        if (!trade.timestamp) return;
+        merged.push({
+          key: `zeus-${trade.id ?? index}-${trade.timestamp}`,
+          system: 'Zeus',
+          symbol: trade.asset || 'BTC',
+          direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+          status: (trade.outcome || 'open').toUpperCase(),
+          pnl: parseNumber(trade.pnl_usd),
+          timestamp: trade.timestamp,
+        });
       });
-    });
 
-    (kronos?.recentFills ?? []).forEach((fill, index) => {
-      if (!fill.timestamp) return;
-      merged.push({
-        key: `kronos-${fill.id ?? index}-${fill.timestamp}`,
-        system: 'Kronos',
-        symbol: `${fill.asset || 'BTC'} GRID`,
-        direction: 'GRID',
-        status: 'FILLED',
-        pnl: parseNumber(fill.grid_profit),
-        timestamp: fill.timestamp,
+      (kronos?.recentFills ?? []).forEach((fill, index) => {
+        if (!fill.timestamp) return;
+        merged.push({
+          key: `kronos-${fill.id ?? index}-${fill.timestamp}`,
+          system: 'Kronos',
+          symbol: `${fill.asset || 'BTC'} GRID`,
+          direction: 'GRID',
+          status: 'FILLED',
+          pnl: parseNumber(fill.grid_profit),
+          timestamp: fill.timestamp,
+        });
       });
-    });
+    }
 
     return merged
       .sort((a, b) => toTimestamp(b.timestamp) - toTimestamp(a.timestamp))
       .slice(0, 24);
-  }, [meridian, heliosAccess?.hasAccess, heliosWeekly, oracle, nightwatch, zeus, kronos]);
+  }, [meridian, heliosAccess?.hasAccess, heliosWeekly, predictionAccess?.hasAccess, oracle, nightwatch, zeus, kronos]);
 
   const loading =
     meridianLoading ||
     heliosAccessLoading ||
+    predictionAccessLoading ||
     (heliosAccess?.hasAccess ? heliosLoading : false) ||
-    oracleLoading ||
-    nightwatchLoading ||
-    zeusLoading ||
-    kronosLoading;
+    (predictionAccess?.hasAccess ? oracleLoading || nightwatchLoading || zeusLoading || kronosLoading : false);
 
   if (loading && items.length === 0) {
     return (
@@ -607,8 +612,12 @@ function UnifiedActivityHub() {
           </div>
           <div className="flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide">
             <Link href="/trades" className="text-primary hover:text-primary/80">Meridian</Link>
-            <Link href="/helios" className="text-orange-400 hover:text-orange-300">Helios</Link>
-            <Link href="/prediction-markets" className="text-primary hover:text-primary/80">Prediction Bots</Link>
+            {heliosAccess?.hasAccess && (
+              <Link href="/helios" className="text-orange-400 hover:text-orange-300">Helios</Link>
+            )}
+            {predictionAccess?.hasAccess && (
+              <Link href="/prediction-markets" className="text-primary hover:text-primary/80">Prediction Bots</Link>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -663,6 +672,94 @@ function HeliosConditionalCard() {
   const { data: access, loading } = useHeliosAccess();
   if (loading || !access?.hasAccess) return null;
   return <HeliosDashboardCard />;
+}
+
+function SystemAccessCard() {
+  const { data: heliosAccess, loading: heliosLoading } = useHeliosAccess();
+  const { data: predictionAccess, loading: predictionLoading } = usePredictionAccess();
+
+  if (heliosLoading || predictionLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-3 border-b border-border">
+          <div className="animate-pulse h-5 w-32 bg-muted/30 rounded" />
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse h-8 bg-muted/20 rounded" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const systems = [
+    { name: 'Meridian', status: 'Active', href: '/trades', gated: false },
+    { name: 'Helios', status: heliosAccess?.hasAccess ? 'Active' : 'Locked', href: '/helios', gated: true },
+    { name: 'Prediction Bots', status: predictionAccess?.hasAccess ? 'Active' : 'Locked', href: '/prediction-markets', gated: true },
+    { name: 'Nebula', status: 'Planned', href: '#', gated: true },
+  ] as const;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="text-sm">System Access</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border">
+          {systems.map((system) => {
+            const isActive = system.status === 'Active';
+            const isPlanned = system.status === 'Planned';
+
+            return (
+              <div key={system.name} className="flex items-center justify-between px-4 py-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">{system.name}</span>
+                  {system.gated && !isActive && !isPlanned && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      isActive
+                        ? 'border-profit/30 text-profit'
+                        : isPlanned
+                        ? 'border-muted text-muted-foreground'
+                        : 'border-yellow-500/30 text-yellow-500'
+                    }
+                  >
+                    {system.status}
+                  </Badge>
+                  {system.href !== '#' && (
+                    <Link href={system.href} className="text-primary hover:text-primary/80">
+                      Open
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BillingPlaceholderCard() {
+  return (
+    <Card>
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="text-sm">Billing</CardTitle>
+      </CardHeader>
+      <CardContent className="p-4">
+        <p className="text-sm text-muted-foreground">
+          Billing is intentionally in planning mode. Current focus is system access, role gating, and unified activity.
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Dashboard() {
@@ -742,6 +839,10 @@ export default function Dashboard() {
         <TodayPnLCard />
         <PortfolioHeader />
         <StatsGrid />
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <SystemAccessCard />
+          <BillingPlaceholderCard />
+        </section>
         {/* Show Helios card on dashboard if user has access */}
         <HeliosConditionalCard />
         <UnifiedActivityHub />
