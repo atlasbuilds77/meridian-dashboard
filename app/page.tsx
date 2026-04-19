@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -155,9 +155,62 @@ type DashboardTrade = {
   direction?: string;
   status?: string;
   created_at?: string;
+  entry_date?: string;
   entry_price?: number | string | null;
   pnl?: number | string | null;
   profit_loss?: number | string | null;
+};
+
+type OracleFeedResponse = {
+  recentTrades?: Array<{
+    id?: number | string;
+    timestamp?: string;
+    asset?: string;
+    direction?: string;
+    outcome?: string;
+    profit?: number | null;
+  }>;
+};
+
+type NightWatchFeedResponse = {
+  recentTrades?: Array<{
+    question?: string;
+    direction?: string;
+    outcome?: string;
+    pnl?: number | null;
+    timestamp?: string;
+    resolved_at?: string;
+  }>;
+};
+
+type ZeusFeedResponse = {
+  recentTrades?: Array<{
+    id?: number | string;
+    timestamp?: string;
+    asset?: string;
+    direction?: string;
+    outcome?: string;
+    pnl_usd?: number | null;
+  }>;
+};
+
+type KronosFeedResponse = {
+  recentFills?: Array<{
+    id?: number | string;
+    timestamp?: string;
+    asset?: string;
+    grid_profit?: number | null;
+  }>;
+};
+
+type UnifiedActivityItem = {
+  key: string;
+  system: 'Meridian' | 'Helios' | 'Oracle' | 'NightWatch' | 'Zeus' | 'Kronos';
+  symbol: string;
+  direction: string;
+  status: string;
+  pnl: number | null;
+  timestamp: string;
 };
 
 function parseNumber(value: number | string | null | undefined): number | null {
@@ -170,6 +223,12 @@ function parseNumber(value: number | string | null | undefined): number | null {
 
 function isBullishDirection(direction: string): boolean {
   return ['LONG', 'CALL', 'BUY', 'BULL'].includes(direction.toUpperCase());
+}
+
+function toTimestamp(value?: string): number {
+  if (!value) return 0;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 function LiveIndicator({ lastUpdate }: { lastUpdate: Date | null }) {
@@ -407,17 +466,130 @@ function StatsGrid() {
   );
 }
 
-function RecentActivity() {
-  const { data: trades, loading, error } = useTradeData();
+function UnifiedActivityHub() {
+  const { data: meridian, loading: meridianLoading } = useTradeData();
+  const { data: heliosAccess, loading: heliosAccessLoading } = useHeliosAccess();
+  const { data: heliosWeekly, loading: heliosLoading } = useHeliosWeekly();
 
-  if (loading) {
+  const { data: oracle, loading: oracleLoading } = useLiveData<OracleFeedResponse>('/api/prediction-markets/oracle', 30_000);
+  const { data: nightwatch, loading: nightwatchLoading } = useLiveData<NightWatchFeedResponse>('/api/prediction-markets/nightwatch', 30_000);
+  const { data: zeus, loading: zeusLoading } = useLiveData<ZeusFeedResponse>('/api/prediction-markets/zeus', 30_000);
+  const { data: kronos, loading: kronosLoading } = useLiveData<KronosFeedResponse>('/api/prediction-markets/kronos', 30_000);
+
+  const items = useMemo(() => {
+    const merged: UnifiedActivityItem[] = [];
+
+    const meridianTrades = (meridian?.trades ?? []) as DashboardTrade[];
+    meridianTrades.forEach((trade, index) => {
+      const timestamp = trade.created_at || trade.entry_date;
+      if (!timestamp) return;
+
+      merged.push({
+        key: `meridian-${index}-${timestamp}`,
+        system: 'Meridian',
+        symbol: trade.symbol || 'N/A',
+        direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+        status: (trade.status || 'open').toUpperCase(),
+        pnl: parseNumber(trade.pnl) ?? parseNumber(trade.profit_loss),
+        timestamp,
+      });
+    });
+
+    if (heliosAccess?.hasAccess) {
+      const heliosTrades = heliosWeekly?.trades ?? heliosWeekly?.weekly_trades ?? [];
+      heliosTrades.forEach((trade, index) => {
+        const timestamp = trade.opened_at;
+        if (!timestamp) return;
+
+        merged.push({
+          key: `helios-${index}-${timestamp}`,
+          system: 'Helios',
+          symbol: trade.symbol || 'N/A',
+          direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+          status: (trade.status || 'open').toUpperCase(),
+          pnl: parseNumber(trade.pnl),
+          timestamp,
+        });
+      });
+    }
+
+    (oracle?.recentTrades ?? []).forEach((trade, index) => {
+      if (!trade.timestamp) return;
+      merged.push({
+        key: `oracle-${trade.id ?? index}-${trade.timestamp}`,
+        system: 'Oracle',
+        symbol: trade.asset || 'Market',
+        direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+        status: (trade.outcome || 'open').toUpperCase(),
+        pnl: parseNumber(trade.profit),
+        timestamp: trade.timestamp,
+      });
+    });
+
+    (nightwatch?.recentTrades ?? []).forEach((trade, index) => {
+      const timestamp = trade.timestamp || trade.resolved_at;
+      if (!timestamp) return;
+      const label = (trade.question || 'Prediction Market Trade').slice(0, 56);
+
+      merged.push({
+        key: `nightwatch-${index}-${timestamp}`,
+        system: 'NightWatch',
+        symbol: label,
+        direction: (trade.direction || 'POSITION').toUpperCase(),
+        status: (trade.outcome || 'open').toUpperCase(),
+        pnl: parseNumber(trade.pnl),
+        timestamp,
+      });
+    });
+
+    (zeus?.recentTrades ?? []).forEach((trade, index) => {
+      if (!trade.timestamp) return;
+      merged.push({
+        key: `zeus-${trade.id ?? index}-${trade.timestamp}`,
+        system: 'Zeus',
+        symbol: trade.asset || 'BTC',
+        direction: (trade.direction || 'UNKNOWN').toUpperCase(),
+        status: (trade.outcome || 'open').toUpperCase(),
+        pnl: parseNumber(trade.pnl_usd),
+        timestamp: trade.timestamp,
+      });
+    });
+
+    (kronos?.recentFills ?? []).forEach((fill, index) => {
+      if (!fill.timestamp) return;
+      merged.push({
+        key: `kronos-${fill.id ?? index}-${fill.timestamp}`,
+        system: 'Kronos',
+        symbol: `${fill.asset || 'BTC'} GRID`,
+        direction: 'GRID',
+        status: 'FILLED',
+        pnl: parseNumber(fill.grid_profit),
+        timestamp: fill.timestamp,
+      });
+    });
+
+    return merged
+      .sort((a, b) => toTimestamp(b.timestamp) - toTimestamp(a.timestamp))
+      .slice(0, 24);
+  }, [meridian, heliosAccess?.hasAccess, heliosWeekly, oracle, nightwatch, zeus, kronos]);
+
+  const loading =
+    meridianLoading ||
+    heliosAccessLoading ||
+    (heliosAccess?.hasAccess ? heliosLoading : false) ||
+    oracleLoading ||
+    nightwatchLoading ||
+    zeusLoading ||
+    kronosLoading;
+
+  if (loading && items.length === 0) {
     return (
       <Card className="col-span-full border-primary/30">
         <CardHeader className="border-b border-primary/20 pb-4">
-          <div className="animate-pulse h-6 w-32 bg-muted/30 rounded" />
+          <div className="animate-pulse h-6 w-44 bg-muted/30 rounded" />
         </CardHeader>
         <CardContent className="p-0">
-          {[1, 2, 3, 4, 5].map((item) => (
+          {[1, 2, 3, 4, 5, 6].map((item) => (
             <TableRowSkeleton key={item} />
           ))}
         </CardContent>
@@ -425,72 +597,62 @@ function RecentActivity() {
     );
   }
 
-  if (error || !trades) {
-    return <ErrorCard message="Failed to load recent trades" />;
-  }
-
-  const recentTrades = (trades.trades as DashboardTrade[]).slice(0, 10);
-
   return (
     <Card className="col-span-full">
       <CardHeader className="border-b border-border pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle>Recent Activity</CardTitle>
-          <Link href="/trades" className="text-[10px] font-medium uppercase tracking-wide text-primary hover:text-primary/80">
-            View all →
-          </Link>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle>Trades & Systems Activity</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Unified feed across Meridian, Helios, and prediction systems.</p>
+          </div>
+          <div className="flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide">
+            <Link href="/trades" className="text-primary hover:text-primary/80">Meridian</Link>
+            <Link href="/helios" className="text-orange-400 hover:text-orange-300">Helios</Link>
+            <Link href="/prediction-markets" className="text-primary hover:text-primary/80">Prediction Bots</Link>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="divide-y divide-border">
-          {recentTrades.map((trade, index) => {
-            const direction = (trade.direction || 'UNKNOWN').toUpperCase();
-            const bullish = isBullishDirection(direction);
-            const pnlValue = parseNumber(trade.pnl) ?? parseNumber(trade.profit_loss);
-            const isWin = pnlValue !== null && pnlValue >= 0;
-            const entryPrice = parseNumber(trade.entry_price);
+        {items.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">No trade activity available yet.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {items.map((item) => {
+              const bullish = isBullishDirection(item.direction);
+              const hasPnl = item.pnl !== null;
+              const pnlPositive = (item.pnl ?? 0) >= 0;
 
-            return (
-              <div
-                key={`${trade.symbol || 'trade'}-${index}`}
-                className="flex flex-col gap-2 px-4 py-2.5 hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-7 w-7 items-center justify-center rounded ${bullish ? 'bg-profit/10' : 'bg-loss/10'}`}>
-                    {bullish ? <TrendingUp className="h-3.5 w-3.5 text-profit" /> : <TrendingDown className="h-3.5 w-3.5 text-loss" />}
+              return (
+                <div key={item.key} className="flex flex-col gap-2 px-4 py-2.5 hover:bg-secondary/40 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded ${bullish ? 'bg-profit/10' : 'bg-loss/10'}`}>
+                      {bullish ? <TrendingUp className="h-3.5 w-3.5 text-profit" /> : <TrendingDown className="h-3.5 w-3.5 text-loss" />}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">{item.system}</Badge>
+                        <span className="truncate font-mono text-sm font-semibold text-foreground">{item.symbol}</span>
+                        <Badge variant="outline" className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}>
+                          {item.direction}
+                        </Badge>
+                      </div>
+                      <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {formatDate(item.timestamp)} · {item.status}
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-semibold text-foreground">{trade.symbol || 'N/A'}</span>
-                      <Badge variant="outline" className={bullish ? 'border-profit/30 text-profit' : 'border-loss/30 text-loss'}>
-                        {direction}
-                      </Badge>
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                      {trade.created_at ? formatDate(trade.created_at) : '—'}
-                      {entryPrice !== null ? ` · $${entryPrice.toFixed(2)}` : ''}
+                  <div className="text-left sm:text-right">
+                    <div className={`font-mono text-sm font-semibold tabular-nums ${hasPnl ? (pnlPositive ? 'text-profit' : 'text-loss') : 'text-muted-foreground'}`}>
+                      {hasPnl ? `${pnlPositive ? '+' : ''}${formatCurrency(item.pnl ?? 0)}` : '—'}
                     </div>
                   </div>
                 </div>
-
-                <div className="text-left sm:text-right">
-                  <div className={`font-mono text-sm font-semibold tabular-nums ${isWin ? 'text-profit' : 'text-loss'}`}>
-                    {pnlValue !== null ? (
-                      <>
-                        {pnlValue >= 0 ? '+' : ''}
-                        {formatCurrency(pnlValue)}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{trade.status || '—'}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -582,7 +744,7 @@ export default function Dashboard() {
         <StatsGrid />
         {/* Show Helios card on dashboard if user has access */}
         <HeliosConditionalCard />
-        <RecentActivity />
+        <UnifiedActivityHub />
 
         {/* Share Card Modal */}
         <ShareCardModal
